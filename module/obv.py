@@ -224,7 +224,7 @@ def _build_state_v13(
 
     归一化范围：
       v_long_norm      = clip(speed / v_max,      0,   2)
-      yaw_rate_norm    = clip(gyro_z / 4.0,      -2,   2)
+      yaw_rate_norm    = clip(gyro_y / 4.0,      -2,   2)   ← Unity Y-up: yaw=gyro[1]
       accel_x_norm     = clip(accel_x / 9.8,     -2,   2)   ← 纵向加减速
       prev_steer       ∈ [-1, 1]   ← 上一已执行低层 steer（safety 约束后）
       prev_throttle    ∈ [-1, 1]   ← 上一已执行低层 throttle（adapter 输出）
@@ -240,10 +240,13 @@ def _build_state_v13(
     v = float(info.get("speed", 0.0) or 0.0)
     gyro  = info.get("gyro",  (0.0, 0.0, 0.0))
     accel = info.get("accel", (0.0, 0.0, 0.0))
+    # DonkeySim uses Unity coords (Y-up): yaw rotation = gyro[1] (gyro_y).
+    # Previously used gyro[2] (gyro_z) which is near-zero in sim.
+    # On physical car, the sensor adapter should map -rp2040/gyro_z → gyro[1].
     try:
-        gz = float(gyro[2])
+        gy = float(gyro[1])
     except Exception:
-        gz = 0.0
+        gy = 0.0
     try:
         ax = float(accel[0])
     except Exception:
@@ -279,7 +282,7 @@ def _build_state_v13(
 
     return np.array([
         float(np.clip(v   / v_max, 0.0,  2.0)),       # v_long_norm
-        float(np.clip(gz  / 4.0,  -2.0,  2.0)),       # yaw_rate_norm
+        float(np.clip(gy  / 4.0,  -2.0,  2.0)),       # yaw_rate_norm
         float(np.clip(ax  / 9.8,  -2.0,  2.0)),       # accel_x_norm
         float(np.clip(prev_steer,    -1.0,  1.0)),     # prev_steer_exec
         float(np.clip(prev_throttle, -1.0,  1.0)),     # prev_throttle_exec

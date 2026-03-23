@@ -1,24 +1,37 @@
+# Python cache / tooling
 __pycache__/
 *.py[cod]
-*.so
+.pytest_cache/
+.mypy_cache/
+.cache/
+
+# Editor / OS noise
+.vscode/
+.idea/
 .DS_Store
+*.swp
+*.swo
 
+# Local-only overrides
+myconfig.local.py
 .env
-.venv/
-venv/
-env/
 
-data/
-track/
-models/
+# Runtime outputs
 logs/
+unitylog.txt
+*.log
 backups/
 evaluation_results/
 
-*.log
+# Donkey data / models
+data/
+models/
+track/
+*.zip
 *.pth
 *.pt
 *.ckpt
 *.onnx
 *.npy
 *.npz
+*.so
