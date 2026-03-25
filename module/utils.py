@@ -253,3 +253,32 @@ def _wrap_pi(x: float) -> float:
 
 def _clip_float(x: float, lo: float, hi: float) -> float:
     return float(np.clip(float(x), float(lo), float(hi)))
+
+
+def _safe_float(v: Any, default: float = 0.0) -> float:
+    """Best-effort float conversion with fallback."""
+    try:
+        return float(v)
+    except Exception:
+        return float(default)
+
+
+def _apply_global_seeds(seed: Optional[int]) -> int:
+    """Apply global RNG seeds and return normalized integer seed."""
+    s = int(_safe_float(seed, 42))
+    _seed_everything(s)
+    return s
+
+
+def _write_json(path: str, payload: Any) -> None:
+    """Write JSON to path (mkdir parent), ignore failures with warning."""
+    if not path:
+        return
+    try:
+        abs_path = os.path.abspath(path)
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        with open(abs_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        print(f"🧾 JSON写入: {abs_path}")
+    except Exception as e:
+        print(f"⚠️ 写入JSON失败({path}): {e}")
