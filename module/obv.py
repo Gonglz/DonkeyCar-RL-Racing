@@ -14,7 +14,7 @@ image: (6, obs_size, obs_size) float32 [0, 1]
 
 state: (5,) float32
   v_long_norm      clip(speed / v_max, 0, 2)
-  yaw_rate_norm    clip(gyro_z / 4.0, -2, 2)
+  yaw_rate_norm    clip(gyro_y / 8.0, -2, 2)   ← Unity Y-up: yaw=gyro[1], /8 dampened
   accel_x_norm     clip(accel_x / 9.8, -2, 2)   ← 纵向加速度（上线前需 sanity check）
   prev_steer       ∈ [-1, 1]
   prev_throttle    ∈ [-1, 1]
@@ -224,7 +224,7 @@ def _build_state_v13(
 
     归一化范围：
       v_long_norm      = clip(speed / v_max,      0,   2)
-      yaw_rate_norm    = clip(gyro_y / 4.0,      -2,   2)   ← Unity Y-up: yaw=gyro[1]
+      yaw_rate_norm    = clip(gyro_y / 8.0,      -2,   2)   ← Unity Y-up: yaw=gyro[1], /8 dampened
       accel_x_norm     = clip(accel_x / 9.8,     -2,   2)   ← 纵向加减速
       prev_steer       ∈ [-1, 1]   ← 上一已执行低层 steer（safety 约束后）
       prev_throttle    ∈ [-1, 1]   ← 上一已执行低层 throttle（adapter 输出）
@@ -282,7 +282,7 @@ def _build_state_v13(
 
     return np.array([
         float(np.clip(v   / v_max, 0.0,  2.0)),       # v_long_norm
-        float(np.clip(gy  / 4.0,  -2.0,  2.0)),       # yaw_rate_norm
+        float(np.clip(gy  / 8.0,  -2.0,  2.0)),       # yaw_rate_norm (dampened: /8)
         float(np.clip(ax  / 9.8,  -2.0,  2.0)),       # accel_x_norm
         float(np.clip(prev_steer,    -1.0,  1.0)),     # prev_steer_exec
         float(np.clip(prev_throttle, -1.0,  1.0)),     # prev_throttle_exec
