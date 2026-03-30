@@ -5,7 +5,7 @@ Waveshare to newtrack transfer helpers.
 
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
@@ -35,9 +35,6 @@ _WS_YELLOW_BASE: Dict[str, float] = {
 }
 WS_YELLOW_PRESETS: Dict[str, Dict[str, float]] = {
     "case01": {**_WS_YELLOW_BASE},
-    "case04": {**_WS_YELLOW_BASE, "lane_min_area": 12, "main_min_area": 10},
-    "case07": {**_WS_YELLOW_BASE, "lane_min_area": 10, "edge_half_width": 2,
-               "blue_alpha_s": 0.90, "blue_alpha_v": 0.60},
 }
 
 
@@ -86,18 +83,6 @@ def _u8(mask: np.ndarray) -> np.ndarray:
 
 def _k(kh: int, kw: Optional[int] = None) -> np.ndarray:
     return np.ones((max(1, int(kh)), max(1, int(kw or kh))), np.uint8)
-
-
-def _remove_small(mask: np.ndarray, min_area: int = 24, max_area: Optional[int] = None) -> np.ndarray:
-    if not np.any(mask):
-        return mask.copy()
-    n, labels, stats, _ = cv2.connectedComponentsWithStats(_u8(mask), connectivity=8)
-    out = np.zeros_like(mask, dtype=bool)
-    for i in range(1, n):
-        a = int(stats[i, cv2.CC_STAT_AREA])
-        if a >= min_area and (max_area is None or a <= max_area):
-            out |= labels == i
-    return out
 
 
 def _ws_green_text_mask(hsv: np.ndarray) -> np.ndarray:
@@ -203,6 +188,230 @@ def compute_stats(images: List[np.ndarray]) -> Dict[str, object]:
         "prototypes_hsv": protos,
         "centerline_hsv": (center_sum / float(center_cnt)).tolist() if center_cnt >= 80 else None,
     }
+
+
+# ---------------------------------------------------------------------------
+# Tophat-based white dash extraction (improved from white_dash_extractor v5)
+# ---------------------------------------------------------------------------
+def _multiscale_tophat(gray: np.ndarray,
+                       kernel_sizes: List[Tuple[int, int]] = [(9, 9), (15, 15), (21, 21)]
+                       ) -> np.ndarray:
+    """Multi-scale White Top-Hat: pixel-wise max across different kernel sizes."""
+    result = np.zeros_like(gray, dtype=np.float32)
+    for ksize in kernel_sizes:
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize)
+        tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kernel)
+        result = np.maximum(result, tophat.astype(np.float32))
+    return result.astype(np.uint8)
+
+
+def _filter_dash_shape(mask: np.ndarray) -> np.ndarray:
+    """Shape filter: perspective-aware size/aspect + solidity/extent checks."""
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    h_img = mask.shape[0]
+    mid_y = h_img * 0.5
+    out = np.zeros_like(mask)
+    for i in range(1, n):
+        area = stats[i, cv2.CC_STAT_AREA]
+        ww = stats[i, cv2.CC_STAT_WIDTH]
+        hh = stats[i, cv2.CC_STAT_HEIGHT]
+        cy = stats[i, cv2.CC_STAT_TOP] + hh // 2
+        if cy >= mid_y:
+            if area < 2 or area > 500 or ww > 28:
+                continue
+            if hh > 0 and ww / max(hh, 1) > 6:
+                continue
+            if ww > 0 and hh / max(ww, 1) > 10 and area > 30:
+                continue
+        else:
+            if area < 2 or area > 200 or ww > 16:
+                continue
+            if hh > 0 and ww / max(hh, 1) > 5:
+                continue
+            if ww > 0 and hh / max(ww, 1) > 8 and area > 20:
+                continue
+        if area >= 6:
+            comp_mask = (labels == i).astype(np.uint8) * 255
+            contours, _ = cv2.findContours(comp_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                continue
+            cnt = contours[0]
+            if area < 30:
+                min_sol, min_ext = 0.35, 0.25
+            elif area < 80:
+                min_sol, min_ext = 0.50, 0.35
+            else:
+                min_sol, min_ext = 0.60, 0.40
+            hull_area = cv2.contourArea(cv2.convexHull(cnt))
+            if hull_area > 0 and area / hull_area < min_sol:
+                continue
+            if len(cnt) >= 5:
+                rect = cv2.minAreaRect(cnt)
+                rect_area = rect[1][0] * rect[1][1]
+                if rect_area > 0 and area / rect_area < min_ext:
+                    continue
+        out[labels == i] = 255
+    return out
+
+
+def _check_dark_neighborhood(mask: np.ndarray, gray: np.ndarray, radius: int = 6) -> np.ndarray:
+    """Reject blobs surrounded by too many dark pixels (shelf/furniture edges)."""
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    out = np.zeros_like(mask)
+    h_img, w_img = gray.shape[:2]
+    dark_pixels = (gray < 65).astype(np.uint8)
+    for i in range(1, n):
+        x, y = stats[i, cv2.CC_STAT_LEFT], stats[i, cv2.CC_STAT_TOP]
+        ww, hh = stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT]
+        x1, y1 = max(0, x - radius), max(0, y - radius)
+        x2, y2 = min(w_img, x + ww + radius), min(h_img, y + hh + radius)
+        comp = (labels[y1:y2, x1:x2] == i)
+        surround_total = (y2 - y1) * (x2 - x1) - np.sum(comp)
+        if surround_total <= 0:
+            out[labels == i] = 255
+            continue
+        surround_dark = dark_pixels[y1:y2, x1:x2].copy()
+        surround_dark[comp] = 0
+        if np.sum(surround_dark) / surround_total < 0.25:
+            out[labels == i] = 255
+    return out
+
+
+def _extract_white_dashes_tophat(
+    bgr: np.ndarray,
+    road_mask: Optional[np.ndarray] = None,
+    return_confidence: bool = False,
+) -> np.ndarray:
+    """
+    Improved white dash extraction using multi-scale Top-Hat morphology.
+    Returns a binary mask (uint8, 0/255) of detected white dash pixels.
+    """
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+    h_img, w_img = gray.shape[:2]
+
+    # Road mask: use provided or build from bottom-seed growth
+    if road_mask is not None:
+        road = _u8(road_mask)
+        road = cv2.dilate(cv2.morphologyEx(road, cv2.MORPH_CLOSE, _k(5)), _k(5), iterations=1)
+    else:
+        h_ch, s_ch, v_ch = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
+        gray_road = ((s_ch <= 40) & (v_ch >= 150) & (v_ch <= 220)).astype(np.uint8)
+        white_line = ((s_ch <= 35) & (v_ch >= 210)).astype(np.uint8)
+        yellow_line = ((h_ch >= 10) & (h_ch <= 45) & (s_ch >= 50) & (v_ch >= 130)).astype(np.uint8)
+        brown_edge = ((h_ch >= 0) & (h_ch <= 15) & (s_ch >= 60) & (v_ch >= 80) & (v_ch <= 180)).astype(np.uint8)
+        road_cand = (gray_road | white_line | yellow_line | brown_edge).astype(np.uint8) * 255
+        green = ((h_ch >= 35) & (h_ch <= 85) & (s_ch >= 60)).astype(np.uint8) * 255
+        road_cand = cv2.bitwise_and(road_cand, cv2.bitwise_not(green))
+        road_cand = cv2.morphologyEx(road_cand, cv2.MORPH_CLOSE, _k(7))
+        road_cand = cv2.morphologyEx(road_cand, cv2.MORPH_OPEN, _k(3))
+        seed_rows = max(2, int(h_img * 0.15))
+        n_cc, lbl_cc, st_cc, _ = cv2.connectedComponentsWithStats(road_cand, connectivity=8)
+        if n_cc > 1:
+            bottom_labels = lbl_cc[h_img - seed_rows:, :]
+            seed_labels = set(np.unique(bottom_labels)) - {0}
+            road = np.zeros_like(road_cand)
+            for lbl in seed_labels:
+                road[lbl_cc == lbl] = 255
+            road = cv2.dilate(road, _k(3), iterations=2)
+        else:
+            road = road_cand
+
+    # Multi-scale Top-Hat
+    tophat = _multiscale_tophat(gray)
+    _, mask = cv2.threshold(tophat, 20, 255, cv2.THRESH_BINARY)
+
+    # Two-tier HSV white confirmation
+    mask_white_strict = cv2.inRange(hsv, np.array([0, 0, 170]), np.array([179, 60, 255]))
+    mask_white_loose = cv2.inRange(hsv, np.array([0, 0, 140]), np.array([179, 60, 255]))
+    strong_th = (tophat > 30).astype(np.uint8) * 255
+    weak_th = cv2.bitwise_and(mask, cv2.bitwise_not(strong_th))
+    mask = cv2.bitwise_or(
+        cv2.bitwise_and(strong_th, cv2.bitwise_and(mask, mask_white_loose)),
+        cv2.bitwise_and(weak_th, mask_white_strict),
+    )
+
+    # Road constraint
+    mask = cv2.bitwise_and(mask, road)
+
+    # Exclude yellow & high saturation
+    yellow_exc = cv2.inRange(hsv, np.array([10, 60, 50]), np.array([45, 255, 255]))
+    yellow_exc = cv2.dilate(yellow_exc, _k(3), iterations=2)
+    mask = cv2.bitwise_and(mask, cv2.bitwise_not(yellow_exc))
+    high_sat = cv2.inRange(hsv, np.array([0, 80, 0]), np.array([179, 255, 255]))
+    mask = cv2.bitwise_and(mask, cv2.bitwise_not(high_sat))
+
+    # Shape filter + neighborhood check
+    mask = _filter_dash_shape(mask)
+    mask = _check_dark_neighborhood(mask, gray)
+
+    # Tophat-aware brightness verification with position awareness
+    v_ch = hsv[:, :, 2]
+    s_ch = hsv[:, :, 1]
+    upper_y = int(h_img * 0.35)
+    very_top_y = int(h_img * 0.28)   # wall / map-edge zone — only very obvious white passes
+    side_band = int(w_img * 0.18)    # left/right side columns: wall/shelf noise zone
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    out = np.zeros_like(mask)
+    conf = np.zeros_like(mask, dtype=np.float32)
+    for i in range(1, n):
+        area = stats[i, cv2.CC_STAT_AREA]
+        bx = stats[i, cv2.CC_STAT_LEFT]
+        bw = stats[i, cv2.CC_STAT_WIDTH]
+        bh = stats[i, cv2.CC_STAT_HEIGHT]
+        cx = bx + bw // 2
+        cy = stats[i, cv2.CC_STAT_TOP] + bh // 2
+        comp = (labels == i)
+        mean_v = float(np.mean(v_ch[comp]))
+        mean_s = float(np.mean(s_ch[comp]))
+        mean_tophat = float(np.mean(tophat[comp]))
+        # Top 28%: shelves / furniture / wall edges — reject unless very large & very bright
+        if cy < very_top_y and (area < 40 or mean_tophat < 38 or mean_s > 25):
+            continue
+        # Upper 40% + side bands: furniture/wall corner noise
+        if cy < int(h_img * 0.40) and (cx < side_band or cx > w_img - side_band):
+            if area < 50 or mean_tophat < 35:
+                continue
+        touches_edge = (bx == 0 or bx + bw >= w_img)
+        if touches_edge and area > 20 and (mean_v < 200 or mean_s > 30):
+            continue
+        v_boost = 30 if cy < upper_y else 0
+        in_upper = cy < upper_y
+        keep_comp = False
+        if area < 8:
+            if (mean_v >= 195 and mean_s <= 30) or \
+               (mean_tophat >= 30 and mean_v >= 140 + v_boost and mean_s <= 35):
+                keep_comp = True
+        elif area <= 50:
+            if (mean_tophat >= 30 and mean_v >= 145 + v_boost and mean_s <= 40) or \
+               mean_v >= 190 + v_boost:
+                keep_comp = True
+        else:
+            if (mean_tophat >= 30 and mean_v >= 180 + v_boost and mean_s <= 35) or \
+               (mean_v >= 200 + v_boost and mean_s <= 40):
+                keep_comp = True
+
+        if not keep_comp:
+            continue
+
+        out[comp] = 255
+        th_n = float(np.clip((mean_tophat - 20.0) / 20.0, 0.0, 1.0))
+        v_ref = float(140.0 + (20.0 if in_upper else 0.0))
+        v_n = float(np.clip((mean_v - v_ref) / 80.0, 0.0, 1.0))
+        s_n = float(np.clip((48.0 - mean_s) / 48.0, 0.0, 1.0))
+        area_n = float(np.clip(np.log1p(float(area)) / np.log1p(80.0), 0.0, 1.0))
+        score = 0.45 * th_n + 0.35 * v_n + 0.15 * s_n + 0.05 * area_n
+        if touches_edge:
+            score *= 0.85
+        if in_upper:
+            score *= 0.92
+        conf[comp] = np.maximum(conf[comp], np.float32(np.clip(score, 0.0, 1.0)))
+
+    if return_confidence:
+        conf = cv2.GaussianBlur(conf, (3, 3), sigmaX=0.8, sigmaY=0.8)
+        conf = np.clip(conf * (out > 0).astype(np.float32), 0.0, 1.0).astype(np.float32)
+        return out, conf
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -518,14 +727,23 @@ def _apply_newtrack_blend(src_hsv: np.ndarray, line_mask: np.ndarray, center_mas
 # Waveshare pipeline
 # ---------------------------------------------------------------------------
 def extract_ws_yellow_mask(
-    src_hsv: np.ndarray, road_mask: np.ndarray, preset_name: str = "case01",
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    preset = WS_YELLOW_PRESETS[preset_name.lower()]
+    src_hsv: np.ndarray,
+    road_mask: np.ndarray,
+    preset_name: str = "case01",
+    return_confidence: bool = False,
+) -> Union[
+    Tuple[np.ndarray, np.ndarray, np.ndarray],
+    Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+]:
+    # Keep the parameter for backward compatibility, but only case01 is active.
+    preset = WS_YELLOW_PRESETS["case01"]
     masks = semantic_masks(src_hsv)
     yellow_raw = masks["yellow"] & ~_ws_green_text_mask(src_hsv)
     yellow_on_road = yellow_raw & road_mask
     if not np.any(yellow_raw):
         empty = yellow_raw.copy()
+        if return_confidence:
+            return empty, empty, yellow_on_road, np.zeros_like(src_hsv[:, :, 0], dtype=np.float32)
         return empty, empty, yellow_on_road
 
     h, w = yellow_on_road.shape
@@ -581,41 +799,81 @@ def extract_ws_yellow_mask(
     yellow_full = out if np.any(out) else (seed | yellow_work)
     yellow_full = cv2.morphologyEx(_u8(yellow_full), cv2.MORPH_CLOSE, _k(3)) > 0
     yellow_full &= road_relaxed
-    return yellow_full, yellow_edge, yellow_on_road
+    if not return_confidence:
+        return yellow_full, yellow_edge, yellow_on_road
+
+    # Confidence map: hue/sat/value evidence inside extracted yellow geometry.
+    h_ch = src_hsv[:, :, 0].astype(np.float32)
+    s_ch = src_hsv[:, :, 1].astype(np.float32)
+    v_ch = src_hsv[:, :, 2].astype(np.float32)
+    hue_center = 24.0
+    hue_delta = np.minimum(np.abs(h_ch - hue_center), 180.0 - np.abs(h_ch - hue_center))
+    hue_conf = np.clip(1.0 - hue_delta / 18.0, 0.0, 1.0)
+    sat_conf = np.clip((s_ch - 55.0) / 145.0, 0.0, 1.0)
+    val_conf = np.clip((v_ch - 70.0) / 150.0, 0.0, 1.0)
+    edge_hint = cv2.GaussianBlur(yellow_edge.astype(np.float32), (3, 3), sigmaX=0.8, sigmaY=0.8)
+    onroad_hint = yellow_on_road.astype(np.float32)
+    base = yellow_full.astype(np.float32)
+    yellow_conf = base * (
+        0.48 * hue_conf
+        + 0.30 * sat_conf
+        + 0.14 * val_conf
+        + 0.08 * edge_hint
+    )
+    yellow_conf = np.maximum(yellow_conf, 0.40 * onroad_hint * (0.65 * hue_conf + 0.35 * sat_conf))
+    yellow_conf = cv2.GaussianBlur(yellow_conf, (3, 3), sigmaX=0.8, sigmaY=0.8)
+    yellow_conf = np.clip(yellow_conf * base, 0.0, 1.0).astype(np.float32)
+    return yellow_full, yellow_edge, yellow_on_road, yellow_conf
 
 
 def extract_ws_white_case10_line(
     hsv: np.ndarray,
     road_mask: Optional[np.ndarray] = None,
     yellow_mask: Optional[np.ndarray] = None,
-) -> np.ndarray:
+    src_bgr: Optional[np.ndarray] = None,
+    return_confidence: bool = False,
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """
     Extract the WS white center dashes that are recolored into newtrack's warm
     centerline:
-      1) strict white detection on road,
+      1) tophat-based white dash detection (improved v5),
       2) thin center seed extraction,
       3) recover connected center-white blocks in the support band,
       4) add a thin soft-white ring for anti-aliased borders.
+
+    Always uses improved multi-scale tophat extraction from
+    src/test_ws2newtrack_white.py path. If src_bgr is None, reconstruct BGR
+    from HSV so legacy callers still run the same extractor.
     """
     road_u8 = (
         ((hsv[:, :, 1] < 45) & (hsv[:, :, 2] >= 65)).astype(np.uint8) * 255
         if road_mask is None
         else _u8(road_mask)
     )
-    road_u8 = cv2.dilate(cv2.morphologyEx(road_u8, cv2.MORPH_CLOSE, _k(5)), _k(7), iterations=2)
+    road_u8 = cv2.dilate(cv2.morphologyEx(road_u8, cv2.MORPH_CLOSE, _k(5)), _k(5), iterations=1)
     road = road_u8 > 0
-    white_raw = cv2.bitwise_and(
-        cv2.inRange(hsv, np.array([0, 0, 200], np.uint8), np.array([179, 35, 255], np.uint8)),
-        road_u8,
-    ) > 0
-    white_clean = cv2.morphologyEx(_u8(white_raw), cv2.MORPH_CLOSE, _k(3)) > 0
-    white_clean = _remove_small(white_clean, min_area=4)
+
+    # Unified path: always use tophat-based white dash extraction.
+    if src_bgr is None:
+        src_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    white_seed_conf: Optional[np.ndarray] = None
+    if return_confidence:
+        tophat_mask, white_seed_conf = _extract_white_dashes_tophat(
+            src_bgr,
+            road_mask=road_mask,
+            return_confidence=True,
+        )
+    else:
+        tophat_mask = _extract_white_dashes_tophat(src_bgr, road_mask=road_mask)
+    white_clean = tophat_mask > 0
+
     seed = _row_centroid_encode(
-        white_clean, band_width=7, min_pixels=1, max_width_ratio=0.14, split_gap=5,
+        white_clean, band_width=9, min_pixels=1, max_width_ratio=0.18, split_gap=5,
     )
     white_soft = (
         ((hsv[:, :, 2] >= 182) & (hsv[:, :, 1] <= 55))
         | ((hsv[:, :, 2] >= 168) & (hsv[:, :, 1] <= 72))
+        | ((hsv[:, :, 2] >= 160) & (hsv[:, :, 1] <= 80))
     )
     base = _expand_white_seed_to_center_blocks(
         white_clean, white_soft, seed, road, yellow_mask=yellow_mask,
@@ -623,7 +881,309 @@ def extract_ws_white_case10_line(
     center = _add_center_white_edge_ring(
         base, white_soft, road, yellow_mask=yellow_mask, anchor_mask=seed,
     )
-    return _filter_centerline_components(center & road, seed)
+    center_mask = _filter_centerline_components(center & road, seed)
+
+    # Fill gaps between dashes → connect into solid white line.
+    # Tall narrow CLOSE bridges the inter-dash gaps without merging left/right lines.
+    if np.any(center_mask):
+        _h = center_mask.shape[0]
+        close_h = max(5, int(_h * 0.13))   # ~15px for 120px frame
+        fill_ker = np.ones((close_h, 3), np.uint8)
+        filled_mask = cv2.morphologyEx(_u8(center_mask), cv2.MORPH_CLOSE, fill_ker) > 0
+        # Restrict fill to within reach of the originally detected dashes
+        near_orig = cv2.dilate(_u8(center_mask), np.ones((close_h + 2, 7), np.uint8)) > 0
+        center_mask = (filled_mask & near_orig & road)
+
+    if not return_confidence:
+        return center_mask
+
+    # Confidence map used for WS white channel visualization/probability:
+    # keep tophat confidence as primary evidence, then softly propagate to
+    # connected centerline pixels recovered by morphology.
+    v_ch = hsv[:, :, 2].astype(np.float32)
+    s_ch = hsv[:, :, 1].astype(np.float32)
+    white_evidence = (
+        np.clip((v_ch - 148.0) / 107.0, 0.0, 1.0)
+        * np.clip((88.0 - s_ch) / 88.0, 0.0, 1.0)
+    ).astype(np.float32)
+    if white_seed_conf is None:
+        seed_conf = white_evidence * white_clean.astype(np.float32)
+    else:
+        seed_conf = np.maximum(
+            np.clip(white_seed_conf.astype(np.float32), 0.0, 1.0),
+            0.45 * white_evidence * white_clean.astype(np.float32),
+        ).astype(np.float32)
+
+    seed_spread = cv2.dilate(
+        (seed_conf * 255.0).astype(np.uint8),
+        _k(3),
+        iterations=1,
+    ).astype(np.float32) / 255.0
+    seed_spread = cv2.GaussianBlur(seed_spread, (3, 3), sigmaX=0.8, sigmaY=0.8)
+    center_soft = cv2.GaussianBlur(center_mask.astype(np.float32), (3, 3), sigmaX=0.8, sigmaY=0.8)
+    center_conf = np.maximum(seed_conf, 0.55 * seed_spread + 0.45 * (white_evidence * center_soft))
+    if yellow_mask is not None:
+        center_conf *= (1.0 - np.clip(yellow_mask.astype(np.float32), 0.0, 1.0))
+    center_conf = np.clip(center_conf * center_mask.astype(np.float32), 0.0, 1.0).astype(np.float32)
+    return center_mask, center_conf
+
+
+# ---------------------------------------------------------------------------
+# Observation-space WS edge/white/yellow enhancement (used by obv wrapper)
+# ---------------------------------------------------------------------------
+def _obs_filter_edge_components(
+    edge_hard: np.ndarray,
+    min_area: int,
+    min_height: int,
+    max_compactness: float,
+    min_aspect: float,
+) -> np.ndarray:
+    m = (edge_hard > 0).astype(np.uint8)
+    if int(np.count_nonzero(m)) == 0:
+        return np.zeros_like(edge_hard, dtype=np.float32)
+
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
+    out = np.zeros_like(m, dtype=np.uint8)
+    for i in range(1, n):
+        area = int(stats[i, cv2.CC_STAT_AREA])
+        w = int(stats[i, cv2.CC_STAT_WIDTH])
+        h = int(stats[i, cv2.CC_STAT_HEIGHT])
+        if area < int(min_area) or h < int(min_height):
+            continue
+        compact = float(area) / float(max(1, w * h))
+        max_side = float(max(w, h))
+        min_side = float(max(1, min(w, h)))
+        elongated = max_side >= float(min_aspect) * min_side
+        if compact > float(max_compactness) and not elongated:
+            continue
+        out[labels == i] = 1
+    return out.astype(np.float32)
+
+
+def _obs_filter_line_components(
+    mask: np.ndarray,
+    min_area: int,
+    min_height: int,
+    max_compactness: float,
+    tall_ratio: float,
+) -> np.ndarray:
+    m = (mask > 0.0).astype(np.uint8)
+    if int(np.count_nonzero(m)) == 0:
+        return np.zeros_like(mask, dtype=np.float32)
+
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
+    out = np.zeros_like(m, dtype=np.uint8)
+    for i in range(1, n):
+        area = int(stats[i, cv2.CC_STAT_AREA])
+        w = int(stats[i, cv2.CC_STAT_WIDTH])
+        h = int(stats[i, cv2.CC_STAT_HEIGHT])
+        if area < int(min_area) or h < int(min_height):
+            continue
+        compact = float(area) / float(max(1, w * h))
+        tall_enough = float(h) >= float(tall_ratio) * float(max(1, w))
+        if compact > float(max_compactness) and not tall_enough:
+            continue
+        out[labels == i] = 1
+    return out.astype(np.float32)
+
+
+def _obs_edge_support_mask(edge_hard: np.ndarray, dilate_iter: int) -> np.ndarray:
+    edge_u8 = (edge_hard > 0).astype(np.uint8) * 255
+    if int(dilate_iter) > 0:
+        edge_u8 = cv2.dilate(
+            edge_u8,
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)),
+            iterations=int(dilate_iter),
+        )
+    return edge_u8 > 0
+
+
+def _obs_edge_strength_gate(
+    edge_raw: np.ndarray,
+    edge_hard: np.ndarray,
+    min_strength: float,
+    power: float,
+) -> np.ndarray:
+    denom = max(1e-6, 1.0 - float(min_strength))
+    edge_strength = np.clip((edge_raw - float(min_strength)) / denom, 0.0, 1.0)
+    if abs(float(power) - 1.0) > 1e-6:
+        edge_strength = np.power(edge_strength, float(power))
+    return (edge_strength * edge_hard).astype(np.float32)
+
+
+def _obs_close_line_gaps(mask: np.ndarray, kernel: int, iterations: int) -> np.ndarray:
+    if int(iterations) <= 0 or int(kernel) <= 1:
+        return mask.astype(np.float32)
+    k = int(kernel)
+    if (k % 2) == 0:
+        k += 1
+    m = (mask > 0.0).astype(np.uint8)
+    ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, ker, iterations=int(iterations))
+    return m.astype(np.float32)
+
+
+def _obs_ws_dash_chain_filter(
+    mask: np.ndarray,
+    close_h: int,
+    close_w: int,
+    min_height: int,
+    top_min_height: int,
+    max_width: int,
+    fill_weight: float,
+) -> np.ndarray:
+    m = (mask > 0.0).astype(np.uint8)
+    if int(np.count_nonzero(m)) == 0:
+        return m.astype(np.float32)
+
+    ker = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (int(max(1, close_w)), int(max(1, close_h))),
+    )
+    bridge = cv2.morphologyEx(m, cv2.MORPH_CLOSE, ker, iterations=1)
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(bridge, connectivity=8)
+    keep_bridge = np.zeros_like(bridge, dtype=np.uint8)
+    h_img = bridge.shape[0]
+    top_y = int(0.45 * h_img)
+    for i in range(1, n):
+        top = int(stats[i, cv2.CC_STAT_TOP])
+        hh = int(stats[i, cv2.CC_STAT_HEIGHT])
+        ww = int(stats[i, cv2.CC_STAT_WIDTH])
+        area = int(stats[i, cv2.CC_STAT_AREA])
+        cy = top + hh // 2
+        min_h = int(top_min_height) if cy < top_y else int(min_height)
+        max_w = int(max_width * (1.15 if cy < top_y else 1.0))
+        if hh < min_h:
+            continue
+        if ww > max_w and hh < int(1.2 * min_h):
+            continue
+        if area < max(6, min_h * 2):
+            continue
+        keep_bridge[labels == i] = 1
+
+    if int(np.count_nonzero(keep_bridge)) == 0:
+        return m.astype(np.float32)
+    base = ((m > 0) & (keep_bridge > 0)).astype(np.float32)
+    if float(fill_weight) <= 1e-6:
+        return base
+    fill = ((keep_bridge > 0) & (base < 0.5)).astype(np.float32)
+    return np.clip(base + float(fill_weight) * fill, 0.0, 1.0).astype(np.float32)
+
+
+def _obs_ws_white_floor_map(h: int, floor: float, far_boost: float) -> np.ndarray:
+    y = np.linspace(0.0, 1.0, int(h), dtype=np.float32)[:, None]
+    far_relax = 1.0 - y
+    out = float(floor) + float(far_boost) * far_relax
+    return np.clip(out, 0.0, 0.98).astype(np.float32)
+
+
+def _obs_ws_center_corridor_mask(seed_mask: np.ndarray, near_w: int, far_w: int) -> np.ndarray:
+    h, w = seed_mask.shape
+    cx = 0.5 * (w - 1)
+    out = np.zeros_like(seed_mask, dtype=np.float32)
+    prev_mid: Optional[float] = None
+    for y in range(h - 1, -1, -1):
+        xs = np.flatnonzero(seed_mask[y] > 0.0)
+        if xs.size > 0:
+            cur_mid = float(xs.mean())
+            if prev_mid is None:
+                mid = cur_mid
+            else:
+                max_jump = 0.08 * w
+                cur_mid = float(np.clip(cur_mid, prev_mid - max_jump, prev_mid + max_jump))
+                mid = 0.70 * prev_mid + 0.30 * cur_mid
+        else:
+            mid = cx if prev_mid is None else prev_mid
+        prev_mid = mid
+        y_ratio = float(y) / max(1.0, float(h - 1))
+        half_w = int(near_w) + (1.0 - y_ratio) * (int(far_w) - int(near_w))
+        x0 = max(0, int(round(mid - half_w)))
+        x1 = min(w, int(round(mid + half_w)) + 1)
+        out[y, x0:x1] = 1.0
+    return out
+
+
+def _obs_edge_guided_color_prob(
+    color_prob: np.ndarray,
+    edge_geom: np.ndarray,
+    filter_floor: float,
+    boost_gain: float,
+) -> np.ndarray:
+    edge_soft = cv2.GaussianBlur(edge_geom.astype(np.float32), (5, 5), sigmaX=1.2)
+    gate = float(filter_floor) + (1.0 - float(filter_floor)) * edge_soft
+    boosted = color_prob * gate * (1.0 + float(boost_gain) * edge_soft)
+    return np.clip(boosted, 0.0, 1.0)
+
+
+def build_ws_observation_line_probs(
+    raw_bgr: np.ndarray,
+    raw_y: np.ndarray,
+    *,
+    prev_y: Optional[np.ndarray] = None,       # kept for compat, unused
+    prev_white_prob: Optional[np.ndarray] = None,  # kept for compat, unused
+    edge_preblur_sigma: float = 1.0,
+    edge_support_thresh: float = 0.035,
+    edge_support_dilate: int = 1,
+    edge_comp_min_area: int = 10,
+    edge_comp_min_height: int = 3,
+    edge_comp_max_compactness: float = 0.80,
+    edge_comp_aspect_ratio: float = 1.3,
+    **_kwargs,  # absorb deprecated ws_white_* / line_* params
+) -> Dict[str, np.ndarray]:
+    """
+    Build WS observation channels (edge + white/yellow prob).
+    white_prob / yellow_prob = raw detection confidence (no blur, no dilation).
+    Edge channel = Sobel on raw_y.
+    """
+    # ── Edge channel ────────────────────────────────────────────────
+    y_for_edge = raw_y.astype(np.float32)
+    if float(edge_preblur_sigma) > 1e-6:
+        y_for_edge = cv2.GaussianBlur(
+            y_for_edge, (0, 0),
+            sigmaX=float(edge_preblur_sigma),
+            sigmaY=float(edge_preblur_sigma),
+        )
+    gx = cv2.Sobel(y_for_edge, cv2.CV_32F, 1, 0, ksize=3)
+    gy = cv2.Sobel(y_for_edge, cv2.CV_32F, 0, 1, ksize=3)
+    edge_raw = np.clip(np.sqrt(gx ** 2 + gy ** 2) / 4.0, 0.0, 1.0)
+    edge_hard = _obs_filter_edge_components(
+        (edge_raw > float(edge_support_thresh)).astype(np.float32),
+        min_area=int(edge_comp_min_area),
+        min_height=int(edge_comp_min_height),
+        max_compactness=float(edge_comp_max_compactness),
+        min_aspect=float(edge_comp_aspect_ratio),
+    )
+    edge = (edge_raw * edge_hard).astype(np.float32)
+
+    # ── WS detection → confidence (no dilation, no blur) ────────────
+    hsv_ws = cv2.cvtColor(raw_bgr, cv2.COLOR_BGR2HSV)
+    road_ws = road_support_mask(hsv_ws) > 0
+
+    yellow_out = extract_ws_yellow_mask(
+        hsv_ws, road_ws, preset_name="case01", return_confidence=True,
+    )
+    if isinstance(yellow_out, tuple) and len(yellow_out) == 4:
+        yellow_full, _, _, yellow_conf = yellow_out
+        yellow_conf = np.clip(yellow_conf.astype(np.float32), 0.0, 1.0)
+    else:
+        yellow_full, _, _ = yellow_out
+        yellow_conf = yellow_full.astype(np.float32)
+
+    white_out = extract_ws_white_case10_line(
+        hsv_ws, road_mask=road_ws, yellow_mask=yellow_full,
+        src_bgr=raw_bgr, return_confidence=True,
+    )
+    if isinstance(white_out, tuple):
+        _, white_conf = white_out
+        white_conf = np.clip(white_conf.astype(np.float32), 0.0, 1.0)
+    else:
+        white_conf = (white_out > 0).astype(np.float32)
+
+    return {
+        "edge": edge,
+        "white_prob": white_conf,
+        "yellow_prob": yellow_conf,
+    }
 
 
 _WS_CLOTH_HSV = np.array([128.0, 24.0, 172.0], dtype=np.float32)
@@ -680,12 +1240,14 @@ def transform_ws_to_newtrack(
     src_hsv = cv2.cvtColor(road_img, cv2.COLOR_BGR2HSV)
     road = road_support_mask(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV))
     masks = semantic_masks(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV))
-    preset = WS_YELLOW_PRESETS[yellow_preset_name.lower()]
+    # Keep parameter for backward compatibility; line extraction currently uses case01 only.
+    preset = WS_YELLOW_PRESETS["case01"]
     yellow_full, _, _ = extract_ws_yellow_mask(
         cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV), road, preset_name=yellow_preset_name)
     # WS center white becomes the newtrack warm centerline.
     center_white = extract_ws_white_case10_line(
-        cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV), road_mask=road, yellow_mask=yellow_full)
+        cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV), road_mask=road, yellow_mask=yellow_full,
+        src_bgr=img_bgr)
     result = _apply_newtrack_blend(
         src_hsv, yellow_full | (masks["blue"] & road), center_white, tgt_stats,
         line_a=(preset["blue_alpha_h"], preset["blue_alpha_s"], preset["blue_alpha_v"]),
@@ -701,6 +1263,7 @@ def transform_ws_to_newtrack(
 # ---------------------------------------------------------------------------
 __all__ = [
     "CLS_ORDER", "WS_YELLOW_PRESETS",
+    "build_ws_observation_line_probs",
     "compute_stats", "extract_ws_white_case10_line", "extract_ws_yellow_mask",
     "list_images", "load_images", "overlay_semantics",
     "road_support_mask", "sample_paths", "semantic_masks",

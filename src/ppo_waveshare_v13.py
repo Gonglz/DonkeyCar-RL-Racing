@@ -1250,7 +1250,7 @@ def train_v13(
                 "dir": snapshot_dir,
             },
             "image_channels": [
-                "raw_Y", "blue_prob", "yellow_prob",
+                "raw_Y", "white_prob", "yellow_prob",
                 "sobel_edge", "vehicle_prob", "motion_residual",
             ],
             "state_dim": 7,

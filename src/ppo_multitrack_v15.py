@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DonkeyCar PPO V14 (multi-track)
+DonkeyCar PPO V15 (multi-track)
 - 2-domain (ws/gt) multi-scene training
 - 6-channel semantic observation + 7D sensor+adapter state
 - 3D action: [Δsteer, speed_scale, line_bias] via ActionAdapterWrapper
@@ -77,57 +77,6 @@ SCENE_SPECS: Dict[str, Dict[str, Any]] = {
         "track_file": "manual_width_generated_track.json",
         "domain": "gt",
     },
-    "donkey-warehouse-v0": {
-        "scene_key": "warehouse",
-        "logging_key": "wh",
-        "level_name": "warehouse",
-        "track_file": "manual_width_warehouse.json",
-        "domain": "gt",
-    },
-    "donkey-mountain-track-v0": {
-        "scene_key": "mountain_track",
-        "logging_key": "mt",
-        "level_name": "mountain_track",
-        "track_file": "manual_width_mountain_track.json",
-        "domain": "gt",
-    },
-    "donkey-minimonaco-track-v0": {
-        "scene_key": "mini_monaco",
-        "logging_key": "mm",
-        "level_name": "mini_monaco",
-        "track_file": "manual_width_mini_monaco.json",
-        "domain": "gt",
-    },
-    # --- RRL 场景暂不启用（V14 仅 ws+gt 双场景训练） ---
-    # "donkey-roboracingleague-track-v0": {
-    #     "scene_key": "roboracingleague_track",
-    #     "logging_key": "rrl",
-    #     "level_name": "roboracingleague_1",
-    #     "track_file": "manual_width_roboracingleague_track.json",
-    #     "domain": "rrl",
-    #     "max_cte": 6.0,
-    #     "reward_overrides": {
-    #         "near_offtrack_start_ratio": 0.50,
-    #         "w_near_offtrack": 0.45,
-    #         "w_center": 0.05,
-    #         "collision_penalty_base": 10.0,
-    #         "progress_reward_scale": 100.0,
-    #     },
-    # },
-    "donkey-warren-track-v0": {
-        "scene_key": "warren_track",
-        "logging_key": "wt",
-        "level_name": "warren",
-        "track_file": "manual_width_warren_track.json",
-        "domain": "gt",
-    },
-    "donkey-circuit-launch-track-v0": {
-        "scene_key": "circuit_launch",
-        "logging_key": "cl",
-        "level_name": "circuit_launch",
-        "track_file": "manual_width_circuit_launch.json",
-        "domain": "gt",
-    },
 }
 
 DEFAULT_ENV_IDS: List[str] = [
@@ -136,18 +85,16 @@ DEFAULT_ENV_IDS: List[str] = [
 ]
 
 # ============================================================
-# Curriculum stages — V14 仅 ws+gt，RRL 已注释
+# Curriculum stages — 仅 ws+gt
 # ============================================================
 STAGE_ENV_IDS: Dict[str, List[str]] = {
     "S1": [
         "donkey-waveshare-v0",
         "donkey-generated-track-v0",
-        # "donkey-roboracingleague-track-v0",   # rrl 暂不启用
     ],
     "S2": [
         "donkey-waveshare-v0",
         "donkey-generated-track-v0",
-        # "donkey-roboracingleague-track-v0",
     ],
 }
 
@@ -809,7 +756,7 @@ def train_v13(
             target_kl = None
 
     print("\n" + "=" * 76)
-    print("🚀 DonkeyCar PPO V13 - 3-Domain Multi-Scene Recurrent Training")
+    print("🚀 DonkeyCar PPO V13 - 2-Domain (WS+GT) Multi-Scene Recurrent Training")
     print("=" * 76)
     print(f"maps: {len(env_ids)}")
     print(f"obs: Dict(image=6x{obs_size}x{obs_size}, state=7)")
@@ -1228,7 +1175,7 @@ def train_v13(
                 "dir": snapshot_dir,
             },
             "image_channels": [
-                "raw_Y", "blue_prob", "yellow_prob",
+                "raw_Y", "white_prob", "yellow_prob",
                 "sobel_edge", "vehicle_prob", "motion_residual",
             ],
             "state_dim": 7,
@@ -1377,7 +1324,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="V13: 3-domain recurrent PPO with 6ch semantic obs, 7D state, 3D action adapter",
+        description="V13: 2-domain (ws+gt) recurrent PPO with 6ch semantic obs, 7D state, 3D action adapter",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
@@ -1387,7 +1334,7 @@ if __name__ == "__main__":
     parser.add_argument("--env-ids", nargs="+", type=str, default=None)
     parser.add_argument("--scene-weights", nargs="+", type=float, default=None)
     parser.add_argument("--stage", type=str, default=None, choices=["S1", "S2"],
-                        help="分阶段训练：S1(ws+gt+rrl热身) / S2(ws+gt+rrl)。优先级低于 --env-ids")
+                        help="分阶段训练：S1(ws+gt) / S2(ws+gt)。优先级低于 --env-ids")
     parser.add_argument("--track-dir", type=str, default="/home/longzhao/track")
 
     parser.add_argument("--sim", type=str, default="remote",
@@ -1862,7 +1809,7 @@ if __name__ == "__main__":
         effective_scene_weights = args.scene_weights
         effective_mask = None
         if effective_env_ids is None and args.stage is None:
-            print("ℹ️  未指定 --env-ids/--stage：将使用 DEFAULT_ENV_IDS (ws+gt+rrl 3 场景)。")
+            print("ℹ️  未指定 --env-ids/--stage：将使用 DEFAULT_ENV_IDS (ws+gt 2 场景)。")
         effective_dynamic_weight_max = args.dynamic_weight_max  # CLI global default
         if effective_env_ids is None and args.stage is not None:
             effective_env_ids = STAGE_ENV_IDS[args.stage]

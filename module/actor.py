@@ -5,7 +5,7 @@ V13 FiLM-conditioned feature extractor for RecurrentPPO.
 Architecture
 ------------
 image (C, H, W) float32 [0,1]          -- 6 semantic channels from CanonicalSemanticWrapper
-  └─ CNN → LayerNorm → image_feat (128)    channels: raw_Y, blue_prob, yellow_prob,
+  └─ CNN → LayerNorm → image_feat (128)    channels: raw_Y, white_prob, yellow_prob,
                                             sobel_edge, vehicle_prob, motion_residual
 state (7,) float32                         v_long_norm, yaw_rate_norm, accel_x_norm,
                                             prev_steer_exec, prev_throttle_exec,
