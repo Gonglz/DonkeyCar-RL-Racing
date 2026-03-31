@@ -1113,7 +1113,7 @@ class MultiInputObsWrapper(gym.Wrapper):
         canvas = np.zeros((rows * tile + header_h, cols * tile, 3), dtype=np.uint8)
 
         labels = {
-            6: ["raw_y", "white_prob", "yellow_prob", "edge", "vehicle", "motion"],
+            6: ["raw_y", "edge_line", "guide_line", "edge", "vehicle", "motion"],
         }.get(channels, [f"ch{i}" for i in range(channels)])
 
         for idx in range(channels):

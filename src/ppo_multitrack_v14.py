@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-DonkeyCar PPO V13
-- 3-domain (ws/gt/rrl) multi-scene training
+DonkeyCar PPO V14 (multi-track)
+- 2-domain (ws/gt) multi-scene training
 - 6-channel semantic observation + 7D sensor+adapter state
 - 3D action: [Δsteer, speed_scale, line_bias] via ActionAdapterWrapper
 - RecurrentPPO + MultiInputLstmPolicy + FiLMFeatureExtractor
+- yaw_rate dampened (/8.0) for narrow-track stability
+- WS cte_norm_scale=0.50 to reduce CTE penalty on narrow track
 """
 
 import os
@@ -75,17 +77,8 @@ SCENE_SPECS: Dict[str, Dict[str, Any]] = {
         "level_name": "waveshare",
         "track_file": "manual_width_waveshare.json",
         "domain": "ws",
-        # WS 赛道窄(4.4 CTE)，全局 near_offtrack 参数导致过度惩罚
         "reward_overrides": {
-            "near_offtrack_start_ratio": 0.62,  # 全局0.45太低, WS常态ratio≈0.68
-            "w_near_offtrack": 0.35,             # 全局0.55, 降低窄赛道惩罚密度
-            "w_center": 0.05,                    # 全局0.03, 窄赛道需更强居中引导
-            "collision_penalty_base": 14.0,      # 全局8.0, 防止wall-riding策略
-            "offtrack_penalty_base": 4.0,        # 全局5.0, 窄赛道出轨概率更高
-            "cte_norm_scale": 0.45,              # 默认0.75(被clip), 窄赛道CTE惩罚过重
-            "progress_reward_scale": 20.0,       # 全局48, WS赛道短(8.3 sim)导致per-step progress是GT的3.1x
-            "lap_reward_scale": 0.50,            # 全局0.30, 降低WS圈奖励防止梯度主导GT
-            "reward_decay_ref_steps": 300,       # 超过300步后per-step奖励按300/step衰减, 抑制长episode总回报膨胀
+            "cte_norm_scale": 0.50,
         },
     },
     "donkey-generated-track-v0": {
@@ -94,13 +87,6 @@ SCENE_SPECS: Dict[str, Dict[str, Any]] = {
         "level_name": "generated_track",
         "track_file": "manual_width_generated_track.json",
         "domain": "gt",
-        # GT 赛道宽(9.2 CTE)，沿用全局默认
-        "reward_overrides": {
-            "near_offtrack_start_ratio": 0.50,
-            "w_near_offtrack": 0.55,
-            "w_center": 0.03,
-            "progress_reward_scale": 48.0,
-        },
     },
     "donkey-warehouse-v0": {
         "scene_key": "warehouse",
@@ -123,22 +109,22 @@ SCENE_SPECS: Dict[str, Dict[str, Any]] = {
         "track_file": "manual_width_mini_monaco.json",
         "domain": "gt",
     },
-    "donkey-roboracingleague-track-v0": {
-        "scene_key": "roboracingleague_track",
-        "logging_key": "rrl",
-        "level_name": "roboracingleague_1",
-        "track_file": "manual_width_roboracingleague_track.json",
-        "domain": "rrl",
-        # RRL 赛道宽(9.2 CTE)，高速碰撞更危险
-        "max_cte": 6.0,                          # 全局8.0, RRL cte_out=5.0→死区3.0太大, 降到6.0缩短出轨后无效步
-        "reward_overrides": {
-            "near_offtrack_start_ratio": 0.50,
-            "w_near_offtrack": 0.45,              # 全局0.55, 减轻初期探索惩罚
-            "w_center": 0.05,                     # 全局0.03, 加强居中引导
-            "collision_penalty_base": 10.0,
-            "progress_reward_scale": 100.0,       # 全局48, RRL赛道长(48.8 sim)需更强前进激励
-        },
-    },
+    # --- RRL 场景暂不启用（V14 仅 ws+gt 双场景训练） ---
+    # "donkey-roboracingleague-track-v0": {
+    #     "scene_key": "roboracingleague_track",
+    #     "logging_key": "rrl",
+    #     "level_name": "roboracingleague_1",
+    #     "track_file": "manual_width_roboracingleague_track.json",
+    #     "domain": "rrl",
+    #     "max_cte": 6.0,
+    #     "reward_overrides": {
+    #         "near_offtrack_start_ratio": 0.50,
+    #         "w_near_offtrack": 0.45,
+    #         "w_center": 0.05,
+    #         "collision_penalty_base": 10.0,
+    #         "progress_reward_scale": 100.0,
+    #     },
+    # },
     "donkey-warren-track-v0": {
         "scene_key": "warren_track",
         "logging_key": "wt",
@@ -208,40 +194,38 @@ def _resolve_track_dir(track_dir: Optional[str], env_ids: List[str]) -> str:
 DEFAULT_ENV_IDS: List[str] = [
     "donkey-waveshare-v0",
     "donkey-generated-track-v0",
-    "donkey-roboracingleague-track-v0",
 ]
 
 # ============================================================
-# Curriculum stages (S1/S2 only)
+# Curriculum stages — V14 仅 ws+gt，RRL 已注释
 # ============================================================
 STAGE_ENV_IDS: Dict[str, List[str]] = {
     "S1": [
         "donkey-waveshare-v0",
         "donkey-generated-track-v0",
-        "donkey-roboracingleague-track-v0",   # rrl 热身曝光
+        # "donkey-roboracingleague-track-v0",   # rrl 暂不启用
     ],
     "S2": [
         "donkey-waveshare-v0",
         "donkey-generated-track-v0",
-        "donkey-roboracingleague-track-v0",
+        # "donkey-roboracingleague-track-v0",
     ],
 }
 
 STAGE_SCENE_WEIGHTS: Dict[str, List[float]] = {
-    "S1": [0.25, 0.50, 0.25],   # WS已强(20圈), GT起飞中, RRL需更多训练量
-    "S2": [0.35, 0.35, 0.30],
+    "S1": [0.55, 0.45],   # ws+gt only
+    "S2": [0.55, 0.45],
 }
 
 STAGE_STEP_BALANCE_MASK: Dict[str, List[bool]] = {
-    "S1": [True, True, False],   # rrl 不参与步数平衡和动态调权
-    "S2": [True, True, True],
+    "S1": [True, True],
+    "S2": [True, True],
 }
 
-# Per-scene 动态调权上限：防止单场景独占训练量导致其他场景崩溃
-# 顺序与 STAGE_ENV_IDS 对应: [ws, gt, rrl]
+# Per-scene 动态调权上限：顺序与 STAGE_ENV_IDS 对应: [ws, gt]
 STAGE_DYNAMIC_WEIGHT_MAX: Dict[str, List[float]] = {
-    "S1": [0.40, 0.45, 0.35],   # WS/GT 都不能超占, RRL frozen 但设上限以防
-    "S2": [0.40, 0.45, 0.40],   # 三场景均受限, GT 稍高(赛道长需要更多步)
+    "S1": [0.55, 0.55],
+    "S2": [0.55, 0.55],
 }
 
 CURRICULUM_STAGE_ADVANCE_RULES: Dict[str, Dict[str, Any]] = {
@@ -735,7 +719,7 @@ def train_v13(
     track_dir: str = DEFAULT_TRACK_DIR,
     sim_path: str = "remote",
     total_timesteps: int = 2_000_000,
-    save_dir: str = "models/v13_multi_scene",
+    save_dir: str = "models/v14_multi_scene",
     port: int = 9091,
     # obs
     obs_size: int = 128,
@@ -858,7 +842,7 @@ def train_v13(
     env_ids = list(DEFAULT_ENV_IDS if env_ids is None else env_ids)
     for eid in env_ids:
         if eid not in SCENE_SPECS:
-            raise KeyError(f"Unsupported env_id for V13: {eid}")
+            raise KeyError(f"Unsupported env_id for V14: {eid}")
 
     if scene_weights is None:
         scene_weights = [1.0 / len(env_ids)] * len(env_ids)
@@ -871,7 +855,7 @@ def train_v13(
         scene_weights = [float(w) / total_w for w in scene_weights]
 
     if not use_lstm:
-        raise ValueError("V13 requires RecurrentPPO MultiInputLstmPolicy; set --use-lstm")
+        raise ValueError("V14 requires RecurrentPPO MultiInputLstmPolicy; set --use-lstm")
 
     obs_size = int(max(32, obs_size))
     ppo_n_steps = int(max(64, ppo_n_steps))
@@ -886,7 +870,7 @@ def train_v13(
             target_kl = None
 
     print("\n" + "=" * 76)
-    print("🚀 DonkeyCar PPO V13 - 3-Domain Multi-Scene Recurrent Training")
+    print("🚀 DonkeyCar PPO V14 - 2-Domain Multi-Scene Recurrent Training")
     print("=" * 76)
     print(f"maps: {len(env_ids)}")
     print(f"obs: Dict(image=6x{obs_size}x{obs_size}, state=7)")
@@ -941,11 +925,11 @@ def train_v13(
             conf = cfg.GYM_CONF.copy()
             _update = {
                 "port": port,
-                "car_name": "waveshare_v13",
-                "racer_name": "V13-ActionAdapter",
+                "car_name": "waveshare_v14",
+                "racer_name": "V14-ActionAdapter",
                 "country": "CN",
-                "bio": "V13 3D action adapter with FiLM",
-                "guid": "waveshare-v13-multi",
+                "bio": "V14 3D action adapter with FiLM",
+                "guid": "waveshare-v14-multi",
                 "max_cte": 8.0,
             }
             if _launch_sim:
@@ -959,12 +943,12 @@ def train_v13(
             "port": port,
             "body_style": "donkey",
             "body_rgb": (128, 128, 128),
-            "car_name": "waveshare_v13",
+            "car_name": "waveshare_v14",
             "font_size": 50,
-            "racer_name": "V13-ActionAdapter",
+            "racer_name": "V14-ActionAdapter",
             "country": "CN",
-            "bio": "V13 3D action adapter with FiLM",
-            "guid": "waveshare-v13-multi",
+            "bio": "V14 3D action adapter with FiLM",
+            "guid": "waveshare-v14-multi",
             "max_cte": 8.0,
         }
         if _launch_sim:
@@ -1049,9 +1033,9 @@ def train_v13(
     if resume_path:
         resume_ckpt_path = resume_path
     elif resume_latest:
-        resume_ckpt_path = _find_latest_checkpoint(save_dir, name_prefix="v13")
+        resume_ckpt_path = _find_latest_checkpoint(save_dir, name_prefix="v14")
         if resume_ckpt_path is None:
-            raise FileNotFoundError(f"No v13 checkpoint found in {save_dir}")
+            raise FileNotFoundError(f"No v14 checkpoint found in {save_dir}")
 
     if resume_ckpt_path is not None:
         print(f"🔄 Resume from: {resume_ckpt_path}")
@@ -1095,7 +1079,7 @@ def train_v13(
 
     dummy_vec_env.close()
 
-    print("🏗️  Building multi-scene V13 env")
+    print("🏗️  Building multi-scene V14 env")
 
     def make_env():
         return MultiSceneEnvV13(
@@ -1185,7 +1169,7 @@ def train_v13(
     model.set_env(env)
 
     callbacks: List[BaseCallback] = [
-        PTHExportCallback(save_path=save_dir, save_freq=20000, name_prefix="v13", verbose=1),
+        PTHExportCallback(save_path=save_dir, save_freq=20000, name_prefix="v14", verbose=1),
         BestModelCallback(
             save_path=save_dir,
             check_freq=1000,
@@ -1247,7 +1231,7 @@ def train_v13(
         callbacks.extend(extra_callbacks)
 
     print("\n" + "=" * 76)
-    print("🚦 Start V13 training")
+    print("🚦 Start V14 training")
     print("=" * 76)
 
     start_time = time.time()
@@ -1285,7 +1269,7 @@ def train_v13(
                 strict_stage_stop = cb.summary()
 
     config = {
-        "version": "V13",
+        "version": "V14",
         "timestamp": datetime.now().isoformat(),
         "env_ids": env_ids,
         "scene_weights": scene_weights,
@@ -1425,12 +1409,12 @@ def train_v13(
         "final_model_pth": final_pth_path,
     }
 
-    config_path = os.path.join(save_dir, "v13_config.json")
+    config_path = os.path.join(save_dir, "v14_config.json")
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
     print("\n" + "=" * 76)
-    print("✅ V13 training finished")
+    print("✅ V14 training finished")
     print("=" * 76)
     print(f"elapsed: {elapsed / 3600.0:.2f} h")
     print(f"model: {final_model_path}.zip")
@@ -1456,7 +1440,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="V13: 3-domain recurrent PPO with 6ch semantic obs, 7D state, 3D action adapter",
+        description="V14: 2-domain recurrent PPO with 6ch semantic obs, 7D state, 3D action adapter",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
@@ -1472,7 +1456,7 @@ if __name__ == "__main__":
     parser.add_argument("--sim", type=str, default="remote",
                         help="模拟器路径，设为 remote/none/空 则不自动启动 (默认: remote)")
     parser.add_argument("--steps", type=int, default=2000000)
-    parser.add_argument("--save-dir", type=str, default="models/v13_multi_scene")
+    parser.add_argument("--save-dir", type=str, default="models/v14_multi_scene")
     parser.add_argument("--port", type=int, default=9091)
     parser.add_argument("--sim-loaded-timeout-s", type=float, default=35.0,
                         help="sim 握手最长等待秒数；超时后直接报错而不是无限等待")
@@ -1680,7 +1664,7 @@ if __name__ == "__main__":
         _apply_if_not_set(attr, value, flag)
 
     print(
-        f"🆕 V13 profile={args.train_profile} | "
+        f"🆕 V14 profile={args.train_profile} | "
         f"prog={args.progress_reward_scale:.1f}, w_d={args.w_d:.2f}, "
         f"near_off={args.w_near_offtrack:.2f}, near_col={args.w_near_collision:.2f}, "
         f"thr={args.adapter_max_throttle:.2f}, ent={args.ent_coef:.4f}"

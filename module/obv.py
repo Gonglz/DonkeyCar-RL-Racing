@@ -5,10 +5,10 @@ V13 观测空间：6 通道语义图像 + 5 维纯传感器状态。
 观测结构
 --------
 image: (6, obs_size, obs_size) float32 [0, 1]
-  ch0  raw_Y             原图 Y 亮度通道
-  ch1  white_line_prob      原图白线软概率（Sobel 几何过滤+增强）
-  ch2  yellow_line_prob     原图黄线软概率（Sobel 几何过滤+增强，渐进 dropout）
-  ch3  sobel_edge           Sobel 边缘图（raw_Y）
+  ch0  raw_Y               原图 Y 亮度通道
+  ch1  edge_line_prob      车边线软概率（跨域 canonical 语义）
+  ch2  guide_line_prob     中线/引导线软概率（跨域 canonical 语义，渐进 dropout）
+  ch3  sobel_edge          Sobel 边缘图（raw_Y）
   ch4  vehicle_prob        动态目标软概率（GreenVehicleDetector）
   ch5  motion_residual     |Y_t - Y_{t-1}|，reset 后置零
 
@@ -21,7 +21,8 @@ state: (5,) float32
 
 设计原则
 --------
-- ch1/ch2 直接由 original 提取 white/yellow，跳过 canonical 映射绕路
+- ch1/ch2 直接由 original 提取线概率；对 WS 会做一次通道对齐，
+  使 ch1 始终表示车边线、ch2 始终表示中线/引导线
 - 软概率（Gaussian blur）而非硬二值，通道 dropout 提升鲁棒性
 - motion_residual 替代帧堆叠；配合 RecurrentPPO LSTM 处理长时依赖
 - 状态向量完全来自传感器 info，无 TrackGeometryManager 依赖
@@ -61,8 +62,8 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
 
     通道布局 (6, obs_size, obs_size) float32 [0,1]:
       ch0  raw_Y               原图 Y 亮度通道
-      ch1  white_line_prob     原图白线软概率（Sobel 几何过滤+增强）
-      ch2  yellow_line_prob    原图黄线软概率（Sobel 几何过滤+增强，渐进 dropout）
+      ch1  edge_line_prob      车边线软概率（跨域 canonical 语义）
+      ch2  guide_line_prob     中线/引导线软概率（跨域 canonical 语义，渐进 dropout）
       ch3  sobel_edge          Sobel 边缘图（raw_Y）
       ch4  vehicle_prob        动态目标软概率（GreenVehicleDetector）
       ch5  motion_residual     |Y_t - Y_{t-1}|，reset 后清零
@@ -330,8 +331,13 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
                 line_prob_min=self.line_prob_min,
             )
             edge = ws_out["edge"].astype(np.float32)
-            white_prob = ws_out["white_prob"].astype(np.float32)
-            yellow_prob = ws_out["yellow_prob"].astype(np.float32)
+            # WS 原始提取里：
+            #   white_prob  = 白色中心虚线（引导线）
+            #   yellow_prob = 黄色边线
+            # 这里对调到与 GT 一致的 canonical 语义：
+            #   ch1 = 车边线, ch2 = 中线/引导线
+            white_prob = ws_out["yellow_prob"].astype(np.float32)
+            yellow_prob = ws_out["white_prob"].astype(np.float32)
         else:
             if self._domain == "gt":
                 from .GT2NewTrack import build_gt_observation_line_probs
