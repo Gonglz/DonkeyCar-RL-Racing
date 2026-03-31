@@ -38,6 +38,20 @@ def _clip_float(x: float, lo: float, hi: float) -> float:
     return float(min(max(float(x), float(lo)), float(hi)))
 
 
+def _wrap_deg(x: float) -> float:
+    return float((float(x) + 180.0) % 360.0 - 180.0)
+
+
+def track_heading_deg_to_telemetry_yaw_deg(track_heading_deg: float) -> float:
+    """赛道切线方向(数学坐标系) -> Donkey telemetry yaw。"""
+    return _wrap_deg(90.0 - float(track_heading_deg))
+
+
+def telemetry_yaw_deg_to_track_heading_deg(yaw_deg: float) -> float:
+    """Donkey telemetry yaw -> 赛道/几何模块使用的数学朝向角。"""
+    return _wrap_deg(90.0 - float(yaw_deg))
+
+
 def _obstacle_episode_over_disabled(handler) -> None:
     """障碍车 client 不参与 RL episode 终止，避免离屏 staging 触发 reset。"""
     return None
@@ -177,6 +191,41 @@ class TrackTarget:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class PositionJitterConfig:
+    anchor: TrackTarget
+    amplitude_m: float = 0.10
+    period_s: float = 1.5
+    update_hz: float = 8.0
+    start_time: float = 0.0
+
+
+@dataclass(frozen=True)
+class InPlaceNudgeConfig:
+    anchor: TrackTarget
+    amplitude_m: float = 0.14
+    period_s: float = 1.5
+    update_hz: float = 8.0
+    start_time: float = 0.0
+
+
+@dataclass(frozen=True)
+class LanePIDConfig:
+    target_speed: float
+    lateral_ratio: float = 0.5
+    lookahead_m: float = 0.9
+    pure_pursuit_gain: float = 1.0
+    lookahead_speed_gain: float = 0.8
+    recovery_steer_gain: float = 1.1
+    reverse_steer_gain: float = 0.9
+    speed_kp: float = 0.90
+    speed_ki: float = 0.18
+    speed_kd: float = 0.02
+    max_throttle: float = 0.32
+    min_throttle: float = 0.06
+    throttle_steer_damp: float = 0.35
+
+
 @dataclass
 class ObstacleSnapshot:
     obstacle: Optional[PoseState]
@@ -191,6 +240,57 @@ class ObstacleSnapshot:
             "agent": None if self.agent is None else self.agent.as_dict(),
             "relative": None if self.relative is None else self.relative.as_dict(),
         }
+
+
+class _PIDController:
+    def __init__(
+        self,
+        kp: float = 0.0,
+        ki: float = 0.0,
+        kd: float = 0.0,
+        integral_limit: float = 1.0,
+        output_limits: Tuple[float, float] = (-1.0, 1.0),
+    ):
+        self.configure(kp=kp, ki=ki, kd=kd, integral_limit=integral_limit, output_limits=output_limits)
+        self.reset()
+
+    def configure(
+        self,
+        kp: float,
+        ki: float,
+        kd: float,
+        integral_limit: float,
+        output_limits: Tuple[float, float],
+    ) -> None:
+        self.kp = float(kp)
+        self.ki = float(ki)
+        self.kd = float(kd)
+        self.integral_limit = float(max(integral_limit, 0.0))
+        lo, hi = output_limits
+        self.output_limits = (float(lo), float(hi))
+
+    def reset(self) -> None:
+        self._integral = 0.0
+        self._prev_error: Optional[float] = None
+        self._prev_t: Optional[float] = None
+
+    def step(self, error: float, now: float) -> float:
+        error = float(error)
+        now = float(now)
+        dt = 0.0 if self._prev_t is None else max(now - self._prev_t, 1e-3)
+        if dt > 0.0:
+            self._integral = _clip_float(
+                self._integral + error * dt,
+                -self.integral_limit,
+                self.integral_limit,
+            )
+            derivative = 0.0 if self._prev_error is None else (error - self._prev_error) / dt
+        else:
+            derivative = 0.0
+        out = self.kp * error + self.ki * self._integral + self.kd * derivative
+        self._prev_error = error
+        self._prev_t = now
+        return _clip_float(out, self.output_limits[0], self.output_limits[1])
 
 
 class DonkeyObstacleFleet:
@@ -336,7 +436,7 @@ def pose_from_info(
                 scene_key,
                 x=x,
                 z=z,
-                yaw_rad=math.radians(yaw_deg),
+                yaw_rad=math.radians(telemetry_yaw_deg_to_track_heading_deg(yaw_deg)),
                 prev_idx=prev_idx,
             )
             track_idx = int(geo["idx"])
@@ -372,7 +472,7 @@ def compute_relative_state(agent: Optional[PoseState], obstacle: Optional[PoseSt
     dz = float(obstacle.z - agent.z)
     planar = float(math.hypot(dx, dz))
 
-    yaw_rad = math.radians(float(agent.yaw_deg))
+    yaw_rad = math.radians(telemetry_yaw_deg_to_track_heading_deg(float(agent.yaw_deg)))
     fx = math.cos(yaw_rad)
     fz = math.sin(yaw_rad)
     lx = -math.sin(yaw_rad)
@@ -439,7 +539,8 @@ def sample_track_target(
 
     point = (1.0 - lateral) * right + lateral * left
     tangent = g.tangent[idx]
-    yaw_deg = float(math.degrees(math.atan2(float(tangent[1]), float(tangent[0]))))
+    track_heading_deg = float(math.degrees(math.atan2(float(tangent[1]), float(tangent[0]))))
+    yaw_deg = track_heading_deg_to_telemetry_yaw_deg(track_heading_deg)
 
     return TrackTarget(
         scene_key=scene_key,
@@ -600,6 +701,19 @@ class DonkeyObstacleCar:
         self._agent_info: Optional[Dict[str, Any]] = None
         self._node_position_evt = threading.Event()
         self._node_position_resp: Optional[Dict[str, Any]] = None
+        self._jitter_cfg: Optional[PositionJitterConfig] = None
+        self._jitter_next_update_t: float = 0.0
+        self._nudge_cfg: Optional[InPlaceNudgeConfig] = None
+        self._nudge_next_update_t: float = 0.0
+        self._lane_pid_cfg: Optional[LanePIDConfig] = None
+        self._lane_speed_pid = _PIDController(
+            output_limits=(0.0, 1.0),
+            integral_limit=3.0,
+        )
+        self._lane_steer_pid = _PIDController(
+            output_limits=(-1.0, 1.0),
+            integral_limit=2.0,
+        )
 
     @staticmethod
     def _import_sim_env():
@@ -679,6 +793,7 @@ class DonkeyObstacleCar:
 
     def set_manual_action(self, steering: float = 0.0, throttle: float = 0.0) -> None:
         with self._lock:
+            self._clear_dynamic_modes_locked()
             self._manual_action = np.array(
                 [_clip_float(float(steering), -1.0, 1.0), _clip_float(float(throttle), -1.0, 1.0)],
                 dtype=np.float32,
@@ -688,9 +803,184 @@ class DonkeyObstacleCar:
 
     def hold_position(self) -> None:
         with self._lock:
+            self._clear_dynamic_modes_locked()
             self._manual_action = np.zeros((2,), dtype=np.float32)
             self._use_autopilot = False
             self._hold_brake = True
+
+    def stop_motion(self, hold_brake: bool = True) -> None:
+        with self._lock:
+            self._clear_dynamic_modes_locked()
+            self._manual_action = np.zeros((2,), dtype=np.float32)
+            self._use_autopilot = False
+            self._hold_brake = bool(hold_brake)
+
+    def motion_mode(self) -> str:
+        with self._lock:
+            if self._nudge_cfg is not None:
+                return "nudge"
+            if self._jitter_cfg is not None:
+                return "jitter"
+            if self._lane_pid_cfg is not None:
+                return "lane_pid"
+            if self._use_autopilot:
+                return "track_target"
+            if self._hold_brake and np.allclose(self._manual_action, 0.0):
+                return "hold"
+            return "manual"
+
+    def start_position_jitter(
+        self,
+        progress_ratio: Optional[float] = None,
+        lateral_ratio: Optional[float] = None,
+        amplitude_m: float = 0.10,
+        period_s: float = 1.5,
+        update_hz: float = 8.0,
+        y: float = 0.0,
+        obstacle_radius: float = 0.25,
+        safety_margin: float = 0.05,
+    ) -> TrackTarget:
+        """沿赛道纵向在锚点附近前后抖动；位置由 `set_position` 直接更新。"""
+        anchor = self._resolve_track_target(
+            progress_ratio=progress_ratio,
+            lateral_ratio=lateral_ratio,
+            y=y,
+            obstacle_radius=obstacle_radius,
+            safety_margin=safety_margin,
+        )
+        self._teleport_raw(
+            x=anchor.x,
+            z=anchor.z,
+            yaw_deg=anchor.yaw_deg,
+            world_y=self.default_world_y,
+            hold_brake=True,
+        )
+        with self._lock:
+            self._clear_dynamic_modes_locked()
+            self._target = anchor
+            self._jitter_cfg = PositionJitterConfig(
+                anchor=anchor,
+                amplitude_m=float(max(amplitude_m, 0.0)),
+                period_s=float(max(period_s, 0.2)),
+                update_hz=float(max(update_hz, 1.0)),
+                start_time=time.time(),
+            )
+            self._jitter_next_update_t = 0.0
+            self._manual_action = np.zeros((2,), dtype=np.float32)
+            self._use_autopilot = False
+            self._hold_brake = True
+        return anchor
+
+    def start_in_place_nudge(
+        self,
+        progress_ratio: Optional[float] = None,
+        lateral_ratio: Optional[float] = None,
+        amplitude_m: float = 0.14,
+        period_s: float = 1.5,
+        update_hz: float = 8.0,
+        y: float = 0.0,
+        obstacle_radius: float = 0.25,
+        safety_margin: float = 0.05,
+    ) -> TrackTarget:
+        """以当前锚点为中心，沿车头方向小幅前后挪动，保持原朝向不变。"""
+        anchor = self._resolve_track_target(
+            progress_ratio=progress_ratio,
+            lateral_ratio=lateral_ratio,
+            y=y,
+            obstacle_radius=obstacle_radius,
+            safety_margin=safety_margin,
+        )
+        self._teleport_raw(
+            x=anchor.x,
+            z=anchor.z,
+            yaw_deg=anchor.yaw_deg,
+            world_y=self.default_world_y,
+            hold_brake=True,
+        )
+        with self._lock:
+            self._clear_dynamic_modes_locked()
+            self._target = anchor
+            self._nudge_cfg = InPlaceNudgeConfig(
+                anchor=anchor,
+                amplitude_m=float(max(amplitude_m, 0.0)),
+                period_s=float(max(period_s, 0.2)),
+                update_hz=float(max(update_hz, 1.0)),
+                start_time=time.time(),
+            )
+            self._nudge_next_update_t = 0.0
+            self._manual_action = np.zeros((2,), dtype=np.float32)
+            self._use_autopilot = False
+            self._hold_brake = True
+        return anchor
+
+    def start_lane_pid(
+        self,
+        target_speed: float,
+        progress_ratio: Optional[float] = None,
+        lateral_ratio: Optional[float] = None,
+        lookahead_m: float = 0.9,
+        y: float = 0.0,
+        obstacle_radius: float = 0.25,
+        safety_margin: float = 0.05,
+        steer_kp: float = 1.00,
+        steer_ki: float = 0.0,
+        steer_kd: float = 0.0,
+        steer_lat_gain: float = 0.80,
+        speed_kp: float = 0.90,
+        speed_ki: float = 0.18,
+        speed_kd: float = 0.02,
+        max_throttle: float = 0.32,
+        min_throttle: float = 0.06,
+        throttle_steer_damp: float = 0.35,
+        place_on_start: bool = True,
+    ) -> TrackTarget:
+        """用 pure pursuit + speed PID 让障碍车沿指定车道持续绕圈。"""
+        anchor = self._resolve_track_target(
+            progress_ratio=progress_ratio,
+            lateral_ratio=lateral_ratio,
+            y=y,
+            obstacle_radius=obstacle_radius,
+            safety_margin=safety_margin,
+        )
+        if place_on_start:
+            self.place_pose(
+                x=anchor.x,
+                z=anchor.z,
+                yaw_deg=anchor.yaw_deg,
+                world_y=self.default_world_y,
+                hold_brake=False,
+                timeout_s=self.placement_timeout_s,
+            )
+        with self._lock:
+            self._clear_dynamic_modes_locked()
+            self._lane_speed_pid.configure(
+                kp=float(speed_kp),
+                ki=float(speed_ki),
+                kd=float(speed_kd),
+                integral_limit=3.0,
+                output_limits=(0.0, float(max(max_throttle, 0.0))),
+            )
+            self._lane_speed_pid.reset()
+            self._target = anchor
+            self._lane_pid_cfg = LanePIDConfig(
+                target_speed=float(max(target_speed, 0.0)),
+                lateral_ratio=float(anchor.lateral_ratio if lateral_ratio is None else lateral_ratio),
+                lookahead_m=float(max(lookahead_m, 0.1)),
+                pure_pursuit_gain=float(max(steer_kp, 0.0)),
+                lookahead_speed_gain=float(max(steer_lat_gain, 0.0)),
+                recovery_steer_gain=float(max(0.6 * max(steer_kp, 0.0) + 0.4, 0.0)),
+                reverse_steer_gain=float(max(0.7 * max(steer_kp, 0.0) + 0.2, 0.0)),
+                speed_kp=float(speed_kp),
+                speed_ki=float(speed_ki),
+                speed_kd=float(speed_kd),
+                max_throttle=float(max(max_throttle, 0.0)),
+                min_throttle=float(_clip_float(min_throttle, 0.0, max(max_throttle, 0.0))),
+                throttle_steer_damp=float(_clip_float(throttle_steer_damp, 0.0, 0.95)),
+            )
+            self._manual_action = np.zeros((2,), dtype=np.float32)
+            self._use_autopilot = False
+            self._hold_brake = False
+        return anchor
 
     def teleport_pose(
         self,
@@ -734,6 +1024,7 @@ class DonkeyObstacleCar:
             safety_margin=safety_margin,
         )
         with self._lock:
+            self._clear_dynamic_modes_locked()
             self._target = target
         if direct_place and self._handler() is not None:
             try:
@@ -843,9 +1134,109 @@ class DonkeyObstacleCar:
 
     def clear_target(self) -> None:
         with self._lock:
+            self._clear_dynamic_modes_locked()
             self._target = None
             self._use_autopilot = False
             self._hold_brake = False
+
+    def _clear_dynamic_modes_locked(self) -> None:
+        self._nudge_cfg = None
+        self._nudge_next_update_t = 0.0
+        self._jitter_cfg = None
+        self._jitter_next_update_t = 0.0
+        self._lane_pid_cfg = None
+        self._lane_speed_pid.reset()
+        self._lane_steer_pid.reset()
+
+    def _current_track_pose(self) -> Optional[PoseState]:
+        pose = self.get_obstacle_pose()
+        if pose is None or pose.progress_ratio is None:
+            return None
+        return pose
+
+    def _infer_lateral_ratio(self, pose: Optional[PoseState]) -> float:
+        if (
+            pose is None
+            or pose.progress_ratio is None
+            or pose.lat_err is None
+            or self.track_geometry is None
+            or not self.scene_key
+        ):
+            return 0.5
+        g = self.track_geometry.scenes[self.scene_key]
+        _idx, _t, _center, _left, _right, width = _segment_pose_at_progress(g, pose.progress_ratio)
+        return _clip_float(0.5 + float(pose.lat_err) / max(width, 1e-6), 0.0, 1.0)
+
+    def _resolve_track_target(
+        self,
+        progress_ratio: Optional[float],
+        lateral_ratio: Optional[float],
+        y: float,
+        obstacle_radius: float,
+        safety_margin: float,
+    ) -> TrackTarget:
+        if self.track_geometry is None or not self.scene_key:
+            raise ValueError("track_geometry and scene_key are required for obstacle motion")
+
+        current_pose = self._current_track_pose()
+        with self._lock:
+            target = self._target
+
+        active_progress = progress_ratio
+        if active_progress is None:
+            if target is not None:
+                active_progress = float(target.progress_ratio)
+            elif current_pose is not None and current_pose.progress_ratio is not None:
+                active_progress = float(current_pose.progress_ratio)
+            else:
+                raise ValueError("progress_ratio is required before obstacle pose/target is available")
+
+        active_lateral = lateral_ratio
+        if active_lateral is None:
+            if target is not None:
+                active_lateral = float(target.lateral_ratio)
+            else:
+                active_lateral = self._infer_lateral_ratio(current_pose)
+
+        return sample_track_target(
+            track_geometry=self.track_geometry,
+            scene_key=self.scene_key,
+            progress_ratio=float(active_progress),
+            lateral_ratio=float(active_lateral),
+            y=y,
+            obstacle_radius=obstacle_radius,
+            safety_margin=safety_margin,
+        )
+
+    def _sample_target_with_arc_offset(self, anchor: TrackTarget, delta_s_m: float) -> TrackTarget:
+        if self.track_geometry is None or anchor.scene_key not in self.track_geometry.scenes:
+            raise ValueError("track_geometry is required for arc-offset obstacle motion")
+        g = self.track_geometry.scenes[anchor.scene_key]
+        progress_ratio = float(anchor.progress_ratio + float(delta_s_m) / max(float(g.loop_len), 1e-6))
+        return sample_track_target(
+            track_geometry=self.track_geometry,
+            scene_key=anchor.scene_key,
+            progress_ratio=progress_ratio,
+            lateral_ratio=float(anchor.lateral_ratio),
+            y=anchor.y,
+        )
+
+    @staticmethod
+    def _sample_target_with_local_offset(anchor: TrackTarget, longitudinal_m: float) -> TrackTarget:
+        yaw_rad = math.radians(telemetry_yaw_deg_to_track_heading_deg(float(anchor.yaw_deg)))
+        dx = float(math.cos(yaw_rad) * float(longitudinal_m))
+        dz = float(math.sin(yaw_rad) * float(longitudinal_m))
+        return TrackTarget(
+            scene_key=anchor.scene_key,
+            track_idx=int(anchor.track_idx),
+            progress_ratio=float(anchor.progress_ratio),
+            lateral_ratio=float(anchor.lateral_ratio),
+            x=float(anchor.x + dx),
+            y=float(anchor.y),
+            z=float(anchor.z + dz),
+            yaw_deg=float(anchor.yaw_deg),
+            width=float(anchor.width),
+        )
 
     def obstacle_coordinates(self) -> Optional[Tuple[float, float, float]]:
         pose = self.get_obstacle_pose()
@@ -1007,17 +1398,32 @@ class DonkeyObstacleCar:
                     self._reset_evt.clear()
 
                 pose = self.get_obstacle_pose()
-                action = self._compute_action(pose)
-                with self._lock:
-                    hold_brake = bool(self._hold_brake and not self._use_autopilot and np.allclose(action, 0.0))
-                if hold_brake:
+                now = time.time()
+                nudge_target = self._update_nudge_pose(now)
+                jitter_target = None if nudge_target is not None else self._update_jitter_pose(now)
+                if nudge_target is not None or jitter_target is not None:
                     handler = self._handler()
                     if handler is None:
                         raise RuntimeError("Obstacle client handler is unavailable")
                     handler.send_control(0.0, 0.0, 1.0)
                     _obs, _reward, done, info = self._env.viewer.observe()
                 else:
-                    _obs, _reward, done, info = self._env.step(action)
+                    action = self._compute_action(pose)
+                    with self._lock:
+                        hold_brake = bool(
+                            self._hold_brake and self._lane_pid_cfg is None and not self._use_autopilot and np.allclose(action, 0.0)
+                        )
+                    if hold_brake:
+                        handler = self._handler()
+                        if handler is None:
+                            raise RuntimeError("Obstacle client handler is unavailable")
+                        handler.send_control(0.0, 0.0, 1.0)
+                        _obs, _reward, done, info = self._env.viewer.observe()
+                    else:
+                        frame_skip = int(max(getattr(self._env, "frame_skip", 1) or 1, 1))
+                        for _ in range(frame_skip):
+                            self._env.viewer.take_action(action)
+                            _obs, _reward, done, info = self._env.viewer.observe()
 
                 with self._lock:
                     self._last_info = _copy_info(info)
@@ -1035,6 +1441,10 @@ class DonkeyObstacleCar:
             manual = self._manual_action.copy()
             target = self._target
             use_autopilot = bool(self._use_autopilot)
+            lane_pid_cfg = self._lane_pid_cfg
+
+        if lane_pid_cfg is not None:
+            return self._compute_lane_pid_action(pose, lane_pid_cfg)
 
         if not use_autopilot or target is None:
             return manual
@@ -1045,7 +1455,7 @@ class DonkeyObstacleCar:
         dx = float(target.x - pose.x)
         dz = float(target.z - pose.z)
         planar_distance = float(math.hypot(dx, dz))
-        pose_yaw_rad = math.radians(float(pose.yaw_deg))
+        pose_yaw_rad = math.radians(telemetry_yaw_deg_to_track_heading_deg(float(pose.yaw_deg)))
 
         if planar_distance <= self.stop_distance:
             return np.array([0.0, 0.0], dtype=np.float32)
@@ -1102,6 +1512,122 @@ class DonkeyObstacleCar:
             throttle = self.crawl_throttle + (self.cruise_throttle - self.crawl_throttle) * ratio
 
         return np.array([steer, throttle], dtype=np.float32)
+
+    def _update_nudge_pose(self, now: float) -> Optional[TrackTarget]:
+        with self._lock:
+            cfg = self._nudge_cfg
+            next_update_t = self._nudge_next_update_t
+        if cfg is None:
+            return None
+        if now < next_update_t:
+            return cfg.anchor
+
+        phase = 2.0 * math.pi * ((float(now) - float(cfg.start_time)) / max(float(cfg.period_s), 1e-6))
+        target = self._sample_target_with_local_offset(cfg.anchor, float(cfg.amplitude_m) * math.sin(phase))
+        self._teleport_raw(
+            x=target.x,
+            z=target.z,
+            yaw_deg=target.yaw_deg,
+            world_y=self.default_world_y,
+            hold_brake=True,
+        )
+        with self._lock:
+            self._target = target
+            self._nudge_next_update_t = float(now) + 1.0 / max(float(cfg.update_hz), 1e-6)
+        return target
+
+    def _update_jitter_pose(self, now: float) -> Optional[TrackTarget]:
+        with self._lock:
+            cfg = self._jitter_cfg
+            next_update_t = self._jitter_next_update_t
+        if cfg is None:
+            return None
+        if now < next_update_t:
+            return cfg.anchor
+
+        phase = 2.0 * math.pi * ((float(now) - float(cfg.start_time)) / max(float(cfg.period_s), 1e-6))
+        target = self._sample_target_with_arc_offset(cfg.anchor, float(cfg.amplitude_m) * math.sin(phase))
+        self._teleport_raw(
+            x=target.x,
+            z=target.z,
+            yaw_deg=target.yaw_deg,
+            world_y=self.default_world_y,
+            hold_brake=True,
+        )
+        with self._lock:
+            self._target = target
+            self._jitter_next_update_t = float(now) + 1.0 / max(float(cfg.update_hz), 1e-6)
+        return target
+
+    def _compute_lane_pid_action(self, pose: Optional[PoseState], cfg: LanePIDConfig) -> np.ndarray:
+        if pose is None or self.track_geometry is None or not self.scene_key:
+            return np.zeros((2,), dtype=np.float32)
+
+        g = self.track_geometry.scenes[self.scene_key]
+        pose_yaw_rad = math.radians(telemetry_yaw_deg_to_track_heading_deg(float(pose.yaw_deg)))
+        geo = self.track_geometry.query(
+            self.scene_key,
+            x=pose.x,
+            z=pose.z,
+            yaw_rad=pose_yaw_rad,
+            prev_idx=self._last_track_idx,
+        )
+        current_idx = int(geo["idx"])
+        with self._lock:
+            self._last_track_idx = current_idx
+
+        if pose.progress_ratio is not None:
+            progress_ratio = float(pose.progress_ratio)
+        else:
+            progress_ratio = float(g.cum_len[current_idx] / max(g.loop_len, 1e-6))
+
+        effective_lookahead = float(
+            max(
+                float(cfg.lookahead_m),
+                float(cfg.lookahead_m) + float(cfg.lookahead_speed_gain) * max(float(pose.speed), 0.0),
+            )
+        )
+        lookahead_target = sample_track_target(
+            track_geometry=self.track_geometry,
+            scene_key=self.scene_key,
+            progress_ratio=progress_ratio + effective_lookahead / max(float(g.loop_len), 1e-6),
+            lateral_ratio=float(cfg.lateral_ratio),
+        )
+        dx = float(lookahead_target.x - pose.x)
+        dz = float(lookahead_target.z - pose.z)
+        local_forward = float(dx * math.cos(pose_yaw_rad) + dz * math.sin(pose_yaw_rad))
+        local_left = float(dx * (-math.sin(pose_yaw_rad)) + dz * math.cos(pose_yaw_rad))
+        lookahead_distance = float(max(math.hypot(dx, dz), 1e-3))
+
+        if local_forward <= 0.05:
+            steer = -_clip_float(
+                float(cfg.reverse_steer_gain) * math.atan2(local_left, max(abs(local_forward), 1e-3)),
+                -1.0,
+                1.0,
+            )
+            throttle_cap = 0.08
+        else:
+            curvature = float(2.0 * local_left / max(lookahead_distance * lookahead_distance, 1e-3))
+            steer = -_clip_float(float(cfg.pure_pursuit_gain) * curvature, -1.0, 1.0)
+            throttle_cap = float(cfg.max_throttle)
+
+        target_speed = float(max(cfg.target_speed, 0.0))
+        if target_speed <= 1e-3:
+            throttle = 0.0
+        else:
+            now = time.time()
+            throttle = self._lane_speed_pid.step(target_speed - float(max(pose.speed, 0.0)), now)
+            if throttle > 0.0:
+                throttle = max(float(cfg.min_throttle), throttle)
+            alpha = math.atan2(local_left, max(local_forward, 1e-3))
+            throttle *= float(np.clip(1.0 - 0.45 * min(abs(alpha) / 0.9, 1.0), 0.25, 1.0))
+            throttle *= float(np.clip(1.0 - 0.25 * min(abs(float(geo["lat_err_norm"])) / 1.5, 1.0), 0.35, 1.0))
+            throttle *= 1.0 - float(cfg.throttle_steer_damp) * min(abs(float(steer)), 1.0)
+            throttle = _clip_float(throttle, 0.0, throttle_cap)
+
+        with self._lock:
+            self._target = lookahead_target
+        return np.array([float(steer), float(throttle)], dtype=np.float32)
 
     @staticmethod
     def _forward_arc_distance(g: SceneGeometry, idx_now: int, idx_target: int) -> float:

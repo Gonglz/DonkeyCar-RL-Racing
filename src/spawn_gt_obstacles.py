@@ -67,6 +67,7 @@ def main() -> int:
     parser.add_argument("--scene", type=str, default="gt", choices=["gt", "ws"])
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=9091)
+    parser.add_argument("--mode", type=str, default="static", choices=["static", "jitter", "nudge", "lane-pid"])
     parser.add_argument("--layout", type=str, default="", help="Comma-separated progress:lateral pairs")
     parser.add_argument("--count", type=int, default=2, help="Random obstacle count when --layout is empty")
     parser.add_argument(
@@ -76,6 +77,11 @@ def main() -> int:
         help="Minimum obstacle spacing in sim/world coordinates when --layout is empty",
     )
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducible placement")
+    parser.add_argument("--speed", type=float, default=0.60, help="Lane-PID target speed")
+    parser.add_argument("--lookahead-m", type=float, default=0.90, help="Lane-PID lookahead distance in track coords")
+    parser.add_argument("--jitter-amplitude", type=float, default=0.10, help="Jitter amplitude in track coords")
+    parser.add_argument("--jitter-period", type=float, default=1.50, help="Jitter period in seconds")
+    parser.add_argument("--jitter-update-hz", type=float, default=8.0, help="Jitter teleport update rate")
     parser.add_argument("--duration", type=float, default=0.0, help="Seconds to keep alive; 0 means until Ctrl-C")
     args = parser.parse_args()
 
@@ -90,6 +96,33 @@ def main() -> int:
         seed=args.seed,
     )
     try:
+        if args.mode == "jitter":
+            for car, target in zip(fleet.cars, fleet.targets):
+                car.start_position_jitter(
+                    progress_ratio=target.progress_ratio,
+                    lateral_ratio=target.lateral_ratio,
+                    amplitude_m=args.jitter_amplitude,
+                    period_s=args.jitter_period,
+                    update_hz=args.jitter_update_hz,
+                )
+        elif args.mode == "nudge":
+            for car, target in zip(fleet.cars, fleet.targets):
+                car.start_in_place_nudge(
+                    progress_ratio=target.progress_ratio,
+                    lateral_ratio=target.lateral_ratio,
+                    amplitude_m=args.jitter_amplitude,
+                    period_s=args.jitter_period,
+                    update_hz=args.jitter_update_hz,
+                )
+        elif args.mode == "lane-pid":
+            for car, target in zip(fleet.cars, fleet.targets):
+                car.start_lane_pid(
+                    target_speed=args.speed,
+                    progress_ratio=target.progress_ratio,
+                    lateral_ratio=target.lateral_ratio,
+                    lookahead_m=args.lookahead_m,
+                )
+
         for i, (target, pose) in enumerate(zip(fleet.targets, fleet.get_obstacle_poses()), start=1):
             print(
                 f"[placed {i}] scene={fleet.preset.name} "
@@ -98,15 +131,18 @@ def main() -> int:
             )
 
         started = time.time()
-        print(f"[ready] {len(fleet.cars)} obstacle cars active in {fleet.preset.scene_key}. Press Ctrl-C to stop.")
+        print(
+            f"[ready] {len(fleet.cars)} obstacle cars active in {fleet.preset.scene_key} "
+            f"mode={args.mode}. Press Ctrl-C to stop."
+        )
         while True:
             if args.duration > 0.0 and (time.time() - started) >= float(args.duration):
                 break
-            for i, (pose, err) in enumerate(zip(fleet.get_obstacle_poses(), fleet.last_errors()), start=1):
+            for i, (car, pose, err) in enumerate(zip(fleet.cars, fleet.get_obstacle_poses(), fleet.last_errors()), start=1):
                 if err:
-                    print(f"[status {i}] error={err}")
+                    print(f"[status {i}] mode={car.motion_mode()} error={err}")
                 else:
-                    print(f"[status {i}] {_format_pose(pose)}")
+                    print(f"[status {i}] mode={car.motion_mode()} {_format_pose(pose)}")
             print("---")
             time.sleep(2.0)
     except KeyboardInterrupt:
