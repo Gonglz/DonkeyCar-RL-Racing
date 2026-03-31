@@ -12,6 +12,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
+MODULE_TRACK_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "track_data"))
 
 def _wrap_pi(x: float) -> float:
     return float((float(x) + math.pi) % (2.0 * math.pi) - math.pi)

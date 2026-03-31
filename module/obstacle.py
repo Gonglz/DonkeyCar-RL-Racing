@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from .track import SceneGeometry, TrackGeometryManager
+from .track import MODULE_TRACK_DATA_DIR, SceneGeometry, TrackGeometryManager
 
 
 def _wrap_pi(x: float) -> float:
@@ -72,7 +72,7 @@ _ENV_TO_SCENE_KEY: Dict[str, str] = {
 
 _UNITY_WORLD_SCALE = 8.0
 _DEFAULT_WORLD_Y = 0.5
-_DEFAULT_TRACK_PROFILE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "track_profiles"))
+_DEFAULT_TRACK_PROFILE_DIR = MODULE_TRACK_DATA_DIR
 _DEFAULT_OBSTACLE_BODY_RGBS: Tuple[Tuple[int, int, int], ...] = (
     (255, 80, 80),
     (80, 220, 120),

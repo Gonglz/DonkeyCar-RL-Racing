@@ -4,7 +4,8 @@ from .utils import (
     _seed_everything, _safe_seed_env, _find_latest_checkpoint,
     _wrap_pi, _clip_float, _get_domain_for_env,
 )
-from .track import SceneGeometry, TrackGeometryManager
+from .track import MODULE_TRACK_DATA_DIR, SceneGeometry, TrackGeometryManager
+from .track_generator import TrackProfile, available_gym_envs, available_scenes, load_track
 from .dynamics_wrapper import DynamicsAlignedGymEnv
 from .obstacle import (
     ObstacleFleetPreset, DonkeyObstacleFleet,
