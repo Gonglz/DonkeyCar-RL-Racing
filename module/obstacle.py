@@ -1,0 +1,1271 @@
+"""
+module/obstacle.py
+
+使用第二个 DonkeySim client 生成一辆额外的 donkey 车，作为动态/静态障碍车。
+
+当前 DonkeySim 底层已验证支持两个隐藏消息：
+- `{"msg_type": "set_position", "pos_x", "pos_y", "pos_z", "Qx", "Qy", "Qz", "Qw"}`
+- `{"msg_type": "node_position", "index": "..."}`
+
+注意坐标系：
+- `track.py` / telemetry / `info["pos"]` 使用的是 Python 侧赛道坐标；
+- Unity 内部 world 坐标在网络层额外放大了 8 倍；
+- 因此从 Python 侧定点放置障碍车时，需要 `x/z * 8` 后再发给 `set_position`。
+"""
+
+from __future__ import annotations
+
+import copy
+import math
+import os
+import sys
+import threading
+import time
+import uuid
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import numpy as np
+
+from .track import SceneGeometry, TrackGeometryManager
+
+
+def _wrap_pi(x: float) -> float:
+    return float((float(x) + math.pi) % (2.0 * math.pi) - math.pi)
+
+
+def _clip_float(x: float, lo: float, hi: float) -> float:
+    return float(min(max(float(x), float(lo)), float(hi)))
+
+
+def _obstacle_episode_over_disabled(handler) -> None:
+    """障碍车 client 不参与 RL episode 终止，避免离屏 staging 触发 reset。"""
+    return None
+
+
+_ENV_TO_SCENE_KEY: Dict[str, str] = {
+    "donkey-generated-track-v0": "generated_track",
+    "donkey-generated-roads-v0": "generated_track",
+    "donkey-waveshare-v0": "waveshare",
+    "donkey-warehouse-v0": "warehouse",
+    "donkey-mountain-track-v0": "mountain_track",
+    "donkey-minimonaco-track-v0": "mini_monaco",
+    "donkey-roboracingleague-track-v0": "roboracingleague_track",
+    "donkey-avc-sparkfun-v0": "avc_sparkfun",
+    "donkey-warren-track-v0": "warren_track",
+    "donkey-circuit-launch-track-v0": "circuit_launch",
+}
+
+_UNITY_WORLD_SCALE = 8.0
+_DEFAULT_WORLD_Y = 0.5
+_DEFAULT_TRACK_PROFILE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "track_profiles"))
+_DEFAULT_OBSTACLE_BODY_RGBS: Tuple[Tuple[int, int, int], ...] = (
+    (255, 80, 80),
+    (80, 220, 120),
+    (80, 150, 255),
+)
+
+
+@dataclass(frozen=True)
+class ObstacleFleetPreset:
+    name: str
+    env_id: str
+    scene_key: str
+    track_file: str
+    default_layout: Tuple[Tuple[float, float], ...]
+    staging_x_start: float
+    staging_z: float
+    staging_x_step: float
+    default_count: int = 2
+    min_separation_world: float = 3.0
+    obstacle_radius: float = 0.20
+    safety_margin: float = 0.08
+
+
+_OBSTACLE_FLEET_PRESETS: Dict[str, ObstacleFleetPreset] = {
+    "gt": ObstacleFleetPreset(
+        name="gt",
+        env_id="donkey-generated-track-v0",
+        scene_key="generated_track",
+        track_file="manual_width_generated_track.json",
+        default_layout=((0.06, 0.35), (0.12, 0.65)),
+        staging_x_start=-24.0,
+        staging_z=-20.0,
+        staging_x_step=2.0,
+    ),
+    "ws": ObstacleFleetPreset(
+        name="ws",
+        env_id="donkey-waveshare-v0",
+        scene_key="waveshare",
+        track_file="manual_width_waveshare.json",
+        default_layout=((0.08, 0.35), (0.20, 0.65)),
+        staging_x_start=-10.0,
+        staging_z=-6.0,
+        staging_x_step=1.2,
+        obstacle_radius=0.18,
+        safety_margin=0.05,
+    ),
+}
+
+_OBSTACLE_FLEET_ALIASES: Dict[str, str] = {
+    "gt": "gt",
+    "generated_track": "gt",
+    "donkey-generated-track-v0": "gt",
+    "ws": "ws",
+    "waveshare": "ws",
+    "donkey-waveshare-v0": "ws",
+}
+
+
+def telemetry_to_unity_world(x: float, y: float, z: float, scale: float = _UNITY_WORLD_SCALE) -> Tuple[float, float, float]:
+    return float(x) * scale, float(y) * scale, float(z) * scale
+
+
+def unity_world_to_telemetry(x: float, y: float, z: float, scale: float = _UNITY_WORLD_SCALE) -> Tuple[float, float, float]:
+    inv = 1.0 / max(float(scale), 1e-6)
+    return float(x) * inv, float(y) * inv, float(z) * inv
+
+
+def yaw_deg_to_unity_quaternion(yaw_deg: float) -> Tuple[float, float, float, float]:
+    half = 0.5 * math.radians(float(yaw_deg))
+    return 0.0, float(math.sin(half)), 0.0, float(math.cos(half))
+
+
+@dataclass
+class PoseState:
+    x: float
+    y: float
+    z: float
+    yaw_deg: float
+    speed: float
+    cte: float
+    hit: str
+    track_idx: Optional[int] = None
+    progress_ratio: Optional[float] = None
+    lat_err: Optional[float] = None
+
+    def as_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class RelativeState:
+    dx: float
+    dy: float
+    dz: float
+    planar_distance: float
+    longitudinal: float
+    lateral: float
+
+    def as_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class TrackTarget:
+    scene_key: str
+    track_idx: int
+    progress_ratio: float
+    lateral_ratio: float
+    x: float
+    y: float
+    z: float
+    yaw_deg: float
+    width: float
+
+    def as_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class ObstacleSnapshot:
+    obstacle: Optional[PoseState]
+    target: Optional[TrackTarget]
+    agent: Optional[PoseState]
+    relative: Optional[RelativeState]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "obstacle": None if self.obstacle is None else self.obstacle.as_dict(),
+            "target": None if self.target is None else self.target.as_dict(),
+            "agent": None if self.agent is None else self.agent.as_dict(),
+            "relative": None if self.relative is None else self.relative.as_dict(),
+        }
+
+
+class DonkeyObstacleFleet:
+    """管理一组静态障碍车（目前仅提供 gt / ws 两种 preset）。"""
+
+    def __init__(
+        self,
+        preset: ObstacleFleetPreset,
+        track_geometry: TrackGeometryManager,
+        cars: Sequence["DonkeyObstacleCar"],
+        targets: Sequence[TrackTarget],
+    ):
+        self.preset = preset
+        self.track_geometry = track_geometry
+        self.cars = list(cars)
+        self.targets = list(targets)
+
+    def shutdown(self) -> None:
+        for car in reversed(self.cars):
+            try:
+                car.shutdown()
+            except Exception:
+                pass
+
+    def get_obstacle_poses(self) -> List[Optional[PoseState]]:
+        return [car.get_obstacle_pose() for car in self.cars]
+
+    def obstacle_coordinates(self) -> List[Optional[Tuple[float, float, float]]]:
+        return [car.obstacle_coordinates() for car in self.cars]
+
+    def get_snapshots(self, agent_info: Optional[Dict[str, Any]] = None) -> List[ObstacleSnapshot]:
+        return [car.get_snapshot(agent_info=agent_info) for car in self.cars]
+
+    def last_errors(self) -> List[Optional[str]]:
+        return [car.last_error() for car in self.cars]
+
+
+def infer_scene_key(env_id: str) -> Optional[str]:
+    """根据 gym env_id 推断 scene_key。"""
+    return _ENV_TO_SCENE_KEY.get(str(env_id))
+
+
+def resolve_obstacle_fleet_preset(scene: str) -> ObstacleFleetPreset:
+    """仅支持 gt / ws 两类障碍车 preset。"""
+    key = _OBSTACLE_FLEET_ALIASES.get(str(scene).strip().lower())
+    if key is None or key not in _OBSTACLE_FLEET_PRESETS:
+        raise KeyError(f"Unsupported obstacle fleet scene: {scene!r}. Expected one of: gt, ws")
+    return _OBSTACLE_FLEET_PRESETS[key]
+
+
+def build_obstacle_track_geometry(scene: str, track_dir: Optional[str] = None) -> TrackGeometryManager:
+    preset = resolve_obstacle_fleet_preset(scene)
+    track_dir = str(track_dir or _DEFAULT_TRACK_PROFILE_DIR)
+    scene_specs = {
+        preset.env_id: {
+            "scene_key": preset.scene_key,
+            "track_file": preset.track_file,
+        }
+    }
+    return TrackGeometryManager(
+        track_dir=track_dir,
+        env_ids=[preset.env_id],
+        scene_specs=scene_specs,
+    )
+
+
+def default_obstacle_layout(scene: str) -> Tuple[Tuple[float, float], ...]:
+    return tuple(resolve_obstacle_fleet_preset(scene).default_layout)
+
+
+def _copy_info(info: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not info:
+        return {}
+    out = dict(info)
+    for key in ("pos", "gyro", "accel", "vel", "car", "lidar"):
+        if key in out:
+            try:
+                out[key] = copy.deepcopy(out[key])
+            except Exception:
+                pass
+    return out
+
+
+def _extract_pos(info: Dict[str, Any]) -> Tuple[float, float, float]:
+    pos = info.get("pos", (0.0, 0.0, 0.0))
+    try:
+        return float(pos[0]), float(pos[1]), float(pos[2])
+    except Exception:
+        return 0.0, 0.0, 0.0
+
+
+def _extract_yaw_deg(info: Dict[str, Any]) -> float:
+    car = info.get("car", (0.0, 0.0, 0.0))
+    try:
+        return float(car[2])
+    except Exception:
+        return 0.0
+
+
+def _extract_speed(info: Dict[str, Any]) -> float:
+    try:
+        return float(info.get("speed", 0.0) or 0.0)
+    except Exception:
+        return 0.0
+
+
+def _extract_cte(info: Dict[str, Any]) -> float:
+    try:
+        return float(info.get("cte", 0.0) or 0.0)
+    except Exception:
+        return 0.0
+
+
+def _extract_hit(info: Dict[str, Any]) -> str:
+    try:
+        return str(info.get("hit", "none") or "none")
+    except Exception:
+        return "none"
+
+
+def pose_from_info(
+    info: Optional[Dict[str, Any]],
+    track_geometry: Optional[TrackGeometryManager] = None,
+    scene_key: Optional[str] = None,
+    prev_idx: Optional[int] = None,
+) -> Optional[PoseState]:
+    """从 DonkeySim telemetry info 提取位姿；若提供赛道几何，则附带 track idx / progress。"""
+    if not info:
+        return None
+
+    x, y, z = _extract_pos(info)
+    yaw_deg = _extract_yaw_deg(info)
+    speed = _extract_speed(info)
+    cte = _extract_cte(info)
+    hit = _extract_hit(info)
+
+    track_idx = None
+    progress_ratio = None
+    lat_err = None
+    if track_geometry is not None and scene_key:
+        try:
+            geo = track_geometry.query(
+                scene_key,
+                x=x,
+                z=z,
+                yaw_rad=math.radians(yaw_deg),
+                prev_idx=prev_idx,
+            )
+            track_idx = int(geo["idx"])
+            lat_err = float(geo["lat_err"])
+            g = track_geometry.scenes[scene_key]
+            progress_ratio = float(g.cum_len[track_idx] / max(g.loop_len, 1e-6))
+        except Exception:
+            track_idx = None
+            progress_ratio = None
+            lat_err = None
+
+    return PoseState(
+        x=float(x),
+        y=float(y),
+        z=float(z),
+        yaw_deg=float(yaw_deg),
+        speed=float(speed),
+        cte=float(cte),
+        hit=hit,
+        track_idx=track_idx,
+        progress_ratio=progress_ratio,
+        lat_err=lat_err,
+    )
+
+
+def compute_relative_state(agent: Optional[PoseState], obstacle: Optional[PoseState]) -> Optional[RelativeState]:
+    """返回障碍车相对于 agent 的位姿差。"""
+    if agent is None or obstacle is None:
+        return None
+
+    dx = float(obstacle.x - agent.x)
+    dy = float(obstacle.y - agent.y)
+    dz = float(obstacle.z - agent.z)
+    planar = float(math.hypot(dx, dz))
+
+    yaw_rad = math.radians(float(agent.yaw_deg))
+    fx = math.cos(yaw_rad)
+    fz = math.sin(yaw_rad)
+    lx = -math.sin(yaw_rad)
+    lz = math.cos(yaw_rad)
+
+    longitudinal = float(dx * fx + dz * fz)
+    lateral = float(dx * lx + dz * lz)
+
+    return RelativeState(
+        dx=dx,
+        dy=dy,
+        dz=dz,
+        planar_distance=planar,
+        longitudinal=longitudinal,
+        lateral=lateral,
+    )
+
+
+def _segment_pose_at_progress(g: SceneGeometry, progress_ratio: float) -> Tuple[int, float, np.ndarray, np.ndarray, np.ndarray, float]:
+    progress = float(progress_ratio % 1.0)
+    s = progress * float(g.loop_len)
+    idx = int(np.searchsorted(g.cum_len, s, side="right") - 1)
+    idx = int(np.clip(idx, 0, g.center.shape[0] - 1))
+    nxt = (idx + 1) % g.center.shape[0]
+
+    seg_s = float(g.cum_len[idx])
+    seg_len = float(max(g.seg_len[idx], 1e-6))
+    t = float(np.clip((s - seg_s) / seg_len, 0.0, 1.0))
+
+    center = (1.0 - t) * g.center[idx] + t * g.center[nxt]
+    left = (1.0 - t) * g.left[idx] + t * g.left[nxt]
+    right = (1.0 - t) * g.right[idx] + t * g.right[nxt]
+    tangent = (1.0 - t) * g.tangent[idx] + t * g.tangent[nxt]
+    tangent_norm = float(max(np.linalg.norm(tangent), 1e-6))
+    tangent = tangent / tangent_norm
+    width = float(max(np.linalg.norm(left - right), 1e-6))
+
+    return idx, t, center, left, right, width
+
+
+def sample_track_target(
+    track_geometry: TrackGeometryManager,
+    scene_key: str,
+    progress_ratio: float,
+    lateral_ratio: float = 0.5,
+    y: float = 0.0,
+    obstacle_radius: float = 0.25,
+    safety_margin: float = 0.05,
+) -> TrackTarget:
+    """
+    在赛道截面上采样一个目标点。
+
+    `lateral_ratio=0` 为右边界，`1` 为左边界，0.5 为中线附近。
+    """
+    if scene_key not in track_geometry.scenes:
+        raise KeyError("Unknown scene_key for obstacle target: %s" % scene_key)
+
+    g = track_geometry.scenes[scene_key]
+    idx, _t, _center, left, right, width = _segment_pose_at_progress(g, progress_ratio)
+
+    usable_margin = float(max(obstacle_radius + safety_margin, 0.0))
+    margin_ratio = float(np.clip(usable_margin / max(width, 1e-6), 0.0, 0.49))
+    lateral = float(np.clip(lateral_ratio, margin_ratio, 1.0 - margin_ratio))
+
+    point = (1.0 - lateral) * right + lateral * left
+    tangent = g.tangent[idx]
+    yaw_deg = float(math.degrees(math.atan2(float(tangent[1]), float(tangent[0]))))
+
+    return TrackTarget(
+        scene_key=scene_key,
+        track_idx=int(idx),
+        progress_ratio=float(progress_ratio % 1.0),
+        lateral_ratio=float(lateral),
+        x=float(point[0]),
+        y=float(y),
+        z=float(point[1]),
+        yaw_deg=yaw_deg,
+        width=width,
+    )
+
+
+def sample_random_track_targets(
+    track_geometry: TrackGeometryManager,
+    scene_key: str,
+    count: int = 2,
+    y: float = 0.0,
+    obstacle_radius: float = 0.25,
+    safety_margin: float = 0.05,
+    min_separation_world: float = 3.0,
+    rng: Optional[np.random.Generator] = None,
+    max_attempts: int = 512,
+) -> List[TrackTarget]:
+    """
+    在整条赛道范围内随机采样多个障碍车目标点。
+
+    `min_separation_world` 使用 Unity / sim world 坐标；默认 `3.0` 约等于一个车身长度。
+    """
+    if int(count) <= 0:
+        raise ValueError("count must be positive")
+
+    min_separation = max(float(min_separation_world), 0.0) / max(float(_UNITY_WORLD_SCALE), 1e-6)
+    rng = np.random.default_rng() if rng is None else rng
+
+    targets: List[TrackTarget] = []
+    attempts = 0
+    while len(targets) < int(count) and attempts < int(max_attempts):
+        attempts += 1
+        candidate = sample_track_target(
+            track_geometry=track_geometry,
+            scene_key=scene_key,
+            progress_ratio=float(rng.random()),
+            lateral_ratio=float(rng.random()),
+            y=y,
+            obstacle_radius=obstacle_radius,
+            safety_margin=safety_margin,
+        )
+        if all(math.hypot(candidate.x - other.x, candidate.z - other.z) >= min_separation for other in targets):
+            targets.append(candidate)
+
+    if len(targets) != int(count):
+        raise RuntimeError(
+            "Failed to sample %d obstacle targets with min separation %.3f world units"
+            % (int(count), float(min_separation_world))
+        )
+    return targets
+
+
+class DonkeyObstacleCar:
+    """
+    额外的 DonkeySim client，用一辆可见/可撞的 donkey 车充当障碍车。
+
+    推荐流程：
+    1. `spawn()` 连接到同一个 sim；
+    2. `set_track_target(...)` 规划赛道内目标位姿；
+    3. 每个 agent step 调用 `update(agent_info)` 获取双方位置快照。
+    """
+
+    def __init__(
+        self,
+        env_id: str,
+        track_geometry: Optional[TrackGeometryManager] = None,
+        scene_key: Optional[str] = None,
+        sim_path: str = "remote",
+        host: str = "127.0.0.1",
+        port: int = 9091,
+        conf: Optional[Dict[str, Any]] = None,
+        body_style: str = "donkey",
+        body_rgb: Tuple[int, int, int] = (255, 80, 80),
+        car_name: str = "obstacle_donkey",
+        racer_name: str = "Obstacle",
+        country: str = "CN",
+        bio: str = "Obstacle donkey car",
+        guid: Optional[str] = None,
+        max_cte: float = 8.0,
+        cruise_throttle: float = 0.22,
+        crawl_throttle: float = 0.10,
+        slow_distance: float = 1.25,
+        stop_distance: float = 0.35,
+        approach_distance: float = 2.0,
+        k_lat: float = 0.45,
+        k_heading: float = 0.90,
+        k_target_heading: float = 1.10,
+        auto_reset_on_done: bool = True,
+        unity_world_scale: float = _UNITY_WORLD_SCALE,
+        default_world_y: float = _DEFAULT_WORLD_Y,
+        placement_timeout_s: float = 1.0,
+    ):
+        self.env_id = str(env_id)
+        self.track_geometry = track_geometry
+        self.scene_key = scene_key or infer_scene_key(self.env_id)
+
+        self.sim_path = str(sim_path)
+        self.host = str(host)
+        self.port = int(port)
+        self.max_cte = float(max_cte)
+        self.auto_reset_on_done = bool(auto_reset_on_done)
+
+        self.cruise_throttle = float(max(0.0, cruise_throttle))
+        self.crawl_throttle = float(max(0.0, crawl_throttle))
+        self.slow_distance = float(max(0.1, slow_distance))
+        self.stop_distance = float(max(0.05, stop_distance))
+        self.approach_distance = float(max(self.stop_distance, approach_distance))
+        self.k_lat = float(k_lat)
+        self.k_heading = float(k_heading)
+        self.k_target_heading = float(k_target_heading)
+        self.unity_world_scale = float(max(unity_world_scale, 1e-6))
+        self.default_world_y = float(default_world_y)
+        self.placement_timeout_s = float(max(placement_timeout_s, 0.0))
+
+        self.conf = dict(conf or {})
+        self.conf.update(
+            {
+                "host": self.host,
+                "port": self.port,
+                "body_style": body_style,
+                "body_rgb": tuple(int(v) for v in body_rgb),
+                "car_name": str(car_name),
+                "font_size": int(self.conf.get("font_size", 60)),
+                "racer_name": str(racer_name),
+                "country": str(country),
+                "bio": str(bio),
+                "guid": str(guid or ("obstacle-" + uuid.uuid4().hex[:12])),
+                "max_cte": self.max_cte,
+                # 障碍车不需要高分辨率图像，缩小带宽占用。
+                "cam_resolution": tuple(self.conf.get("cam_resolution", (32, 32, 3))),
+            }
+        )
+        self.conf.setdefault(
+            "cam_config",
+            {"img_w": 32, "img_h": 32, "img_d": 3},
+        )
+
+        self._env = None
+        self._thread = None
+        self._stop_evt = threading.Event()
+        self._reset_evt = threading.Event()
+        self._lock = threading.Lock()
+        self._last_info: Dict[str, Any] = {}
+        self._last_error: Optional[str] = None
+        self._target: Optional[TrackTarget] = None
+        self._manual_action = np.zeros((2,), dtype=np.float32)
+        self._use_autopilot = False
+        self._hold_brake = False
+        self._last_track_idx: Optional[int] = None
+        self._agent_info: Optional[Dict[str, Any]] = None
+        self._node_position_evt = threading.Event()
+        self._node_position_resp: Optional[Dict[str, Any]] = None
+
+    @staticmethod
+    def _import_sim_env():
+        try:
+            import gym  # type: ignore
+            import gym_donkeycar  # noqa: F401  # type: ignore
+            return gym
+        except ImportError:
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "src", "donkeycar"))
+            if repo_root not in sys.path:
+                sys.path.insert(0, repo_root)
+            import gym  # type: ignore
+            import gym_donkeycar  # noqa: F401  # type: ignore
+            return gym
+
+    def spawn(
+        self,
+        reset_on_spawn: bool = False,
+        hidden_pose: Optional[Tuple[float, float, float]] = None,
+        hold_brake: bool = True,
+    ) -> None:
+        """连接到同一个 DonkeySim server，并创建障碍车 client。"""
+        if self._thread is not None and self._thread.is_alive():
+            return
+
+        gym = self._import_sim_env()
+        conf = dict(self.conf)
+        if self.sim_path and self.sim_path not in ("", "remote", "none"):
+            conf["exe_path"] = self.sim_path
+        else:
+            conf.pop("exe_path", None)
+        self._env = gym.make(self.env_id, conf=conf)
+        if hasattr(self._env, "set_episode_over_fn"):
+            self._env.set_episode_over_fn(_obstacle_episode_over_disabled)
+        self._install_handler_hooks()
+        with self._lock:
+            self._manual_action = np.zeros((2,), dtype=np.float32)
+            self._use_autopilot = False
+            self._hold_brake = bool(hold_brake)
+        if hidden_pose is not None:
+            hidden_x, hidden_z, hidden_yaw_deg = hidden_pose
+            self._teleport_raw(
+                x=float(hidden_x),
+                z=float(hidden_z),
+                yaw_deg=float(hidden_yaw_deg),
+                world_y=self.default_world_y,
+                hold_brake=hold_brake,
+            )
+        self._stop_evt.clear()
+        if reset_on_spawn:
+            self._reset_evt.set()
+        else:
+            self._reset_evt.clear()
+        self._thread = threading.Thread(
+            target=self._run_loop,
+            name="donkey-obstacle-car",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def shutdown(self) -> None:
+        """停止障碍车 client。"""
+        self._stop_evt.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+        self._thread = None
+        if self._env is not None:
+            try:
+                self._env.close()
+            except Exception:
+                pass
+        self._env = None
+
+    def reset(self) -> None:
+        """请求障碍车 reset 到该 client 的默认出生点。"""
+        self._reset_evt.set()
+
+    def set_manual_action(self, steering: float = 0.0, throttle: float = 0.0) -> None:
+        with self._lock:
+            self._manual_action = np.array(
+                [_clip_float(float(steering), -1.0, 1.0), _clip_float(float(throttle), -1.0, 1.0)],
+                dtype=np.float32,
+            )
+            self._use_autopilot = False
+            self._hold_brake = False
+
+    def hold_position(self) -> None:
+        with self._lock:
+            self._manual_action = np.zeros((2,), dtype=np.float32)
+            self._use_autopilot = False
+            self._hold_brake = True
+
+    def teleport_pose(
+        self,
+        x: float,
+        z: float,
+        yaw_deg: float = 0.0,
+        world_y: Optional[float] = None,
+        hold_brake: bool = True,
+    ) -> None:
+        """直接发送瞬移消息，不等待位姿回读。适合批量同步放置。"""
+        self._teleport_raw(
+            x=float(x),
+            z=float(z),
+            yaw_deg=float(yaw_deg),
+            world_y=world_y,
+            hold_brake=hold_brake,
+        )
+
+    def set_track_target(
+        self,
+        progress_ratio: float,
+        lateral_ratio: float = 0.5,
+        y: float = 0.0,
+        obstacle_radius: float = 0.25,
+        safety_margin: float = 0.05,
+        direct_place: bool = True,
+        hold_brake: bool = True,
+        timeout_s: Optional[float] = None,
+    ) -> TrackTarget:
+        """规划一个赛道内目标位姿；默认直接放置，失败时可回退到自动驾驶。"""
+        if self.track_geometry is None or not self.scene_key:
+            raise ValueError("track_geometry and scene_key are required for track targets")
+
+        target = sample_track_target(
+            track_geometry=self.track_geometry,
+            scene_key=self.scene_key,
+            progress_ratio=progress_ratio,
+            lateral_ratio=lateral_ratio,
+            y=y,
+            obstacle_radius=obstacle_radius,
+            safety_margin=safety_margin,
+        )
+        with self._lock:
+            self._target = target
+        if direct_place and self._handler() is not None:
+            try:
+                placed = self.place_pose(
+                    x=target.x,
+                    z=target.z,
+                    yaw_deg=target.yaw_deg,
+                    world_y=None,
+                    hold_brake=hold_brake,
+                    timeout_s=timeout_s,
+                )
+                if placed is not None:
+                    return target
+            except Exception as exc:
+                with self._lock:
+                    self._last_error = "%s: %s" % (type(exc).__name__, exc)
+        with self._lock:
+            self._use_autopilot = True
+            self._hold_brake = False
+        return target
+
+    def place_track_target(
+        self,
+        progress_ratio: float,
+        lateral_ratio: float = 0.5,
+        y: float = 0.0,
+        obstacle_radius: float = 0.25,
+        safety_margin: float = 0.05,
+        hold_brake: bool = True,
+        timeout_s: Optional[float] = None,
+    ) -> TrackTarget:
+        return self.set_track_target(
+            progress_ratio=progress_ratio,
+            lateral_ratio=lateral_ratio,
+            y=y,
+            obstacle_radius=obstacle_radius,
+            safety_margin=safety_margin,
+            direct_place=True,
+            hold_brake=hold_brake,
+            timeout_s=timeout_s,
+        )
+
+    def place_pose(
+        self,
+        x: float,
+        z: float,
+        yaw_deg: float = 0.0,
+        world_y: Optional[float] = None,
+        hold_brake: bool = True,
+        timeout_s: Optional[float] = None,
+    ) -> Optional[PoseState]:
+        """
+        按 Python 侧赛道坐标直接放置障碍车。
+
+        说明：
+        - `x/z` 使用与 telemetry / track.py 一致的坐标；
+        - 发送给 Unity 前会自动乘 `unity_world_scale`（默认 8）。
+        """
+        handler = self._handler()
+        if handler is None:
+            raise RuntimeError("Obstacle client is not spawned")
+
+        self._teleport_raw(
+            x=float(x),
+            z=float(z),
+            yaw_deg=float(yaw_deg),
+            world_y=world_y,
+            hold_brake=hold_brake,
+        )
+        return self._wait_for_pose(
+            x=x,
+            z=z,
+            yaw_deg=yaw_deg,
+            timeout_s=self.placement_timeout_s if timeout_s is None else timeout_s,
+        )
+
+    def query_node_position(self, index: int, timeout_s: Optional[float] = None) -> Dict[str, Any]:
+        """查询 Unity car path 节点坐标，同时返回 world 坐标和 telemetry 坐标。"""
+        handler = self._handler()
+        if handler is None:
+            raise RuntimeError("Obstacle client is not spawned")
+
+        self._node_position_evt.clear()
+        with self._lock:
+            self._node_position_resp = None
+        self._send_raw({"msg_type": "node_position", "index": str(int(index))}, blocking=False)
+        ok = self._node_position_evt.wait(self.placement_timeout_s if timeout_s is None else timeout_s)
+        if not ok:
+            raise TimeoutError("Timed out waiting for node_position response")
+        with self._lock:
+            resp = dict(self._node_position_resp or {})
+        world_x = float(resp["pos_x"])
+        world_y = float(resp["pos_y"])
+        world_z = float(resp["pos_z"])
+        x, y, z = unity_world_to_telemetry(world_x, world_y, world_z, self.unity_world_scale)
+        resp.update(
+            {
+                "world_x": world_x,
+                "world_y": world_y,
+                "world_z": world_z,
+                "x": x,
+                "y": y,
+                "z": z,
+            }
+        )
+        return resp
+
+    def clear_target(self) -> None:
+        with self._lock:
+            self._target = None
+            self._use_autopilot = False
+            self._hold_brake = False
+
+    def obstacle_coordinates(self) -> Optional[Tuple[float, float, float]]:
+        pose = self.get_obstacle_pose()
+        if pose is None:
+            return None
+        return pose.x, pose.y, pose.z
+
+    def get_obstacle_pose(self) -> Optional[PoseState]:
+        with self._lock:
+            info = _copy_info(self._last_info)
+            prev_idx = self._last_track_idx
+        pose = pose_from_info(info, self.track_geometry, self.scene_key, prev_idx=prev_idx)
+        if pose is not None and pose.track_idx is not None:
+            with self._lock:
+                self._last_track_idx = int(pose.track_idx)
+        return pose
+
+    def get_snapshot(self, agent_info: Optional[Dict[str, Any]] = None) -> ObstacleSnapshot:
+        if agent_info is not None:
+            with self._lock:
+                self._agent_info = _copy_info(agent_info)
+
+        obstacle_pose = self.get_obstacle_pose()
+        with self._lock:
+            agent_info_local = _copy_info(self._agent_info)
+            target = self._target
+        agent_pose = pose_from_info(agent_info_local, self.track_geometry, self.scene_key, None)
+        relative = compute_relative_state(agent_pose, obstacle_pose)
+        return ObstacleSnapshot(
+            obstacle=obstacle_pose,
+            target=target,
+            agent=agent_pose,
+            relative=relative,
+        )
+
+    def update(self, agent_info: Optional[Dict[str, Any]] = None) -> ObstacleSnapshot:
+        """
+        刷新 agent 位姿缓存并返回最新快照。
+
+        说明：
+        - 障碍车的真实推进在后台线程中持续进行；
+        - 本方法本身不阻塞 sim，只做信息同步与快照计算。
+        """
+        return self.get_snapshot(agent_info=agent_info)
+
+    def last_error(self) -> Optional[str]:
+        with self._lock:
+            return self._last_error
+
+    def _handler(self):
+        if self._env is None:
+            return None
+        viewer = getattr(self._env, "viewer", None)
+        return getattr(viewer, "handler", None)
+
+    def _install_handler_hooks(self) -> None:
+        handler = self._handler()
+        if handler is None:
+            return
+        try:
+            handler.fns["node_position"] = self._on_node_position
+        except Exception:
+            pass
+
+    def _on_node_position(self, message: Dict[str, Any]) -> None:
+        with self._lock:
+            self._node_position_resp = dict(message)
+        self._node_position_evt.set()
+
+    def _send_raw(self, msg: Dict[str, Any], blocking: bool = True) -> None:
+        handler = self._handler()
+        if handler is None:
+            raise RuntimeError("Obstacle client is not spawned")
+        if blocking:
+            handler.blocking_send(msg)
+        else:
+            handler.queue_message(msg)
+
+    def _teleport_raw(
+        self,
+        x: float,
+        z: float,
+        yaw_deg: float = 0.0,
+        world_y: Optional[float] = None,
+        hold_brake: bool = True,
+    ) -> None:
+        handler = self._handler()
+        if handler is None:
+            raise RuntimeError("Obstacle client is not spawned")
+
+        if world_y is None:
+            pose_now = self.get_obstacle_pose()
+            if pose_now is not None:
+                _, world_y_now, _ = telemetry_to_unity_world(
+                    pose_now.x, pose_now.y, pose_now.z, self.unity_world_scale
+                )
+                world_y = world_y_now
+            else:
+                world_y = self.default_world_y
+
+        world_x, _, world_z = telemetry_to_unity_world(x, 0.0, z, self.unity_world_scale)
+        qx, qy, qz, qw = yaw_deg_to_unity_quaternion(yaw_deg)
+        msg = {
+            "msg_type": "set_position",
+            "pos_x": str(world_x),
+            "pos_y": str(world_y),
+            "pos_z": str(world_z),
+            "Qx": str(qx),
+            "Qy": str(qy),
+            "Qz": str(qz),
+            "Qw": str(qw),
+        }
+        if hold_brake:
+            try:
+                handler.send_control(0.0, 0.0, 1.0)
+            except Exception:
+                pass
+        self._send_raw(msg, blocking=True)
+        with self._lock:
+            self._manual_action = np.zeros((2,), dtype=np.float32)
+            self._use_autopilot = False
+            self._hold_brake = bool(hold_brake)
+
+    def _wait_for_pose(
+        self,
+        x: float,
+        z: float,
+        yaw_deg: float,
+        timeout_s: float,
+        pos_tol: float = 0.10,
+        yaw_tol_deg: float = 10.0,
+    ) -> Optional[PoseState]:
+        if timeout_s <= 0.0:
+            return self.get_obstacle_pose()
+        deadline = time.time() + float(timeout_s)
+        last_pose = self.get_obstacle_pose()
+        while time.time() < deadline:
+            pose = self.get_obstacle_pose()
+            if pose is not None:
+                last_pose = pose
+                pos_err = math.hypot(float(pose.x - x), float(pose.z - z))
+                yaw_err = abs(math.degrees(_wrap_pi(math.radians(float(pose.yaw_deg - yaw_deg)))))
+                if pos_err <= pos_tol and yaw_err <= yaw_tol_deg:
+                    return pose
+            time.sleep(0.02)
+        return last_pose
+
+    def _run_loop(self) -> None:
+        if self._env is None:
+            return
+
+        while not self._stop_evt.is_set():
+            try:
+                if self._reset_evt.is_set():
+                    self._env.reset()
+                    with self._lock:
+                        self._last_info = {}
+                        self._last_track_idx = None
+                    self._reset_evt.clear()
+
+                pose = self.get_obstacle_pose()
+                action = self._compute_action(pose)
+                with self._lock:
+                    hold_brake = bool(self._hold_brake and not self._use_autopilot and np.allclose(action, 0.0))
+                if hold_brake:
+                    handler = self._handler()
+                    if handler is None:
+                        raise RuntimeError("Obstacle client handler is unavailable")
+                    handler.send_control(0.0, 0.0, 1.0)
+                    _obs, _reward, done, info = self._env.viewer.observe()
+                else:
+                    _obs, _reward, done, info = self._env.step(action)
+
+                with self._lock:
+                    self._last_info = _copy_info(info)
+                    self._last_error = None
+
+                if done and self.auto_reset_on_done:
+                    self._reset_evt.set()
+            except Exception as exc:
+                with self._lock:
+                    self._last_error = "%s: %s" % (type(exc).__name__, exc)
+                time.sleep(0.1)
+
+    def _compute_action(self, pose: Optional[PoseState]) -> np.ndarray:
+        with self._lock:
+            manual = self._manual_action.copy()
+            target = self._target
+            use_autopilot = bool(self._use_autopilot)
+
+        if not use_autopilot or target is None:
+            return manual
+
+        if pose is None:
+            return np.array([0.0, 0.0], dtype=np.float32)
+
+        dx = float(target.x - pose.x)
+        dz = float(target.z - pose.z)
+        planar_distance = float(math.hypot(dx, dz))
+        pose_yaw_rad = math.radians(float(pose.yaw_deg))
+
+        if planar_distance <= self.stop_distance:
+            return np.array([0.0, 0.0], dtype=np.float32)
+
+        # 靠近目标时直接指向目标点，便于收敛到非中心线位置。
+        if planar_distance <= self.approach_distance:
+            target_heading = math.atan2(dz, dx)
+            heading_to_target = _wrap_pi(target_heading - pose_yaw_rad)
+            steer = _clip_float(self.k_target_heading * heading_to_target, -1.0, 1.0)
+            if planar_distance > self.stop_distance:
+                ratio = float(
+                    np.clip(
+                        (planar_distance - self.stop_distance) / max(self.approach_distance - self.stop_distance, 1e-6),
+                        0.0,
+                        1.0,
+                    )
+                )
+                throttle = self.crawl_throttle + (self.cruise_throttle - self.crawl_throttle) * ratio
+            else:
+                throttle = 0.0
+            return np.array([steer, throttle], dtype=np.float32)
+
+        if self.track_geometry is None or not self.scene_key:
+            return np.array([0.0, self.crawl_throttle], dtype=np.float32)
+
+        geo = self.track_geometry.query(
+            self.scene_key,
+            x=pose.x,
+            z=pose.z,
+            yaw_rad=pose_yaw_rad,
+            prev_idx=self._last_track_idx,
+        )
+        current_idx = int(geo["idx"])
+        with self._lock:
+            self._last_track_idx = current_idx
+
+        heading_err = math.atan2(float(geo["heading_err_sin"]), float(geo["heading_err_cos"]))
+        steer = _clip_float(
+            -self.k_lat * float(geo["lat_err_norm"]) - self.k_heading * heading_err,
+            -1.0,
+            1.0,
+        )
+
+        if pose.track_idx is not None:
+            g = self.track_geometry.scenes[self.scene_key]
+            arc_remaining = self._forward_arc_distance(g, int(pose.track_idx), int(target.track_idx))
+        else:
+            arc_remaining = planar_distance
+
+        if arc_remaining > self.slow_distance:
+            throttle = self.cruise_throttle
+        else:
+            ratio = float(np.clip(arc_remaining / max(self.slow_distance, 1e-6), 0.0, 1.0))
+            throttle = self.crawl_throttle + (self.cruise_throttle - self.crawl_throttle) * ratio
+
+        return np.array([steer, throttle], dtype=np.float32)
+
+    @staticmethod
+    def _forward_arc_distance(g: SceneGeometry, idx_now: int, idx_target: int) -> float:
+        i0 = int(idx_now) % g.center.shape[0]
+        i1 = int(idx_target) % g.center.shape[0]
+        if i1 >= i0:
+            return float(g.cum_len[i1] - g.cum_len[i0])
+        return float((g.loop_len - g.cum_len[i0]) + g.cum_len[i1])
+
+
+def spawn_preset_obstacle_fleet(
+    scene: str,
+    host: str = "127.0.0.1",
+    port: int = 9091,
+    track_dir: Optional[str] = None,
+    layout: Optional[Sequence[Tuple[float, float]]] = None,
+    count: Optional[int] = None,
+    min_separation_world: Optional[float] = None,
+    seed: Optional[int] = None,
+    body_rgbs: Sequence[Tuple[int, int, int]] = _DEFAULT_OBSTACLE_BODY_RGBS,
+    hold_brake: bool = True,
+    spawn_gap: float = 0.0,
+    placement_timeout_s: float = 1.5,
+) -> DonkeyObstacleFleet:
+    """
+    生成一组静态障碍车。
+
+    目前仅支持：
+    - `scene="gt"` / `generated_track`
+    - `scene="ws"` / `waveshare`
+
+    默认行为：
+    - 在赛道范围内随机生成 2 台障碍车
+    - 两台初始位置最少相隔 `3.0` 个 sim/world 坐标单位
+    - 若显式传入 `layout`，则使用固定布局并忽略随机采样参数
+    """
+    preset = resolve_obstacle_fleet_preset(scene)
+    track_geometry = build_obstacle_track_geometry(preset.name, track_dir=track_dir)
+    active_count = preset.default_count if count is None else int(count)
+    active_min_separation_world = (
+        preset.min_separation_world if min_separation_world is None else float(min_separation_world)
+    )
+
+    if layout is not None:
+        active_layout = list(layout)
+        if not active_layout:
+            raise ValueError("Obstacle fleet layout cannot be empty")
+        targets: List[TrackTarget] = [
+            sample_track_target(
+                track_geometry=track_geometry,
+                scene_key=preset.scene_key,
+                progress_ratio=float(progress_ratio),
+                lateral_ratio=float(lateral_ratio),
+                obstacle_radius=preset.obstacle_radius,
+                safety_margin=preset.safety_margin,
+            )
+            for progress_ratio, lateral_ratio in active_layout
+        ]
+    else:
+        targets = sample_random_track_targets(
+            track_geometry=track_geometry,
+            scene_key=preset.scene_key,
+            count=active_count,
+            obstacle_radius=preset.obstacle_radius,
+            safety_margin=preset.safety_margin,
+            min_separation_world=active_min_separation_world,
+            rng=np.random.default_rng(seed),
+        )
+    if not targets:
+        raise ValueError("Obstacle fleet targets cannot be empty")
+
+    if not body_rgbs:
+        raise ValueError("body_rgbs cannot be empty")
+
+    cars: List[DonkeyObstacleCar] = []
+    try:
+        for i, target in enumerate(targets, start=1):
+            color = tuple(int(v) for v in body_rgbs[(i - 1) % len(body_rgbs)])
+            car = DonkeyObstacleCar(
+                env_id=preset.env_id,
+                track_geometry=track_geometry,
+                scene_key=preset.scene_key,
+                host=host,
+                port=int(port),
+                body_style="donkey",
+                body_rgb=color,
+                car_name=f"{preset.name}_obstacle_{i}",
+                racer_name=f"{preset.name.upper()}-Obs-{i}",
+                bio=f"{preset.name} obstacle car",
+                country="US",
+                auto_reset_on_done=False,
+                placement_timeout_s=float(placement_timeout_s),
+            )
+            staging_x = float(preset.staging_x_start - (i - 1) * preset.staging_x_step)
+            car.spawn(
+                reset_on_spawn=False,
+                hidden_pose=(staging_x, float(preset.staging_z), 0.0),
+                hold_brake=hold_brake,
+            )
+            cars.append(car)
+            if spawn_gap > 0.0:
+                time.sleep(float(spawn_gap))
+
+        for car, target in zip(cars, targets):
+            car.teleport_pose(
+                x=target.x,
+                z=target.z,
+                yaw_deg=target.yaw_deg,
+                hold_brake=hold_brake,
+            )
+
+        time.sleep(0.6)
+        return DonkeyObstacleFleet(
+            preset=preset,
+            track_geometry=track_geometry,
+            cars=cars,
+            targets=targets,
+        )
+    except Exception:
+        for car in reversed(cars):
+            try:
+                car.shutdown()
+            except Exception:
+                pass
+        raise
+
+
+def spawn_gt_obstacles(
+    host: str = "127.0.0.1",
+    port: int = 9091,
+    track_dir: Optional[str] = None,
+    layout: Optional[Sequence[Tuple[float, float]]] = None,
+    count: Optional[int] = None,
+    min_separation_world: Optional[float] = None,
+    seed: Optional[int] = None,
+) -> DonkeyObstacleFleet:
+    return spawn_preset_obstacle_fleet(
+        scene="gt",
+        host=host,
+        port=port,
+        track_dir=track_dir,
+        layout=layout,
+        count=count,
+        min_separation_world=min_separation_world,
+        seed=seed,
+    )
+
+
+def spawn_ws_obstacles(
+    host: str = "127.0.0.1",
+    port: int = 9091,
+    track_dir: Optional[str] = None,
+    layout: Optional[Sequence[Tuple[float, float]]] = None,
+    count: Optional[int] = None,
+    min_separation_world: Optional[float] = None,
+    seed: Optional[int] = None,
+) -> DonkeyObstacleFleet:
+    return spawn_preset_obstacle_fleet(
+        scene="ws",
+        host=host,
+        port=port,
+        track_dir=track_dir,
+        layout=layout,
+        count=count,
+        min_separation_world=min_separation_world,
+        seed=seed,
+    )

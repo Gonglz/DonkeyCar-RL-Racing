@@ -12,7 +12,13 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from .utils import _wrap_pi, _clip_float
+
+def _wrap_pi(x: float) -> float:
+    return float((float(x) + math.pi) % (2.0 * math.pi) - math.pi)
+
+
+def _clip_float(x: float, lo: float, hi: float) -> float:
+    return float(min(max(float(x), float(lo)), float(hi)))
 
 
 # 三条已标定赛道的真实出界 CTE 阈值（仅针对已知的 3 个场景硬编码）

@@ -6,6 +6,14 @@ from .utils import (
     _safe_float, _apply_global_seeds, _write_json,
 )
 from .track import SceneGeometry, TrackGeometryManager
+from .obstacle import (
+    ObstacleFleetPreset, DonkeyObstacleFleet,
+    PoseState, RelativeState, TrackTarget, ObstacleSnapshot,
+    DonkeyObstacleCar, infer_scene_key, pose_from_info,
+    compute_relative_state, sample_track_target, sample_random_track_targets,
+    resolve_obstacle_fleet_preset, build_obstacle_track_geometry, default_obstacle_layout,
+    spawn_preset_obstacle_fleet, spawn_gt_obstacles, spawn_ws_obstacles,
+)
 from .reward import DonkeyRewardWrapper, ImprovedRewardWrapperV3, V9DomainRewardWrapper
 from .control import (
     HighLevelControlWrapper,
