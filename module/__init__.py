@@ -5,6 +5,7 @@ from .utils import (
     _wrap_pi, _clip_float, _get_domain_for_env,
 )
 from .track import SceneGeometry, TrackGeometryManager
+from .dynamics_wrapper import DynamicsAlignedGymEnv
 from .obstacle import (
     ObstacleFleetPreset, DonkeyObstacleFleet,
     PoseState, RelativeState, TrackTarget, PositionJitterConfig, InPlaceNudgeConfig, LanePIDConfig, ObstacleSnapshot,
