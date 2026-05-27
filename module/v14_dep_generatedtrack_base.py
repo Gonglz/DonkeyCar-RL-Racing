@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-V11.2: generated_track 随机出生 + fixed2 静态障碍训练
-（target-controller + 比例尺标定 + RecurrentPPO/LSTM）
+V11.2: generated_track note + fixed2 staticobstacletraining
+(target-controller + note + RecurrentPPO/LSTM)
 
-优先目标:
-1) 修复 reset/刷新导致的 Ego/NPC 重叠或过近
-2) 标定 generated_track 的仿真内一致尺度（telemetry坐标系）
-3) 用可稳定获得的 telemetry/info 字段重构奖励模式
-4) 接入 RecurrentPPO(CnnLstmPolicy) 做时序训练
+notegoal:
+1) note reset/note Ego/NPC note
+2) note generated_track note(telemetrynote)
+3) notestablenote telemetry/info noterewardnote
+4) note RecurrentPPO(CnnLstmPolicy) notetraining
 
-用法示例:
-  # 先标定比例尺（不训练）
+note:
+  # note(notetraining)
   python ppo_generatedtrack_v11_2_randomspawn_fixednpc.py --mode calibrate
 
-  # reset压测（检查spawn稳定性）
+  # resetnote(notespawnstablenote)
   python ppo_generatedtrack_v11_2_randomspawn_fixednpc.py --mode reset-stress --stress-resets 200
 
-  # fixed2 训练（需安装 sb3_contrib==1.8.0）
+  # fixed2 training(note sb3_contrib==1.8.0)
   python ppo_generatedtrack_v11_2_randomspawn_fixednpc.py --mode train --v11-2-mode fixed2 --total-steps 300000
 """
 
@@ -47,8 +47,8 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import DummyVecEnv
 
-# 复用 v9 已验证组件（节点查询/NPC控制/图像预处理/CNN）
-from .v14_dep_sim_core import (  # noqa: E402
+# note v9 note(note/NPCcontrol/note/CNN)
+from.v14_dep_sim_core import (  # noqa: E402
     SimExtendedAPI,
     TrackNodeCache,
     NPCController,
@@ -71,20 +71,20 @@ DEFAULT_DIST_SCALE_PROFILE_GENERATED_TRACK = {
     "lap_length_sim": None,
     "avg_node_gap_sim": None,
     "avg_fine_gap_sim": None,
-    # 以下在标定后填充（先给保守默认）
+    # note(notedefault)
     "spawn_min_gap_sim": 3.5,
     "spawn_min_gap_progress": 30,   # fine_track index gap
     "danger_close_sim": 1.2,
     "follow_safe_min_sim": 1.6,
     "follow_safe_max_sim": 4.0,
     "pass_window_sim": 2.2,
-    # v10.1: lane offset 语义（相对赛道切向法向）
+    # v10.1: lane offset note(notetracknote)
     "lane_offset_center_sim": 0.0,
     "lane_offset_left_sim": 0.55,
     "lane_offset_right_sim": -0.55,
     "lane_offset_safe_jitter_sim": 0.12,
     "lane_offset_calibration_fallback": True,
-    # v10.1: spawn 阈值按 pair type 拆分（None 表示标定后填充）
+    # v10.1: spawn note pair type note(None note)
     "spawn_min_gap_sim_ego_npc": None,
     "spawn_min_gap_progress_ego_npc": None,
     "spawn_min_gap_sim_npc_npc": None,
@@ -210,9 +210,9 @@ def _write_json(path, payload):
         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
         with open(abs_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
-        print(f"🧾 运行元数据已写入: {abs_path}")
+        print(f"🧾 noterowsnotedatanote: {abs_path}")
     except Exception as e:
-        print(f"⚠️ 写入运行元数据失败({path}): {e}")
+        print(f"⚠️ noterowsnotedatafailed({path}): {e}")
 
 
 class ManualWidthSpawnSampler(object):
@@ -230,11 +230,11 @@ class ManualWidthSpawnSampler(object):
         self.right_boundary = np.zeros((0, 2), dtype=np.float64)
         self.width_sim = np.zeros((0,), dtype=np.float64)
         self.half_width_cte = np.zeros((0,), dtype=np.float64)
-        # 左/右各自半宽（CTE单位）：赛道中心线非对称时用于精确的ontrack判定
-        self.half_width_left_cte = np.zeros((0,), dtype=np.float64)   # 中线→左边界
-        self.half_width_right_cte = np.zeros((0,), dtype=np.float64)  # 中线→右边界
-        self.half_width_narrow_cte = np.zeros((0,), dtype=np.float64) # min(left, right)：保守在线边界
-        self.half_width_wide_cte = np.zeros((0,), dtype=np.float64)   # max(left, right)：宽松边界
+        # note/note(CTEnote): tracknoteontracknote
+        self.half_width_left_cte = np.zeros((0,), dtype=np.float64)   # note->note
+        self.half_width_right_cte = np.zeros((0,), dtype=np.float64)  # note->note
+        self.half_width_narrow_cte = np.zeros((0,), dtype=np.float64) # min(left, right): note
+        self.half_width_wide_cte = np.zeros((0,), dtype=np.float64)   # max(left, right): note
         self.fine_gap_sim = 0.025
         self.width_median_sim = 1.0
 
@@ -260,8 +260,8 @@ class ManualWidthSpawnSampler(object):
             with open(self.profile_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             scene = str(data.get("scene", self.scene_name))
-            if scene != self.scene_name:
-                raise ValueError("scene mismatch: %s != %s" % (scene, self.scene_name))
+            if scene!= self.scene_name:
+                raise ValueError("scene mismatch: %s!= %s" % (scene, self.scene_name))
             outline = data.get("outline", {})
             self.fine_track = self._as_points(outline.get("fine_track_xz", []))
             self.left_boundary = self._as_points(outline.get("left_boundary_xz", []))
@@ -271,7 +271,7 @@ class ManualWidthSpawnSampler(object):
             n = int(self.fine_track.shape[0])
             if n <= 8:
                 raise ValueError("fine_track too short")
-            if self.left_boundary.shape[0] != n or self.right_boundary.shape[0] != n:
+            if self.left_boundary.shape[0]!= n or self.right_boundary.shape[0]!= n:
                 raise ValueError("boundary size mismatch")
 
             seg = np.roll(self.fine_track, -1, axis=0) - self.fine_track
@@ -286,16 +286,16 @@ class ManualWidthSpawnSampler(object):
             width = np.maximum(width, 1e-3)
             self.width_sim = width.astype(np.float64)
             self.width_median_sim = float(max(1e-3, np.median(self.width_sim)))
-            # 坐标系是 sim 单位（outline_xz）, 乘以 coord_scale 才得到 CTE 遥测单位
-            # info["cte"] 返回的是 CTE 单位，ontrack 判定必须同单位比较
+            # note sim note(outline_xz), note coord_scale note CTE note
+            # info["cte"] note CTE note, ontrack note
             self.half_width_cte = (0.5 * self.width_sim * self.coord_scale).astype(np.float64)
 
-            # 左/右各自半宽：中线→左边界、中线→右边界（CTE单位=sim*coord_scale）
+            # note/note: note->note, note->note(CTEnote=sim*coord_scale)
             hw_left  = np.sqrt(np.sum((self.left_boundary  - self.fine_track) ** 2, axis=1))
             hw_right = np.sqrt(np.sum((self.right_boundary - self.fine_track) ** 2, axis=1))
             hw_left  = np.where(np.isfinite(hw_left),  hw_left,  0.5 * self.width_sim)
             hw_right = np.where(np.isfinite(hw_right), hw_right, 0.5 * self.width_sim)
-            # sim→CTE: 乘以 coord_scale
+            # sim->CTE: note coord_scale
             self.half_width_left_cte   = (hw_left  * self.coord_scale).astype(np.float64)
             self.half_width_right_cte  = (hw_right * self.coord_scale).astype(np.float64)
             self.half_width_narrow_cte = np.minimum(self.half_width_left_cte, self.half_width_right_cte).astype(np.float64)
@@ -371,13 +371,13 @@ class ManualWidthSpawnSampler(object):
         return float(self.half_width_cte[int(fi) % int(self.half_width_cte.shape[0])])
 
     def half_width_narrow_cte_at(self, fi):
-        """返回该点窄侧半宽（min(左,右)），用于保守的ontrack判定。"""
+        """note(min(note,note)), noteontracknote."""
         if self.half_width_narrow_cte.size > 0:
             return float(max(1e-3, self.half_width_narrow_cte[int(fi) % int(self.half_width_narrow_cte.shape[0])]))
         return self.half_width_cte_at(fi)
 
     def half_width_wide_cte_at(self, fi):
-        """返回该点宽侧半宽（max(左,右)），用于max_cte参考。"""
+        """note(max(note,note)), notemax_ctenote."""
         if self.half_width_wide_cte.size > 0:
             return float(max(1e-3, self.half_width_wide_cte[int(fi) % int(self.half_width_wide_cte.shape[0])]))
         return self.half_width_cte_at(fi)
@@ -429,7 +429,7 @@ class ManualWidthSpawnSampler(object):
 
         margin = float(np.clip(float(margin_ratio), 0.0, 0.48))
         inside_lane = (lane_ratio >= margin) and (lane_ratio <= (1.0 - margin))
-        # 宽松几何门槛：离该横截面线段不能太远，防止误分到错误fine点
+        # notegeometrynote: note, notefinenote
         seg_dist_cap = max(0.40, 0.35 * float(self.width_sim[fi]))
         inside = bool(inside_lane and (seg_dist <= seg_dist_cap))
 
@@ -544,7 +544,7 @@ class ManualWidthSpawnSampler(object):
             fi_chk, d = self.nearest_fine_idx_local(x, z, fi, w_idx)
             if d > max(0.35, 0.45 * self.width_median_sim):
                 continue
-            # v11.7: 二次局部质量过滤，避免“看似靠近中心线但横截面不在赛道内”的坏点。
+            # v11.7: note, note"notetracknote"note.
             cls = self.classify_point(
                 x, z,
                 margin_ratio=max(0.03, margin * 0.70),
@@ -625,7 +625,7 @@ class FixedSuccessGuardState(object):
 
 
 def build_dist_scale_profile(track_cache, scene_name="generated_track"):
-    """基于 query 到的 nodes/fine_track 生成仿真内一致尺度档案。"""
+    """note query note nodes/fine_track generatenote."""
     nodes = track_cache.nodes.get(scene_name, [])
     fine = track_cache.fine_track.get(scene_name, [])
     profile = dict(DEFAULT_DIST_SCALE_PROFILE_GENERATED_TRACK)
@@ -653,22 +653,22 @@ def build_dist_scale_profile(track_cache, scene_name="generated_track"):
             fine_gaps.append(math.sqrt(dx * dx + dz * dz))
         profile["avg_fine_gap_sim"] = float(np.mean(fine_gaps)) if fine_gaps else None
 
-    # 从赛道统计推导一批更稳妥的默认阈值（仍是 sim 尺度）
+    # notetracknotedefaultnote(note sim note)
     avg_node_gap = profile.get("avg_node_gap_sim") or 0.5
     avg_fine_gap = profile.get("avg_fine_gap_sim") or 0.05
 
-    # 用节点间距推断刷新最小安全距离（避免贴脸出生）
+    # note(note)
     profile["spawn_min_gap_sim"] = max(3.0, 6.0 * avg_node_gap)
-    # fine_track点间隔通常更细，用长度比例避免过小
+    # fine_tracknote, note
     profile["spawn_min_gap_progress"] = int(max(20, round(profile["spawn_min_gap_sim"] / max(avg_fine_gap, 1e-3))))
 
-    # 跟车/避障阈值采用较保守区间，后续可在线统计再调
+    # note/note, note
     profile["danger_close_sim"] = max(0.9, 2.0 * avg_node_gap)
     profile["follow_safe_min_sim"] = max(profile["danger_close_sim"] + 0.2, 2.8 * avg_node_gap)
     profile["follow_safe_max_sim"] = max(profile["follow_safe_min_sim"] + 1.5, 6.5 * avg_node_gap)
     profile["pass_window_sim"] = max(1.8, 4.0 * avg_node_gap)
 
-    # v10.1: 先给 lane offset 的启发式默认（后续可替换为实测标定）
+    # v10.1: note lane offset notedefault(note)
     lane_half = max(0.45, 2.2 * avg_node_gap)
     profile["lane_offset_center_sim"] = 0.0
     profile["lane_offset_left_sim"] = +lane_half
@@ -676,7 +676,7 @@ def build_dist_scale_profile(track_cache, scene_name="generated_track"):
     profile["lane_offset_safe_jitter_sim"] = max(0.08, min(0.20, lane_half * 0.25))
     profile["lane_offset_calibration_fallback"] = True
 
-    # v10.1: pair-wise spawn 阈值（降低 B2 三车过约束）
+    # v10.1: pair-wise spawn note(note B2 note)
     profile["spawn_min_gap_sim_ego_npc"] = profile["spawn_min_gap_sim"]
     profile["spawn_min_gap_progress_ego_npc"] = max(30, int(round(profile["spawn_min_gap_progress"] * 0.70)))
     profile["spawn_min_gap_sim_npc_npc"] = max(1.0, profile["spawn_min_gap_sim"] * 0.45)
@@ -701,12 +701,12 @@ class StageConfig(object):
 
 
 STAGES = {
-    1: StageConfig(1, "A基础驾驶", "drive_only", npc_count=0, npc_mode="offtrack", min_stage_steps=80000),
-    2: StageConfig(2, "B1静态避障2车", "avoid_static", npc_count=2, npc_mode="static", min_stage_steps=120000),
-    3: StageConfig(3, "B2晃动避障2车", "avoid_static", npc_count=2, npc_mode="wobble", min_stage_steps=160000),
-    4: StageConfig(4, "C动态跟车", "follow_only", npc_count=1, npc_mode="slow_policy",
+    1: StageConfig(1, "Anote", "drive_only", npc_count=0, npc_mode="offtrack", min_stage_steps=80000),
+    2: StageConfig(2, "B1staticnote2note", "avoid_static", npc_count=2, npc_mode="static", min_stage_steps=120000),
+    3: StageConfig(3, "B2note2note", "avoid_static", npc_count=2, npc_mode="wobble", min_stage_steps=160000),
+    4: StageConfig(4, "Cdynamicnote", "follow_only", npc_count=1, npc_mode="slow_policy",
                    p_ego_behind=0.8, npc_speed_range=(0.10, 0.22), min_stage_steps=240000),
-    5: StageConfig(5, "D安全超车", "overtake", npc_count=1, npc_mode="slow_policy",
+    5: StageConfig(5, "Dnote", "overtake", npc_count=1, npc_mode="slow_policy",
                    enable_overtake_reward=True, p_ego_behind=0.8, npc_speed_range=(0.12, 0.30), min_stage_steps=320000),
 }
 
@@ -842,35 +842,35 @@ STAGE_TRAIN_PROFILES = {
 }
 
 
-# 改进版阶段门槛：更合理的学习曲线，避免早期卡死
+# notestagenote: note, note
 STAGE_EVAL_GATES = {
     1: StageEvalGate(
-        # 阶段1优化：降低进度要求(1.2→0.9)、允许offtrack以容纳学习早期
+        # stage1note: note(1.2->0.9), noteofftracknote
         min_stage_steps=80000, eval_every_steps=20000, eval_episodes=3, consecutive_passes_required=1,
         min_relative_progress_laps=0.9, require_lap_count_at_least=1, max_collisions=1, max_rear_end=0,
         allow_persistent_offtrack=True, allow_stuck=False, max_reverse_events=2,
     ),
     2: StageEvalGate(
-        # 阶段2优化：进度要求1.3→1.0、删除min_npc_encounters(太随机)、允许offtrack
+        # stage2note: note1.3->1.0, notemin_npc_encounters(note), noteofftrack
         min_stage_steps=120000, eval_every_steps=20000, eval_episodes=3, consecutive_passes_required=1,
         min_relative_progress_laps=1.0, require_lap_count_at_least=1, max_collisions=1, max_rear_end=0,
         allow_persistent_offtrack=True, allow_stuck=False, max_reverse_events=2,
     ),
     3: StageEvalGate(
-        # 阶段3优化：进度1.2→1.0、删除min_npc_encounters(改为min_npc_encounters=1但allow=True后实际无约束)
+        # stage3note: note1.2->1.0, notemin_npc_encounters(notemin_npc_encounters=1noteallow=Truenote)
         min_stage_steps=160000, eval_every_steps=20000, eval_episodes=3, consecutive_passes_required=1,
         min_relative_progress_laps=1.0, require_lap_count_at_least=1, max_collisions=1, max_rear_end=0,
         allow_persistent_offtrack=True, allow_stuck=False, max_reverse_events=3,
     ),
     4: StageEvalGate(
-        # 阶段4保持原样：已经是0.9进度，允许offtrack效果好
+        # stage4note: note0.9note, noteofftracknote
         min_stage_steps=240000, eval_every_steps=20000, eval_episodes=3, consecutive_passes_required=1,
         min_relative_progress_laps=0.9, require_lap_count_at_least=1, max_collisions=1, max_rear_end=0,
         allow_persistent_offtrack=True, allow_stuck=False, max_reverse_events=3,
         max_unsafe_follow_ratio=0.18,
     ),
     5: StageEvalGate(
-        # 阶段5保持高标准：超车任务需要精准操作
+        # stage5note: note
         min_stage_steps=320000, eval_every_steps=20000, eval_episodes=3, consecutive_passes_required=1,
         min_relative_progress_laps=1.0, require_lap_count_at_least=1, max_collisions=1, max_rear_end=0,
         allow_persistent_offtrack=False, allow_stuck=False, max_reverse_events=3,
@@ -909,7 +909,7 @@ _TRAIN_PROFILE_CLI_KEYS = {
 
 
 def _collect_cli_overrides(argv):
-    """近似收集显式传入的 CLI 选项（dest 名风格）。"""
+    """note CLI note(dest note)."""
     out = set()
     for raw in argv:
         if not raw.startswith("--"):
@@ -944,7 +944,7 @@ def _set_model_hparams_from_profile(model, profile, cli_overrides):
                 for group in model.policy.optimizer.param_groups:
                     group["lr"] = lr
         except Exception as e:
-            print(f"⚠️ 应用stage学习率失败: {e}")
+            print(f"⚠️ notestagenotefailed: {e}")
 
 
 def apply_stage_train_profile(stage_id, curriculum_stage_ref, args=None, wrapper=None, model=None,
@@ -954,7 +954,7 @@ def apply_stage_train_profile(stage_id, curriculum_stage_ref, args=None, wrapper
         return None
     p = asdict(profile)
 
-    # 写入 curriculum ref（wrapper 大多从 ref 读动态参数）
+    # note curriculum ref(wrapper note ref notedynamicnote)
     if p.get("npc_count") is not None:
         curriculum_stage_ref["npc_count"] = int(p["npc_count"])
     if p.get("random_start_enabled") is not None:
@@ -982,7 +982,7 @@ def apply_stage_train_profile(stage_id, curriculum_stage_ref, args=None, wrapper
         if p.get(key) is not None:
             curriculum_stage_ref[key] = p[key]
 
-    # args 默认值（仅当 CLI 未显式传入）
+    # args defaultnote(note CLI note)
     if args is not None:
         for pkey, akey in _TRAIN_PROFILE_CLI_KEYS.items():
             val = p.get(pkey)
@@ -991,7 +991,7 @@ def apply_stage_train_profile(stage_id, curriculum_stage_ref, args=None, wrapper
             if hasattr(args, akey):
                 setattr(args, akey, val)
 
-    # 运行时 wrapper 已缓存的参数需要同步更新
+    # noterowsnote wrapper note
     if wrapper is not None:
         for attr in [
             "max_throttle",
@@ -1005,7 +1005,7 @@ def apply_stage_train_profile(stage_id, curriculum_stage_ref, args=None, wrapper
             if p.get(attr) is not None and hasattr(wrapper, attr):
                 setattr(wrapper, attr, p[attr])
         if p.get("max_cte_limit") is not None and hasattr(wrapper, "current_max_cte"):
-            # 对当前阶段立刻生效；reset() 内仍会按阶段逻辑再次约束
+            # notecurrentstagenote; reset() notestagenote
             wrapper.current_max_cte = float(p["max_cte_limit"])
             if hasattr(wrapper, "stage1_cte_reset_limit"):
                 wrapper.stage1_cte_reset_limit = float(p["max_cte_limit"])
@@ -1094,7 +1094,7 @@ def stage_eval_gate_pass(eval_out, gate):
 
 
 class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
-    """V10 wrapper: 单地图 generated_track + spawn校验器 + 尺度感知奖励模式。"""
+    """V10 wrapper: note generated_track + spawnnote + noterewardnote."""
 
     def __init__(self, env, npc_controllers=None, track_cache=None, dist_scale_profile=None,
                  curriculum_stage_ref=None, spawn_debug=True, target_size=(120, 160),
@@ -1149,7 +1149,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self.lazy_connect_npcs = bool(lazy_connect_npcs)
         self.reset_debug_history = deque(maxlen=200)
         self._reset_index = 0
-        self._bad_nodes = set()  # 持久黑名单
+        self._bad_nodes = set()  # note
         self._obs_caps_logged = False
         self.follow_distance_history = deque(maxlen=400)
         self._last_npc_dists = {}
@@ -1159,7 +1159,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self._last_episode_success_2laps = False
         self._last_episode_collision = False
 
-        # v10.1: NPC 布局缓存与重置策略统计
+        # v10.1: NPC note
         self.npc_layout_id = 0
         self.npc_layout_reset_count = 0
         self.npc_layout_age_agent_resets = 0
@@ -1170,19 +1170,19 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self._npc_layout_stage_id = None
         self._npc_layout_active_count = 0
         self._consecutive_layout_failures = 0
-        # v11.3: 基于累计圈数的 NPC 位置重置
-        self._total_laps_completed = 0             # 跨回合累计完成圈数
-        self._npc_layout_last_reset_at_laps = 0    # 上次 NPC 布局重置时的累计圈数
-        self._mid_episode_laps_already_counted = 0  # step()中已实时累加的圈数，reset时不重复计
+        # v11.3: note NPC note
+        self._total_laps_completed = 0             # note
+        self._npc_layout_last_reset_at_laps = 0    # note NPC note
+        self._mid_episode_laps_already_counted = 0  # step()note, resetnote
         self.spawn_precheck_fail_stats = Counter()
         self.spawn_failure_reason_stats = Counter()
         self._lane_side_seen_counter = Counter()
         self._segment_seen_counter = Counter()
-        self._pending_npc_connect = []  # [(npc, body_rgb), ...] for lazy connect
+        self._pending_npc_connect = []  # [(npc, body_rgb),...] for lazy connect
         self._spawn_bin_counts = Counter()
         self._spawn_bins = int(self.curriculum_stage_ref.get("spawn_bins", 8))
         self._last_progress_milestone = 0
-        # 未激活 NPC 使用“地下隐藏位”，避免地图外闪现。
+        # note NPC note"note", note.
         self._inactive_npc_hide_pose = (0.0, -500.0, 0.0, 0.0, 0.0, 0.0, 1.0)
         self.npc_npc_collision_guard_enable = bool(npc_npc_collision_guard_enable)
         self.npc_npc_collision_guard_dist_sim = float(npc_npc_collision_guard_dist_sim)
@@ -1210,7 +1210,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self._npc_stuck_reset_cooldown_left = 0
         self._force_npc_layout_refresh_next = False
 
-        # v10.1: lane offset 可由 profile 或 CLI 覆盖
+        # v10.1: lane offset note profile note CLI note
         self._lane_offset_overrides = {
             "left": npc_lane_offset_left_sim,
             "right": npc_lane_offset_right_sim,
@@ -1220,19 +1220,19 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             self.dist_scale.get("lane_offset_safe_jitter_sim", 0.12)
             if npc_lane_jitter_sim is None else npc_lane_jitter_sim
         )
-        # 作为 wrapper 默认值，实际布局策略优先读 curriculum_stage_ref 再回退
+        # note wrapper defaultnote, note curriculum_stage_ref note
         self.default_npc_lane_balance_mode = str(npc_lane_balance_mode)
         self.default_npc_layout_segments = int(npc_layout_segments)
 
-        # v10.2: 倒车位移惩罚（基于赛道进度位移，不看速度符号）
+        # v10.2: note(notetracknote, note)
         self.reverse_progress_counter = 0
         self.reverse_progress_accum = 0.0
         self._prev_ego_fine_idx_for_reverse = None
-        # P0-2 fix: 不再快照 _fine_gap_sim，改为 property 实时从 dist_scale 读取（见下方 property）
+        # P0-2 fix: note _fine_gap_sim, note property note dist_scale read(note property)
         self.reverse_penalty_steps = int(self.curriculum_stage_ref.get("reverse_penalty_steps", 5))
         self.reverse_progress_step_thresh = int(self.curriculum_stage_ref.get("reverse_progress_step_thresh", 1))
         self.reverse_progress_dist_thresh = float(self.curriculum_stage_ref.get("reverse_progress_dist_thresh", 0.05))
-        # 默认关闭 reverse gate：优先通过奖励/惩罚让模型自己学会少倒车
+        # defaultnote reverse gate: notereward/notemodelnote
         self.reverse_gate_enabled = bool(self.curriculum_stage_ref.get("reverse_gate_enabled", False))
         self.reverse_gate_lock_speed = float(self.curriculum_stage_ref.get("reverse_gate_lock_speed", 0.22))
         self.reverse_gate_brake_speed = float(self.curriculum_stage_ref.get("reverse_gate_brake_speed", 0.60))
@@ -1244,7 +1244,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self.reverse_escape_offtrack_counter = int(self.curriculum_stage_ref.get("reverse_escape_offtrack_counter", 14))
         self.reverse_escape_low_progress_counter = int(self.curriculum_stage_ref.get("reverse_escape_low_progress_counter", 80))
         self.reverse_escape_low_progress_step_sim = float(self.curriculum_stage_ref.get("reverse_escape_low_progress_step_sim", 0.01))
-        # v10.7: reward-based anti-reverse shaping（比门控更稳）
+        # v10.7: reward-based anti-reverse shaping(note)
         self.reverse_onset_penalty = float(self.curriculum_stage_ref.get("reverse_onset_penalty", 0.12))
         self.reverse_streak_penalty_scale = float(self.curriculum_stage_ref.get("reverse_streak_penalty_scale", 0.03))
         self.reverse_backdist_penalty_scale = float(self.curriculum_stage_ref.get("reverse_backdist_penalty_scale", 1.4))
@@ -1253,12 +1253,12 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self._reverse_escape_cooldown_left = 0
         self._low_progress_counter = 0
 
-        # v10.3: 赛道进度（fine_track）作为主进度信号/奖励，并用于reset早退保护
+        # v10.3: tracknote(fine_track)note/reward, noteresetnote
         self.progress_reward_scale = float(self.curriculum_stage_ref.get("progress_reward_scale", 0.85))
         self.progress_backward_penalty_scale = float(self.curriculum_stage_ref.get("progress_backward_penalty_scale", 0.25))
         self.progress_milestone_lap = float(self.curriculum_stage_ref.get("progress_milestone_lap", 0.125))
         self.progress_milestone_reward = float(self.curriculum_stage_ref.get("progress_milestone_reward", 0.2))
-        # 前 0.1 圈 progress 奖励放大（帮助早期学会先往前走）
+        # first 0.1 note progress rewardnote(notefirstnote)
         self.early_progress_boost_lap = float(self.curriculum_stage_ref.get("early_progress_boost_lap", 0.10))
         self.early_progress_boost_factor = float(self.curriculum_stage_ref.get("early_progress_boost_factor", 2.0))
         self.progress_reward_decay_min = float(self.curriculum_stage_ref.get("progress_reward_decay_min", 0.35))
@@ -1272,7 +1272,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self.motion_arm_displacement_sim = float(self.curriculum_stage_ref.get("motion_arm_displacement_sim", 0.18))
         self.motion_arm_forward_progress_sim = float(self.curriculum_stage_ref.get("motion_arm_forward_progress_sim", 0.12))
         self.no_motion_timeout_steps = int(self.curriculum_stage_ref.get("no_motion_timeout_steps", 10))
-        # 起步助推：reset后前若干步强制正油门，帮助策略先学会前进
+        # note: resetnotefirstnote, notefirstnote
         self.startup_force_throttle_steps = int(self.curriculum_stage_ref.get("startup_force_throttle_steps", 10))
         self.startup_force_throttle = float(self.curriculum_stage_ref.get("startup_force_throttle", 0.20))
         self.stuck_guard_progress_laps = float(self.curriculum_stage_ref.get("stuck_guard_progress_laps", 0.05))
@@ -1297,20 +1297,20 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self._episode_spawn_z = None
         self._last_full_lap_bonus = 0
 
-        # 更长episode，覆盖两圈（generated_track）
+        # noteepisode, note(generated_track)
         if self.max_episode_steps < 1500:
             self.max_episode_steps = 1500
 
-        # 动作空间改为 steer/throttle 都是 [-1, 1]
+        # note steer/throttle note [-1, 1]
         try:
             self.action_space = gym.spaces.Box(
                 low=np.array([-1.0, -1.0], dtype=np.float32),
                 high=np.array([1.0, 1.0], dtype=np.float32),
                 dtype=np.float32,
             )
-            print("   ✅ V10 动作空间已设置: steer∈[-1,1], throttle∈[-1,1]")
+            print("   PASS V10 note: steer∈[-1,1], throttle∈[-1,1]")
         except Exception as e:
-            print(f"   ⚠️ 动作空间覆盖失败: {e}")
+            print(f"   ⚠️ notefailed: {e}")
 
     # ---------------- telemetry / info helpers ----------------
     def _extract_pos(self, info):
@@ -1319,7 +1319,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             return float(pos[0]), float(pos[1]), float(pos[2])
         if "pos_x" in info and "pos_z" in info:
             return float(info.get("pos_x", 0.0)), float(info.get("pos_y", 0.0)), float(info.get("pos_z", 0.0))
-        # fallback到env handler（telemetry）
+        # fallbacknoteenv handler(telemetry)
         try:
             h = self.env.viewer.handler
             return float(h.x), float(h.y), float(h.z)
@@ -1349,8 +1349,8 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             return
         keys = sorted(list(info.keys())) if isinstance(info, dict) else []
         print("🧾 OBS_FIELD_CAPS")
-        print("   稳定字段(目标):", OBS_FIELD_CAPS["stable"])
-        print("   本次实际info字段:", keys[:50])
+        print("   stablenote(goal):", OBS_FIELD_CAPS["stable"])
+        print("   noteinfonote:", keys[:50])
         self._obs_caps_logged = True
 
     def _format_progress_bar(self, ratio, width=16):
@@ -1389,11 +1389,11 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
 
     @property
     def _fine_gap_sim(self):
-        """P0-2 fix: 实时从 dist_scale 读取，确保标定后更新 dist_scale 时同步生效。"""
+        """P0-2 fix: note dist_scale read, note dist_scale note."""
         return float(self.dist_scale.get("avg_fine_gap_sim") or 0.025)
 
     def _maybe_open_reverse_escape_window(self):
-        """仅在明显需要脱困时，短暂允许进入倒车。"""
+        """note, note."""
         if not self.reverse_gate_enabled:
             return False
         if self._reverse_escape_steps_left > 0 or self._reverse_escape_cooldown_left > 0:
@@ -1401,7 +1401,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         if self.episode_step < self.reverse_escape_min_episode_steps:
             return False
         progress_laps_est = float(self.episode_stats.get('progress_laps_est', 0.0))
-        severe_offtrack = False  # offtrack_counter 已移除，改由 CTE 超限直接 done
+        severe_offtrack = False  # offtrack_counter note, note CTE note done
         stuck_like = self.stuck_counter >= self.reverse_escape_stuck_counter
         low_progress_stall = self._low_progress_counter >= self.reverse_escape_low_progress_counter
         if (severe_offtrack or stuck_like or low_progress_stall) and progress_laps_est <= 0.25:
@@ -1412,8 +1412,8 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
 
     def _apply_reverse_gate(self, throttle_cmd_raw):
         """
-        倒车门控：保留负油门用于刹车，但低速时默认禁止进入倒车。
-        只有脱困短窗打开时允许低速负油门。
+        note: note, notedefaultnote.
+        note.
         """
         throttle_cmd = float(np.clip(throttle_cmd_raw, -1.0, 1.0))
         meta = {
@@ -1425,7 +1425,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             "scaled": False,
         }
 
-        # 维护 cooldown/escape 计时（每步tick一次）
+        # note cooldown/escape note(noteticknote)
         if self._reverse_escape_steps_left <= 0 and self._reverse_escape_cooldown_left > 0:
             self._reverse_escape_cooldown_left -= 1
 
@@ -1435,11 +1435,11 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         last_speed = abs(float(self.speed_history[-1])) if len(self.speed_history) > 0 else 0.0
         meta["last_speed"] = last_speed
 
-        # 高速阶段允许负油门作为刹车
+        # notestagenote
         if last_speed >= self.reverse_gate_brake_speed:
             return throttle_cmd, meta
 
-        # 必要时打开短暂倒车窗口（脱困）
+        # note(note)
         if self._reverse_escape_steps_left <= 0:
             meta["escape_opened"] = self._maybe_open_reverse_escape_window()
 
@@ -1451,7 +1451,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 self._reverse_escape_cooldown_left = max(self._reverse_escape_cooldown_left, self.reverse_escape_cooldown_steps)
             return throttle_cmd, meta
 
-        # 中间速度区间：逐步衰减负油门，减小进入倒车的概率
+        # note: note, note
         if self.reverse_gate_lock_speed < last_speed < self.reverse_gate_brake_speed:
             denom = max(1e-6, self.reverse_gate_brake_speed - self.reverse_gate_lock_speed)
             scale = (last_speed - self.reverse_gate_lock_speed) / denom
@@ -1462,13 +1462,13 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 meta["blocked"] = True
             return gated, meta
 
-        # 低速且未在脱困窗口：禁止进入倒车
+        # note: note
         meta["blocked"] = True
         return 0.0, meta
 
     def _shaping_decay_factor(self):
-        """课程学习：随阶段训练进度推进，逐步收缩 shaping 奖励/惩罚。
-        前500k步保持满强度(1.0)，500k-1000k步线性衰减到下限。"""
+        """note: notestagetrainingnote, note shaping reward/note.
+        first500knote(1.0), 500k-1000knote."""
         decay_start = 500000
         decay_end   = 1000000
         steps = self.total_train_steps
@@ -1476,13 +1476,13 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             t = 0.0
         else:
             t = float(np.clip((steps - decay_start) / float(decay_end - decay_start), 0.0, 1.0))
-        # 早期=1.0，后期衰减到下限
+        # note=1.0, note
         reward_scale = 1.0 - (1.0 - self.progress_reward_decay_min) * t
         penalty_scale = 1.0 - (1.0 - self.penalty_decay_min) * t
         return reward_scale, penalty_scale
 
     def _update_episode_progress(self, info, speed=None):
-        """用 fine_track 环形索引估计赛道进度，返回当前步进度增量（sim距离）。"""
+        """note fine_track notetracknote, notecurrentnote(simnote)."""
         info = info if isinstance(info, dict) else {}
         fine = self._track_fine()
         fine_total = len(fine)
@@ -1510,7 +1510,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         dfi = int(self.track_cache.progress_diff(self.scene_name, int(cur_fi), int(self._episode_prev_fine_idx)))
         self._episode_prev_fine_idx = int(cur_fi)
 
-        # 单步nearest抖动保护，避免错误大跳变污染奖励/进度条
+        # notenearestnote, notereward/note
         dfi = int(np.clip(dfi, -self._progress_step_clip, self._progress_step_clip))
         step_sim = float(dfi) * max(self._fine_gap_sim, 1e-3)
 
@@ -1520,7 +1520,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         elif dfi < 0:
             self._episode_progress_fine_backward += float(-dfi)
 
-        # 起步判定（v10.4）：避免nearest fine-track抖动导致误判“已起步”
+        # note(v10.4): notenearest fine-tracknote"note"
         try:
             spd = abs(float(speed)) if speed is not None else 0.0
         except Exception:
@@ -1557,7 +1557,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return dfi, step_sim, fine_total
 
     def _ensure_npc_connections_for_stage(self):
-        """v10.2: 训练初期不渲染NPC，阶段需要时再连接。"""
+        """v10.2: trainingnoteNPC, stagenote."""
         if not self.lazy_connect_npcs:
             return
         target = int(self.curriculum_stage_ref.get("npc_count", 0))
@@ -1581,11 +1581,11 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                     connected_now += 1
                     time.sleep(0.3)
             except Exception as e:
-                print(f"⚠️ 延迟连接 NPC_{getattr(npc, 'npc_id', '?')} 失败: {e}")
+                print(f"⚠️ note NPC_{getattr(npc, 'npc_id', '?')} failed: {e}")
             if connected_now >= need:
                 break
         if connected_now > 0:
-            print(f"🚗 延迟连接NPC完成: +{connected_now} (目标阶段需要 {target} 台)")
+            print(f"🚗 noteNPCnote: +{connected_now} (goalstagenote {target} note)")
 
     # ---------------- geometry / spawn helpers ----------------
     def _node_tel(self, node):
@@ -1599,7 +1599,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return self.track_cache.fine_track.get(self.scene_name, []) if self.track_cache else []
 
     def _hide_npc_offtrack(self, npc):
-        """把未激活 NPC 停到地下隐藏位，避免在地图外闪现。"""
+        """note NPC note, note."""
         if npc is None:
             return
         try:
@@ -1615,7 +1615,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             pass
 
     def _geometry_track_check(self, x_tel, z_tel, seed_fi=None, margin_scale=0.35, centerline_slack=0.15):
-        """仅靠几何信息判断当前位置是否在赛道内（独立于瞬时CTE）。"""
+        """notegeometrynotecurrentnotetracknote(noteCTE)."""
         fine_idx = int(seed_fi) if seed_fi is not None else 0
         fine_dist = float("inf")
         if self.track_cache:
@@ -1658,7 +1658,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return [n for n in self.npc_controllers if n.connected][target:]
 
     def _apply_active_npc_runtime_mode(self, active_npcs, npc_mode, npc_speed_min, npc_speed_max, freeze_for_spawn=False):
-        """统一设置活跃 NPC 运行模式；spawn期可先冻结，成功后再恢复。"""
+        """unifiednote NPC noterowsnote; spawnnote, succeedednote."""
         mode = self._normalize_npc_mode(npc_mode)
         vmin = float(npc_speed_min)
         vmax = float(npc_speed_max)
@@ -1710,7 +1710,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             npc.set_mode("static", 0.0)
 
     def _sync_npc_speed_cap_with_learner(self, info):
-        """将 NPC 最高速度限制到 learner 当前速度（动态更新）。"""
+        """note NPC note learner currentnote(dynamicnote)."""
         if not isinstance(info, dict):
             return
         learner_speed = abs(_safe_float(info.get("speed", 0.0), 0.0))
@@ -1729,7 +1729,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return self._current_stage_id() in (2, 3)
 
     def _layout_reset_policy(self):
-        # 用户要求：默认 NPC 不随 learner 每回合重排（仅在必要时重排）
+        # note: default NPC note learner note(note)
         raw = self.curriculum_stage_ref.get("npc_layout_reset_policy")
         if self._npc_persist_mode_enabled():
             return "agent_only"
@@ -1781,11 +1781,11 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return float(self.dist_scale.get("lane_offset_right_sim", -0.55))
 
     def _lane_offset_stage_limits(self):
-        """按阶段收紧横向偏移，避免静态障碍刷到赛道外。"""
+        """notestagenote, notestaticobstaclenotetracknote."""
         stage = self._current_stage_id()
-        if stage == 2:   # B1 静态避障1车
+        if stage == 2:   # B1 staticnote1note
             return 0.80, 0.65, 0.48, 0.55  # offset_scale, jitter_scale, abs_cap, centerline_cap
-        if stage == 3:   # B2 静态避障3车（更保守）
+        if stage == 3:   # B2 staticnote3note(note)
             return 0.68, 0.55, 0.42, 0.50
         return 1.00, 1.00, 0.70, 0.70
 
@@ -1805,16 +1805,16 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         retries = max(2, retries)
         mode = str(getattr(self, "v11_2_mode", "")).lower()
         if mode == "fixed2":
-            # v11.5: 有预检保护后，teleport 稳定等待不需太多步
+            # v11.5: note, teleport stablenote
             retries = max(retries, 3)
             if int(getattr(self, "_consecutive_layout_failures", 0)) >= 2:
                 retries = max(retries, 4)
         return int(retries)
 
     def _precheck_pose_viable(self, pose):
-        """v11.5: 纯数学预检 — 候选位置是否在赛道上。
-        避免对注定失败的位置执行 teleport（产生可见闪烁）。
-        返回 True 表示可以尝试 teleport。
+        """v11.5: note - notetracknote.
+        notefailednoterows teleport(note).
+        note True note teleport.
         """
         if pose is None:
             return False
@@ -1826,7 +1826,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         ok, _meta = self._geometry_track_check(
             px, pz,
             seed_fi=seed_fi,
-            margin_scale=0.55,     # 比 verify 阶段更严格，减少坏值 teleport
+            margin_scale=0.55,     # note verify stagenote, note teleport
             centerline_slack=0.10,
         )
         return bool(ok)
@@ -1914,7 +1914,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return max(0, val)
 
     def _detect_npc_npc_contact(self):
-        """检测 NPC-NPC 接触（仅基于 NPC telemetry，不依赖 learner hit）。"""
+        """detection NPC-NPC note(note NPC telemetry, note learner hit)."""
         active = [n for n in self._active_npcs() if getattr(n, "connected", False)]
         if len(active) < 2:
             return None
@@ -1953,7 +1953,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return best
 
     def _maybe_handle_npc_npc_contact_reset(self, info=None):
-        """硬兜底：若检测到 NPC-NPC 接触，且 learner 未碰撞，则仅重排 NPC 布局。"""
+        """note: notedetectionnote NPC-NPC note, note learner note, note NPC note."""
         if not self._npc_npc_contact_reset_enabled():
             return False
         if self._npc_npc_contact_reset_cooldown_left > 0:
@@ -1961,7 +1961,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             return False
         hit_v = str((info or {}).get("hit", "none")).lower() if isinstance(info, dict) else "none"
         if hit_v not in ("none", "", "null"):
-            # learner 已碰撞时不做 NPC-only 热重排，避免干扰 learner 碰撞处理链路
+            # learner note NPC-only note, note learner note
             return False
         contact = self._detect_npc_npc_contact()
         if not contact:
@@ -1984,13 +1984,13 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             if isinstance(self.episode_stats, dict):
                 self.episode_stats["npc_npc_contact_resets"] = int(self.episode_stats.get("npc_npc_contact_resets", 0)) + 1
             print(
-                f"🚨 NPC-NPC触碰重排: pair={contact.get('pair')} dist={float(contact.get('dist', 0.0)):.3f} "
+                f"🚨 NPC-NPCnote: pair={contact.get('pair')} dist={float(contact.get('dist', 0.0)):.3f} "
                 f"gap={contact.get('progress_gap')} cooldown={self._npc_npc_contact_reset_cooldown_left}"
             )
         return bool(ok)
 
     def _capture_runtime_npc_records(self, active_npcs):
-        """采集当前NPC实时位置（不teleport），用于 agent-only learner reset。"""
+        """notecurrentNPCnote(noteteleport), note agent-only learner reset."""
         if not active_npcs:
             return True, [], None
         records = []
@@ -2018,7 +2018,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return True, records, None
 
     def _maybe_reset_stuck_npcs(self, info=None):
-        """仅在NPC卡住时触发NPC-only布局重排，不影响learner回合。"""
+        """noteNPCnoteNPC-onlynote, notelearnernote."""
         if not self._npc_stuck_reset_enabled():
             return False
         if self._npc_stuck_reset_cooldown_left > 0:
@@ -2075,11 +2075,11 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             self.episode_stats["npc_stuck_resets"] = int(self.episode_stats.get("npc_stuck_resets", 0)) + int(bool(ok))
         if ok:
             self.npc_layout_last_reset_reason = "npc_stuck"
-            print(f"🚨 NPC卡住重排: ids={stuck_ids} cooldown={self._npc_stuck_reset_cooldown_left}")
+            print(f"🚨 NPCnote: ids={stuck_ids} cooldown={self._npc_stuck_reset_cooldown_left}")
         return bool(ok)
 
     def _apply_npc_npc_collision_guard(self, info=None):
-        """运行时 NPC-NPC 距离守卫：过近时给后车短时急刹，降低互撞概率。"""
+        """noterowsnote NPC-NPC note: note, note."""
         if not self._npc_npc_guard_enabled():
             return 0
         active = [n for n in self._active_npcs() if getattr(n, "connected", False)]
@@ -2128,9 +2128,9 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 if self.track_cache:
                     dfi = self.track_cache.progress_diff(self.scene_name, int(fi_i), int(fi_j))
                     if dfi < 0:
-                        targets = [npc_i]   # i 在后
+                        targets = [npc_i]   # i note
                     elif dfi > 0:
-                        targets = [npc_j]   # j 在后
+                        targets = [npc_j]   # j note
                     else:
                         targets = [npc_i, npc_j]
                 else:
@@ -2169,7 +2169,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return int(pair_events)
 
     def _spawn_constraints(self):
-        """v10.1: pair-wise 阈值（可由 CLI/curriculum 覆盖）"""
+        """v10.1: pair-wise note(note CLI/curriculum note)"""
         ds = self.dist_scale
         def _cfg(name, default):
             v = self.curriculum_stage_ref.get(name, None)
@@ -2186,8 +2186,8 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                     "spawn_min_gap_progress_ego_npc",
                     ds.get("spawn_min_gap_progress_ego_npc", ds.get("spawn_min_gap_progress", 30)),
                 )),
-                # v11.5: False = 仅当 euclid AND progress 同时不满足才算违规
-                # (ego-first 模式下 NPC 在前方 40+ fine points, 空间距离可能 <2m 但进度方向足够远是安全的)
+                # v11.5: False = note euclid AND progress note
+                # (ego-first note NPC notefirstnote 40+ fine points, note <2m note)
                 "require_both": False,
             },
             "npc_npc": {
@@ -2199,21 +2199,21 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                     "spawn_min_gap_progress_npc_npc",
                     ds.get("spawn_min_gap_progress_npc_npc", max(12, int(ds.get("spawn_min_gap_progress", 30) * 0.3))),
                 )),
-                # B2 静态三车默认只对 NPC-NPC 做弱 progress sanity check，不作为 hard fail
+                # B2 staticnotedefaultnote NPC-NPC note progress sanity check, note hard fail
                 "require_progress": bool(_cfg(
                     "spawn_require_progress_npc_npc",
                     not self._is_static_layout_stage()
                 )),
             },
         }
-        # v11.4: 间距已由 STAGE_TRAIN_PROFILES 直接控制，不再额外硬编码提升。
-        # 如需特殊场景覆盖请通过 CLI 参数。
-        # LiDAR测试模式：允许首个障碍车与Ego同起点并排
+        # v11.4: note STAGE_TRAIN_PROFILES notecontrol, note.
+        # note CLI note.
+        # LiDARnote: noteobstaclenoteEgonote
         if bool(self.curriculum_stage_ref.get("npc_side_by_side_start", False)):
             c["ego_npc"]["min_progress_gap"] = 0
-            # side-by-side 调试模式下不做 ego-npc 最小欧氏距离硬约束，避免触发spawn失败重试/重置
+            # side-by-side note ego-npc note, notespawnfailednote/note
             c["ego_npc"]["min_euclid"] = 0.0
-        # 全局硬下限：保证任何 spawn 里 NPC 与 learner 不会过近（用户要求）
+        # note: note spawn note NPC note learner note(note)
         c["ego_npc"]["min_euclid"] = max(float(c["ego_npc"]["min_euclid"]), self._ego_npc_spawn_hard_floor_sim())
         c["ego_npc"]["min_progress_gap"] = max(int(c["ego_npc"]["min_progress_gap"]), self._ego_npc_spawn_hard_floor_progress())
         return c
@@ -2236,7 +2236,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             random.shuffle(sides)
             return sides[:count]
 
-        # 默认 balanced_lr
+        # default balanced_lr
         if count == 1:
             return [random.choice(["left", "right"])]
         if count == 2:
@@ -2259,7 +2259,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             random.shuffle(segs)
             return segs[:count], seg_n
 
-        # 尽量均匀抽段
+        # note
         stride = float(seg_n) / float(count)
         segs = []
         for i in range(count):
@@ -2280,7 +2280,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return segs, seg_n
 
     def build_segmented_npc_layout(self, active_npc_count):
-        """v10.1: B2 静态多车优先使用分段布局，降低 precheck 失败率。"""
+        """v10.1: B2 staticnote, note precheck failednote."""
         nodes = self._track_nodes()
         n = len(nodes)
         if n <= 0 or active_npc_count <= 0:
@@ -2288,13 +2288,13 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
 
         lane_sides = self.assign_npc_lane_sides(active_npc_count)
         seg_ids, seg_n = self._select_segment_ids(active_npc_count)
-        # v11.3: bad_nodes 已废弃，直接使用全量节点
+        # v11.3: bad_nodes note, note
         candidates = list(range(n))
-        # 排除起点附近节点，避免 NPC 生在起跑线上
+        # note, note NPC note
         start_exclusion = 5
         candidates = [c for c in candidates if min(c, n - c) >= start_exclusion]
         if len(candidates) < max(10, active_npc_count * 3):
-            candidates = list(range(n))  # 回退
+            candidates = list(range(n))  # note
 
         poses = []
         meta = []
@@ -2305,7 +2305,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             seg_candidates = [i for i in candidates if start <= i <= end]
             if not seg_candidates:
                 seg_candidates = list(range(start, end + 1)) if end >= start else [start % n]
-            # 避开段边界，降低跨段挤压（如果段足够大）
+            # note, note(note)
             if len(seg_candidates) >= 5:
                 seg_candidates = seg_candidates[1:-1] or seg_candidates
             anchor = random.choice(seg_candidates) % n
@@ -2318,16 +2318,16 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return poses, meta
 
     def _build_npc_target_poses(self, active_npc_count):
-        """根据阶段生成 NPC 目标布局（v10.1: B2 用 segmented + lane-balanced）。"""
+        """notestagegenerate NPC goalnote(v10.1: B2 note segmented + lane-balanced)."""
         if active_npc_count <= 0:
             return [], []
         stage = self._current_stage_id()
-        if stage == 3:  # B2: 静态避障3车
+        if stage == 3:  # B2: staticnote3note
             poses, meta = self.build_segmented_npc_layout(active_npc_count)
             if len(poses) == active_npc_count:
                 return poses, meta
 
-        # fallback: 复用旧逻辑的 anchor 采样，但加入 lane-side 语义
+        # fallback: note anchor note, note lane-side note
         ego_anchor, npc_anchors = self._pick_ego_and_npc_anchor_nodes(active_npc_count)
         lane_sides = self.assign_npc_lane_sides(active_npc_count)
         poses, meta = [], []
@@ -2372,10 +2372,10 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self._npc_layout_active_count = len(cached)
 
     def _apply_cached_npc_layout(self, active_npcs):
-        """将缓存布局应用到当前活跃NPC（必要时重teleport），返回记录列表。"""
+        """notecurrentnoteNPC(noteteleport), note."""
         if not self.npc_layout_cached_poses:
             return False, [], "no_cached_layout"
-        if len(active_npcs) != len(self.npc_layout_cached_poses):
+        if len(active_npcs)!= len(self.npc_layout_cached_poses):
             return False, [], "cached_count_mismatch"
         records = []
         by_id = {c["npc_id"]: c for c in self.npc_layout_cached_poses if c.get("pose")}
@@ -2384,7 +2384,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             if not c or not c.get("pose"):
                 return False, [], "cached_pose_missing"
             pose = c["pose"]
-            # 若 env.reset 后 NPC 已不在目标附近，则重设；否则保留
+            # note env.reset note NPC notegoalnote, note; note
             nx, ny, nz = npc.get_telemetry_position()
             tx, ty, tz = pose["tel"]
             d = math.sqrt((nx - tx) ** 2 + (nz - tz) ** 2)
@@ -2427,9 +2427,9 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
 
         if not self.npc_layout_cached_poses:
             return True, "no_cached_layout"
-        if self._npc_layout_active_count != count:
+        if self._npc_layout_active_count!= count:
             return True, "active_count_changed"
-        if self._npc_layout_stage_id != stage:
+        if self._npc_layout_stage_id!= stage:
             return True, "stage_changed"
         if self._consecutive_layout_failures >= self._layout_fail_refresh_threshold():
             return True, "consecutive_layout_failures"
@@ -2441,9 +2441,9 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
 
         # hybrid
         if not self._is_static_layout_stage():
-            # 动态阶段默认保持高刷新频率（仍允许通过 policy 覆盖）
+            # dynamicstagedefaultnote(note policy note)
             return True, "hybrid_dynamic_default"
-        # v11.3: 每累计完成 N 圈（默认2圈）强制刷新 NPC 位置
+        # v11.3: note N note(default2note)note NPC note
         reset_every_laps = int(self.curriculum_stage_ref.get("npc_layout_reset_every_laps", 2))
         if reset_every_laps > 0:
             laps_since_reset = self._total_laps_completed - self._npc_layout_last_reset_at_laps
@@ -2458,13 +2458,13 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return False, "hybrid_reuse"
 
     def _refresh_npc_layout_mid_episode(self):
-        """v11.3: 回合进行中完成整圈后，实时重新放置 NPC（不动 ego）。"""
+        """v11.3: noterowsnote, note NPC(note ego)."""
         active_npcs = self._active_npcs()
         if not active_npcs:
             return False
         npc_count = len(active_npcs)
 
-        # 确保 NPC 新位置与 ego 当前位置足够远
+        # note NPC note ego currentnote
         try:
             h = self.env.viewer.handler
             ego_tel = (float(h.x), float(h.y), float(h.z))
@@ -2474,7 +2474,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         if self.track_cache:
             ego_fi, _ = self.track_cache.find_nearest_fine_track(self.scene_name, ego_tel[0], ego_tel[2])
 
-        # v11.4: 优先使用 ego-first 策略（NPC 放在 ego 前方）
+        # v11.4: note ego-first note(NPC note ego firstnote)
         use_ego_first = (str(getattr(self, "v11_2_mode", "")).lower() == "fixed2"
                          and bool(getattr(getattr(self, "manual_spawn", None), "loaded", False))
                          and self._current_stage_id() in (2, 3))
@@ -2483,13 +2483,13 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         else:
             npc_target_poses, _meta = self._build_npc_target_poses(npc_count)
 
-        if len(npc_target_poses) != npc_count:
-            print(f"⚠️ mid-episode NPC刷新: 布局采样失败 ({len(npc_target_poses)}/{npc_count})")
+        if len(npc_target_poses)!= npc_count:
+            print(f"⚠️ mid-episode NPCnote: notefailed ({len(npc_target_poses)}/{npc_count})")
             return False
 
         ego_pose_for_check = {"tel": ego_tel, "fine_idx": ego_fi}
-        # mid-episode 刷新用宽松间距：ego 正在行驶，只需 NPC 别太近即可
-        # 欧氏距离降到 2.5m，progress_gap 降到 60（赛道 1080 fine 点）
+        # mid-episode note: ego noterowsnote, note NPC note
+        # note 2.5m, progress_gap note 60(track 1080 fine note)
         mid_constraints = self._spawn_constraints()
         mid_ego_npc = mid_constraints["ego_npc"]
         hard_e = self._ego_npc_spawn_hard_floor_sim()
@@ -2497,7 +2497,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         mid_ego_npc["min_euclid"] = max(hard_e, min(float(mid_ego_npc["min_euclid"]), 2.5))
         mid_ego_npc["min_progress_gap"] = max(hard_g, min(int(mid_ego_npc["min_progress_gap"]), 60))
 
-        # 最多尝试 10 次重新采样
+        # note 10 note
         for attempt in range(10):
             valid, violations = self.validate_spawn_separation(
                 ego_pose_for_check, npc_target_poses, constraints=mid_constraints,
@@ -2505,13 +2505,13 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             if valid:
                 break
             npc_target_poses, npc_layout_meta = self._build_npc_target_poses(npc_count)
-            if len(npc_target_poses) != npc_count:
+            if len(npc_target_poses)!= npc_count:
                 return False
         else:
-            print(f"⚠️ mid-episode NPC刷新: 间距校验失败，放弃本次刷新")
+            print(f"⚠️ mid-episode NPCnote: notefailed, note")
             return False
 
-        # teleport NPC 到新位置
+        # teleport NPC note
         npc_records = []
         npc_mode = self._normalize_npc_mode(self.curriculum_stage_ref.get("npc_mode", "static"))
         for i, (npc, pose) in enumerate(zip(active_npcs, npc_target_poses)):
@@ -2535,18 +2535,18 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             self._npc_layout_last_reset_at_laps = self._total_laps_completed
             self.npc_layout_id += 1
             self.npc_layout_reset_count += 1
-            # 如果是 wobble 模式，确保 NPC 在新位置继续晃动
+            # note wobble note, note NPC note
             if npc_mode == "wobble":
                 for npc in active_npcs:
                     npc.set_mode("wobble", 0.0)
                     if not npc.running:
                         npc.start_driving()
-            print(f"🔄 mid-episode NPC布局刷新: {len(npc_records)}台已重新放置 (layout_id={self.npc_layout_id}, total_laps={self._total_laps_completed})")
+            print(f"🔄 mid-episode NPCnote: {len(npc_records)}note (layout_id={self.npc_layout_id}, total_laps={self._total_laps_completed})")
             return True
         return False
 
     def _spawn_agent_only_against_existing_npcs(self, active_npcs):
-        """v10.1: 仅重采样 Agent，重用（必要时重teleport）缓存 NPC 布局。"""
+        """v10.1: note Agent, note(noteteleport)note NPC note."""
         spawn_debug = {
             "reset_idx": self._reset_index,
             "stage": self._current_stage_id(),
@@ -2604,7 +2604,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
 
         for attempt in range(max_attempts):
             spawn_debug["spawn_retries"] = attempt
-            # Agent-only 采样可以更积极一些：先节点精确，失败再抖动放宽
+            # Agent-only note: note, failednote
             exact = attempt < 2
             jitter_scale = 0.7 if attempt < (max_attempts // 2) else 1.0
             if safe_ego_anchors:
@@ -2619,7 +2619,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             if ego_pose is None:
                 continue
 
-            # v11.5 预检
+            # v11.5 note
             if not self._precheck_pose_viable(ego_pose):
                 attempt_fail_counts["ego_precheck_off_track"] = attempt_fail_counts.get("ego_precheck_off_track", 0) + 1
                 continue
@@ -2644,12 +2644,12 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             if not ego_res.get("ok"):
                 spawn_debug["spawn_fail_reason"] = "ego_verify_failed"
                 attempt_fail_counts["ego_verify_failed"] += 1
-                # v11.3: 不再因 ego_verify_failed 拉黑 node——
-                # teleport 后物理漂移导致 CTE 偶尔偏高是临时性的，不代表该位置不可用。
-                # 只从本轮 safe_ego_anchors 中移除，不写入持久黑名单。
+                # v11.3: note ego_verify_failed note node--
+                # teleport note CTE note, note.
+                # note safe_ego_anchors note, note.
                 if safe_ego_anchors and ego_pose["node_idx"] is not None:
                     bad_idx = int(ego_pose["node_idx"])
-                    safe_ego_anchors = [a for a in safe_ego_anchors if int(a) != bad_idx]
+                    safe_ego_anchors = [a for a in safe_ego_anchors if int(a)!= bad_idx]
                 spawn_debug["bad_nodes_count"] = len(self._bad_nodes)
                 continue
 
@@ -2657,7 +2657,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             spawn_debug["ego_spawn_idx"] = int(ego_pose["node_idx"])
             spawn_debug["ego_fine_idx"] = int(ego_pose.get("fine_idx", 0))
 
-            # 真实位置再校验一次
+            # note
             ex, ey, ez = self._extract_pos(final_info)
             ef = ego_pose.get("fine_idx", 0)
             if self.track_cache:
@@ -2690,7 +2690,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             spawn_debug["spawn_fail_reason"] = None
             spawn_debug["attempt_fail_counts"] = dict(attempt_fail_counts)
             if self.npc_layout_debug:
-                print(f"🧩 NPC布局复用 id={self.npc_layout_id} age={self.npc_layout_age_agent_resets} lanes={self.npc_layout_lane_assignments} segs={self.npc_layout_segment_assignments}")
+                print(f"🧩 NPCnote id={self.npc_layout_id} age={self.npc_layout_age_agent_resets} lanes={self.npc_layout_lane_assignments} segs={self.npc_layout_segment_assignments}")
             return {"ok": True, "obs": final_obs, "info": final_info, "debug": spawn_debug}
 
         spawn_debug["spawn_fail_reason"] = spawn_debug.get("spawn_fail_reason") or "agent_only_spawn_exhausted"
@@ -2756,7 +2756,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         fine_dist = 0.0
         if self.track_cache:
             fine_idx, fine_dist = self.track_cache.find_nearest_fine_track(self.scene_name, tel_x, tel_z)
-            # 若离赛道中心线过远，自动向中心线收缩一次（避免明显刷到赛道外）
+            # notetracknote, note(notetracknote)
             if lane_side is not None and (not exact):
                 _, _, _, centerline_cap = self._lane_offset_stage_limits()
                 if fine_dist > centerline_cap:
@@ -2811,15 +2811,15 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             obs, post_info = self._idle_step_for_telemetry(1)
             stabilize_steps += 1
             lx, lz, tx, tz, dist_err, cte_after, geom_ok, geom_meta, _speed_abs = _collect_metrics(post_info)
-            # v11.5: NPC 刚连接后仿真器 CTE 数据可能无效（23/33 等垃圾值），
-            # 此时只检查 dist_err（teleport 精度），跳过 CTE 检查
-            # v11.5 fix: skip_cte_check 时仍然拒绝极端 CTE (> 15.0) — 防止 1-step 回合
+            # v11.5: NPC note CTE datanote(23/33 note),
+            # note dist_err(teleport note), note CTE note
+            # v11.5 fix: skip_cte_check note CTE (> 15.0) - note 1-step note
             if skip_cte_check:
                 cte_ok = cte_after <= 15.0
             else:
                 cte_ok = cte_after <= self.spawn_verify_cte_threshold
 
-                # 几何可信 + teleport精度满足时，先给1帧刷新机会，过滤 CTE 滞后脏值。
+                # geometrynote + teleportnote, note1note, note CTE note.
                 if (not cte_ok) and geom_ok and dist_err <= self.spawn_verify_tol_sim:
                     if (i + 1) < max_loops:
                         obs, post_info = self._idle_step_for_telemetry(1)
@@ -2827,24 +2827,24 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                         lx, lz, tx, tz, dist_err, cte_after, geom_ok, geom_meta, _speed_abs = _collect_metrics(post_info)
                         cte_ok = cte_after <= self.spawn_verify_cte_threshold
 
-                # v11.7: 几何在赛道内时小幅放宽 CTE 上限（过滤轻度瞬时脏值）。
+                # v11.7: geometrynotetracknote CTE note(note).
                 if (not cte_ok) and geom_ok and dist_err <= self.spawn_verify_tol_sim:
                     cte_soft_cap = min(9.5, float(self.spawn_verify_cte_threshold) + 1.0)
                     cte_ok = cte_after <= cte_soft_cap
-                # CTE telemetry 在重置后前几帧可能短暂失真；几何可信且teleport精度满足时放行。
+                # CTE telemetry notefirstnote; geometrynoteteleportnoterows.
                 if (not cte_ok) and geom_ok and dist_err <= self.spawn_verify_tol_sim and _speed_abs <= 0.35:
                     cte_ok = True
                     cte_waived = True
             if dist_err <= self.spawn_verify_tol_sim and cte_ok:
                 confirmed = True
                 break
-            # v11.8: 只要 dist_err 超过验证阈值就重发 teleport，避免中等偏差(1.0~2.0)卡在失败循环。
+            # v11.8: note dist_err note teleport, note(1.0~2.0)notefailednote.
             if dist_err > self.spawn_verify_tol_sim and resend_count < 3:
                 resend_count += 1
                 time.sleep(0.08)
                 SimExtendedAPI.send_set_position(h, px, py, pz, qx, qy, qz, qw)
                 time.sleep(0.08)
-        # v11.5 诊断: 失败时打印具体原因
+        # v11.5 note: failednote
         if not confirmed:
             print(f"    🔍 ego_verify FAIL node={pose.get('node_idx')} dist_err={dist_err:.3f}(tol={self.spawn_verify_tol_sim:.2f}) "
                   f"cte={cte_after:.2f}(tol={self.spawn_verify_cte_threshold:.1f}) steps={stabilize_steps} "
@@ -2880,9 +2880,9 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         if self.track_cache:
             fine_idx, fine_dist = self.track_cache.find_nearest_fine_track(self.scene_name, nx, nz)
         npc.fine_track_idx = fine_idx
-        # v10.12: NPC 也必须验证“实际落点离赛道中心线距离”，否则会接受赛道外落点
+        # v10.12: NPC note"notetracknote", notetracknote
         _, _, _, centerline_cap = self._lane_offset_stage_limits()
-        # 给NPC一点余量，但不能宽到允许明显刷出赛道
+        # noteNPCnote, notetrack
         npc_centerline_cap = max(float(centerline_cap), 0.45) + 0.08
         on_track_ok = float(fine_dist) <= float(npc_centerline_cap)
         return {
@@ -2897,11 +2897,11 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
 
     def validate_spawn_separation(self, ego_pose, npc_poses, min_euclid=None, min_progress_gap=None,
                                   constraints=None, fail_on_npc_npc=True):
-        """v10.1: pair-wise 阈值校验，返回带类型的违规详情。"""
+        """v10.1: pair-wise note, noteclassnote."""
         if not self.track_cache:
             return True, []
 
-        # 兼容旧接口
+        # note
         if constraints is None:
             if min_euclid is None:
                 min_euclid = self.dist_scale.get("spawn_min_gap_sim", 3.5)
@@ -2947,7 +2947,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                         "target_progress_gap": min_g,
                     })
                 else:
-                    # 备用模式：仅当两者都差时才算违规
+                    # note: note
                     if bad_e and bad_g:
                         violations.append({
                             "type": "ego_npc_both",
@@ -2970,7 +2970,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 min_g = int(c_npc.get("min_progress_gap", 0))
                 require_progress = bool(c_npc.get("require_progress", False))
 
-                # NPC-NPC 违规是否作为 hard-fail 由 fail_on_npc_npc 控制（可通过配置切换）。
+                # NPC-NPC note hard-fail note fail_on_npc_npc control(noteconfigurationnote).
                 if euclid < min_e and fail_on_npc_npc:
                     violations.append({
                         "type": "npc_npc_overlap",
@@ -2993,7 +2993,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return len(violations) == 0, violations
 
     def _pick_ego_and_npc_anchor_nodes(self, active_npc_count):
-        """根据课程阶段决定 anchor 节点分布，动态阶段多数让 ego 在后方。"""
+        """notestagenote anchor notedistribution, dynamicstagenote ego note."""
         nodes = self._track_nodes()
         n = len(nodes)
         if n == 0:
@@ -3003,12 +3003,12 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         prefer_ego_behind = random.random() < float(self.curriculum_stage_ref.get("p_ego_behind", 0.0))
         min_gap_progress = int(self._spawn_constraints()["ego_npc"]["min_progress_gap"])
         fine = self._track_fine()
-        # 估算 fine_gap -> node_gap
+        # note fine_gap -> node_gap
         approx_node_gap = max(3, int(round(min_gap_progress / max(1, len(fine) / max(1, n))))) if fine else 8
 
-        # v11.3: bad_nodes 黑名单已废弃（不再因 ego_verify_failed 拉黑），直接使用全量节点
+        # v11.3: bad_nodes note(note ego_verify_failed note), note
         candidates = list(range(n))
-        # v10.5: 按赛道分桶均衡 ego 出生覆盖，避免长期集中在半圈
+        # v10.5: notetracknote ego note, note
         num_bins = max(4, int(self._spawn_bins))
         bins = [[] for _ in range(num_bins)]
         for c in candidates:
@@ -3028,14 +3028,14 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         if active_npc_count <= 0:
             return ego_anchor, npc_anchors
 
-        # 测试开关：首个NPC与Ego同起点，依赖lane offset做横向分离
+        # note: noteNPCnoteEgonote, notelane offsetnote
         if bool(self.curriculum_stage_ref.get("npc_side_by_side_start", False)):
             npc_anchors.append(ego_anchor)
             while len(npc_anchors) < active_npc_count:
                 npc_anchors.append((ego_anchor + 6 * len(npc_anchors)) % n)
             return ego_anchor, npc_anchors
 
-        # 测试开关：首个NPC固定在Ego正前方（同向、同车道附近）
+        # note: noteNPCnoteEgonotefirstnote(note, note)
         if bool(self.curriculum_stage_ref.get("npc_front_start", False)):
             front_off_cfg = int(self.curriculum_stage_ref.get("npc_front_offset_nodes", 8))
             front_off = max(3, max(front_off_cfg, approx_node_gap))
@@ -3046,27 +3046,27 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             return ego_anchor, npc_anchors
 
         if stage in (4, 5) and prefer_ego_behind:
-            # 动态阶段: 多数场景让 ego 在后方，NPC 在前方一段距离
+            # dynamicstage: note ego note, NPC notefirstnote
             base_offsets = [random.randint(max(5, approx_node_gap // 2), max(12, approx_node_gap + 4))]
             while len(base_offsets) < active_npc_count:
                 base_offsets.append(base_offsets[-1] + random.randint(3, 6))
             for off in base_offsets[:active_npc_count]:
                 npc_anchors.append((ego_anchor + off) % n)
         else:
-            # 静态阶段/普通场景：先给NPC随机点，再把 ego 放在其中一个后方（如果需要）
-            # 排除起点附近节点（node 0 ±5），避免 NPC 生在起跑线上导致一开局就碰撞
+            # staticstage/note: noteNPCnote, note ego note(note)
+            # note(node 0 ±5), note NPC note
             start_exclusion = max(5, approx_node_gap // 2)
             npc_candidates = [c for c in candidates
                               if min(c, n - c) >= start_exclusion]
             if len(npc_candidates) < active_npc_count + 2:
-                npc_candidates = candidates  # 回退：不过滤
+                npc_candidates = candidates  # note: note
             used = {ego_anchor}
             for i in range(active_npc_count):
                 for _ in range(20):
                     cand = random.choice(npc_candidates)
                     if cand in used:
                         continue
-                    # 粗约束：节点索引差足够大（环形）
+                    # note: note(note)
                     delta = abs(cand - ego_anchor)
                     delta = min(delta, n - delta)
                     if delta < max(3, approx_node_gap // 2):
@@ -3076,14 +3076,14 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                     npc_anchors.append(cand)
                     used.add(cand)
                     break
-            # 不足则补齐
+            # note
             while len(npc_anchors) < active_npc_count:
                 npc_anchors.append((ego_anchor + (len(npc_anchors) + 1) * max(4, approx_node_gap)) % n)
 
         return ego_anchor, npc_anchors
 
     def _spawn_episode_layout(self, refresh_npc_layout=True, refresh_reason=None):
-        """v10.1 统一spawn管线：支持 NPC layout 复用（agent-only/hybrid）。"""
+        """v10.1 unifiedspawnnote: note NPC layout note(agent-only/hybrid)."""
         active_npcs = self._active_npcs()
         inactive_npcs = self._inactive_npcs()
         for npc in inactive_npcs:
@@ -3095,7 +3095,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         for npc in active_npcs:
             setattr(npc, "_hidden_offtrack", False)
 
-        # v11.8: spawn阶段先冻结活跃NPC，待布局成功后再恢复运行模式，避免出生过程跳点/漂移
+        # v11.8: spawnstagenoteNPC, notesucceedednoterowsnote, note/note
         npc_mode = self._normalize_npc_mode(self.curriculum_stage_ref.get("npc_mode", "offtrack"))
         npc_speed_min = float(self.curriculum_stage_ref.get("npc_speed_min", 0.0))
         npc_speed_max = float(self.curriculum_stage_ref.get("npc_speed_max", 0.0))
@@ -3109,7 +3109,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 freeze_for_spawn=True,
             )
 
-        # 无NPC布局但存在缓存时，不在此清空；交给 should_refresh_npc_layout 决定何时复用
+        # noteNPCnote, note; note should_refresh_npc_layout note
         constraints = self._spawn_constraints()
         max_attempts = int(self.curriculum_stage_ref.get("spawn_max_attempts", 8))
 
@@ -3137,7 +3137,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         }
         attempt_fail_counts = Counter()
 
-        # 无活动NPC时仅采样 Ego（仍走统一流程，约束为空）
+        # noteNPCnote Ego(noteunifiedworkflow, note)
         if len(active_npcs) == 0:
             final_obs = None
             final_info = {}
@@ -3154,7 +3154,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 ego_pose = self._sample_pose_from_node(ego_anchor, jitter_scale=jitter_scale, exact=exact, lane_side="center")
                 if ego_pose is None:
                     continue
-                # v11.5 预检
+                # v11.5 note
                 if not self._precheck_pose_viable(ego_pose):
                     attempt_fail_counts["ego_precheck_off_track"] = attempt_fail_counts.get("ego_precheck_off_track", 0) + 1
                     continue
@@ -3165,7 +3165,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 if not ego_result.get("ok"):
                     spawn_debug["spawn_fail_reason"] = "ego_verify_failed"
                     attempt_fail_counts["ego_verify_failed"] += 1
-                    # v11.3: 不再因 ego_verify_failed 拉黑 node
+                    # v11.3: note ego_verify_failed note node
                     spawn_debug["bad_nodes_count"] = len(self._bad_nodes)
                     continue
                 self.last_active_node = int(ego_pose["node_idx"])
@@ -3209,17 +3209,17 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         last_violations = []
         exact_fallback = False
 
-        # v11.4: "ego-first" spawn 策略
-        # fixed2 模式下不再预选 NPC 位置，而是在每次选定 ego 后，
-        # 动态将 NPC 放到 ego 前方（保证 agent 一定会遇到障碍）。
+        # v11.4: "ego-first" spawn note
+        # fixed2 note NPC note, note ego note,
+        # dynamicnote NPC note ego firstnote(note agent noteobstacle).
         use_ego_first = (str(getattr(self, "v11_2_mode", "")).lower() == "fixed2"
                          and bool(getattr(getattr(self, "manual_spawn", None), "loaded", False))
                          and self._current_stage_id() in (2, 3))
 
         if not use_ego_first:
-            # 传统流程：先选 NPC → 再选 ego
+            # noteworkflow: note NPC -> note ego
             npc_target_poses, npc_layout_meta = self._build_npc_target_poses(len(active_npcs))
-            if len(npc_target_poses) != len(active_npcs):
+            if len(npc_target_poses)!= len(active_npcs):
                 spawn_debug["spawn_fail_reason"] = "npc_layout_build_failed"
                 attempt_fail_counts["npc_layout_build_failed"] += 1
                 spawn_debug["attempt_fail_counts"] = dict(attempt_fail_counts)
@@ -3234,7 +3234,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         if self.npc_layout_debug and npc_target_poses:
             dbg_lanes = [p.get("lane_side", "center") for p in npc_target_poses]
             dbg_segs = [p.get("segment_id") for p in npc_target_poses]
-            print(f"🧩 NPC布局新采样 pending -> lanes={dbg_lanes} segs={dbg_segs}")
+            print(f"🧩 NPCnote pending -> lanes={dbg_lanes} segs={dbg_segs}")
 
         safe_ego_anchors = []
         fixed2_mode = str(getattr(self, "v11_2_mode", "")).lower() == "fixed2"
@@ -3266,17 +3266,17 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 attempt_fail_counts["ego_pose_sample_failed"] += 1
                 continue
 
-            # v11.5 预检: 纯数学判断候选位置是否在赛道上，不合格直接跳过（避免无效 teleport 产生闪烁）
+            # v11.5 note: notetracknote, note(note teleport note)
             if not self._precheck_pose_viable(ego_pose):
                 spawn_debug["spawn_fail_reason"] = "ego_precheck_off_track"
                 attempt_fail_counts["ego_precheck_off_track"] = attempt_fail_counts.get("ego_precheck_off_track", 0) + 1
                 continue
 
-            # v11.4 ego-first: 选好 ego 后，在 ego 前方动态生成 NPC 布局
+            # v11.4 ego-first: note ego note, note ego firstnotedynamicgenerate NPC note
             if use_ego_first:
                 ego_fi = int(ego_pose.get("fine_idx", 0))
                 npc_target_poses = self._build_npc_ahead_of_ego(len(active_npcs), ego_fi)
-                if len(npc_target_poses) != len(active_npcs):
+                if len(npc_target_poses)!= len(active_npcs):
                     spawn_debug["spawn_fail_reason"] = "ego_first_npc_build_failed"
                     attempt_fail_counts["ego_first_npc_build_failed"] += 1
                     continue
@@ -3292,7 +3292,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 attempt_fail_counts["npc_precheck_off_track"] += 1
                 continue
 
-            # 先做几何层约束（避免写命令就已经注定失败）
+            # notegeometrynote(notefailed)
             valid_sep, last_violations = self.validate_spawn_separation(
                 ego_pose,
                 npc_poses,
@@ -3304,10 +3304,10 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 attempt_fail_counts["precheck_separation"] += 1
                 for v in last_violations:
                     self.spawn_precheck_fail_stats[v.get("type", "unknown")] += 1
-                    print(f"  ❌ separation_violation: {v}")
+                    print(f"  FAIL separation_violation: {v}")
                 continue
 
-            # 1) Ego teleport + 确认
+            # 1) Ego teleport + note
             ego_result = self._apply_spawn_and_verify_ego(ego_pose, retries_step=self._spawn_ego_verify_retries())
             final_obs, final_info = ego_result.get("obs"), ego_result.get("info", {})
             spawn_debug["stabilize_steps"] += ego_result.get("stabilize_steps", 0)
@@ -3315,10 +3315,10 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             if not ego_result.get("ok"):
                 spawn_debug["spawn_fail_reason"] = "ego_verify_failed"
                 attempt_fail_counts["ego_verify_failed"] += 1
-                # v11.3: 不再因 ego_verify_failed 拉黑 node（teleport物理漂移是临时的）
+                # v11.3: note ego_verify_failed note node(teleportnote)
                 if safe_ego_anchors and ego_pose["node_idx"] is not None:
                     bad_idx = int(ego_pose["node_idx"])
-                    safe_ego_anchors = [a for a in safe_ego_anchors if int(a) != bad_idx]
+                    safe_ego_anchors = [a for a in safe_ego_anchors if int(a)!= bad_idx]
                 spawn_debug["bad_nodes_count"] = len(self._bad_nodes)
                 continue
 
@@ -3326,7 +3326,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             spawn_debug["ego_spawn_idx"] = int(ego_pose["node_idx"])
             spawn_debug["ego_fine_idx"] = int(ego_pose.get("fine_idx", 0))
 
-            # 2) NPC逐个 teleport + 确认
+            # 2) NPCnote teleport + note
             npc_records = []
             fail = False
             for i, (npc, pose) in enumerate(zip(active_npcs, npc_poses)):
@@ -3351,7 +3351,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             if fail:
                 continue
 
-            # 3) 用“真实telemetry位置”再做一次最终间距校验（防 telem lag / 物理漂移）
+            # 3) note"notetelemetrynote"note(note telem lag / note)
             ego_real = {
                 "tel": self._extract_pos(final_info),
                 "fine_idx": self.track_cache.find_nearest_fine_track(self.scene_name, *self._extract_pos(final_info)[::2])[0]
@@ -3376,7 +3376,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                     self.spawn_precheck_fail_stats["post_" + v.get("type", "unknown")] += 1
                 continue
 
-            # 成功，记录统计
+            # succeeded, note
             min_dist = None
             min_gap = None
             ex, _, ez = ego_real["tel"]
@@ -3413,7 +3413,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             self._last_spawn_debug = spawn_debug
             return {"ok": True, "obs": final_obs, "info": final_info, "debug": spawn_debug}
 
-        # 全部失败：回退到节点精确刷新（最低限）
+        # notefailed: note(note)
         spawn_debug["spawn_fail_reason"] = spawn_debug.get("spawn_fail_reason") or "max_attempts_exhausted"
         attempt_fail_counts[spawn_debug["spawn_fail_reason"]] += 1
         spawn_debug["attempt_fail_counts"] = dict(attempt_fail_counts)
@@ -3425,24 +3425,24 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return {"ok": False, "obs": final_obs, "info": final_info, "debug": spawn_debug}
 
     def _fallback_spawn_relaxed(self, active_npcs):
-        """v11.4/v11.5 宽松回退 spawn。
+        """v11.4/v11.5 note spawn.
 
-        当标准 _spawn_episode_layout 全部失败时使用。
-        v11.5 改进：先批量预检候选位置（纯数学），只对通过预检的位置做 teleport，
-        消除因多次无效 teleport 产生的画面闪烁。
+        note _spawn_episode_layout notefailednote.
+        v11.5 note: note(note), note teleport,
+        note teleport note.
         """
         nodes = self._track_nodes()
         n = len(nodes) if nodes else 0
         if n == 0:
             return {"ok": False, "obs": None, "info": {}, "debug": None}
 
-        MAX_CANDIDATES = 12   # 预检的候选数量（只做数学计算，不消耗仿真帧）
-        MAX_TELEPORTS = 2     # 最多执行的真实 teleport 次数
+        MAX_CANDIDATES = 12   # note(notecompute, note)
+        MAX_TELEPORTS = 2     # noterowsnote teleport note
         handler = self.env.viewer.handler
         final_obs = None
         final_info = {}
 
-        # Phase 1: 批量采样 + 预检（无 teleport，无闪烁）
+        # Phase 1: note + note(note teleport, note)
         viable_poses = []
         tried = set()
         for _ in range(MAX_CANDIDATES):
@@ -3450,8 +3450,8 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             while ego_anchor in tried and len(tried) < n:
                 ego_anchor = random.randint(0, n - 1)
             tried.add(ego_anchor)
-            # 优先精确位置（center），减少 jitter 造成偏出
-            exact = len(viable_poses) == 0  # 第一轮精确，后续加 jitter
+            # note(center), note jitter note
+            exact = len(viable_poses) == 0  # note, note jitter
             ego_pose = self._sample_pose_from_node(ego_anchor, jitter_scale=0.3, exact=exact, lane_side="center")
             if ego_pose is None:
                 continue
@@ -3460,9 +3460,9 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 if len(viable_poses) >= MAX_TELEPORTS:
                     break
 
-        # Phase 2: 对通过预检的位置依次 teleport（最多 MAX_TELEPORTS 次）
-        # skip_cte_check=True: NPC 刚连接后仿真器 CTE 数据可能是垃圾值（23/33），
-        # 预检已经用 fine_dist 保证了位置在赛道上，只需验证 teleport 精度
+        # Phase 2: note teleport(note MAX_TELEPORTS note)
+        # skip_cte_check=True: NPC note CTE datanote(23/33),
+        # note fine_dist notetracknote, note teleport note
         for ego_pose in viable_poses:
             ego_result = self._apply_spawn_and_verify_ego(ego_pose, retries_step=3, skip_cte_check=True)
             final_obs = ego_result.get("obs")
@@ -3472,18 +3472,18 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 if len(active_npcs) > 0:
                     self._fallback_place_npcs(active_npcs, int(ego_pose["node_idx"]),
                                               int(ego_pose.get("fine_idx", 0)))
-                print(f"  ✅ v11.5回退成功 ego_idx={ego_pose['node_idx']} cte={ego_result.get('cte_after', '?'):.2f} "
-                      f"预检通过={len(viable_poses)} teleport={viable_poses.index(ego_pose)+1}")
+                print(f"  PASS v11.5notesucceeded ego_idx={ego_pose['node_idx']} cte={ego_result.get('cte_after', '?'):.2f} "
+                      f"note={len(viable_poses)} teleport={viable_poses.index(ego_pose)+1}")
                 return {"ok": True, "obs": final_obs, "info": final_info, "debug": None}
             else:
-                print(f"  ❌ v11.5回退teleport失败 ego_idx={ego_pose['node_idx']} "
+                print(f"  FAIL v11.5noteteleportfailed ego_idx={ego_pose['node_idx']} "
                       f"cte={ego_result.get('cte_after', '?'):.2f} dist_err={ego_result.get('dist_err', '?'):.3f} "
                       f"fine_dist={ego_pose.get('fine_dist_sim', '?')}")
 
-        # 全失败：teleport 到 node 0（起点），基本保证 CTE 合理
+        # notefailed: teleport note node 0(note), note CTE note
         if nodes:
             node0 = nodes[0]
-            # v11.5 fix: 重试发送 teleport 到 node0，确保命令被仿真器执行
+            # v11.5 fix: note teleport note node0, noterows
             for _retry_n0 in range(3):
                 SimExtendedAPI.send_set_position(handler,
                     node0[0], node0[1], node0[2], node0[3], node0[4], node0[5], node0[6])
@@ -3501,11 +3501,11 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             self.last_active_node = 0
             if len(active_npcs) > 0:
                 self._fallback_place_npcs(active_npcs, 0, 0)
-            print(f"  ⚠️ v11.5回退兜底: teleport到node0 (预检通过={len(viable_poses)})")
+            print(f"  ⚠️ v11.5note: teleportnotenode0 (note={len(viable_poses)})")
         return {"ok": True, "obs": final_obs, "info": final_info, "debug": None}
 
     def _fallback_spawn_relaxed_agent_only(self, active_npcs):
-        """agent-only 回退：仅重采样 learner，保持 NPC 原位不闪烁。"""
+        """agent-only note: note learner, note NPC note."""
         ok_cached, npc_records, reason = self._capture_runtime_npc_records(active_npcs)
         if not ok_cached:
             return {"ok": False, "obs": None, "info": {}, "debug": {"spawn_fail_reason": reason}}
@@ -3624,7 +3624,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return {"ok": False, "obs": final_obs, "info": final_info, "debug": dbg}
 
     def _fallback_place_npcs(self, active_npcs, ego_node_idx, ego_fine_idx):
-        """v11.4: 在回退 spawn 时将 NPC 放置到离 ego 尽量远的位置。"""
+        """v11.4: note spawn note NPC note ego note."""
         nodes = self._track_nodes()
         n = len(nodes) if nodes else 0
         if n == 0:
@@ -3635,10 +3635,10 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         for i, npc in enumerate(active_npcs):
             if not npc.connected:
                 continue
-            # 选择离 ego 大约半圈 + 随机偏移的位置
+            # note ego note + note
             offset = n // 2 + random.randint(-n // 6, n // 6)
             npc_node = (ego_node_idx + offset + i * (n // (len(active_npcs) + 1))) % n
-            # 避免与已放置的 NPC 太近
+            # note NPC note
             for _ in range(5):
                 too_close = any(abs(npc_node - p) < 3 or abs(npc_node - p) > n - 3 for p in placed)
                 if not too_close:
@@ -3647,7 +3647,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
 
             npc_pose = self._sample_pose_from_node(npc_node, jitter_scale=0.3, exact=True, lane_side="center")
             if npc_pose is None:
-                # 用粗糙 node 坐标作为最后手段
+                # note node note
                 node = nodes[npc_node]
                 npc.set_position_node_coords(node[0], node[1], node[2], node[3], node[4], node[5], node[6])
             else:
@@ -3657,7 +3657,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             placed.append(npc_node)
             time.sleep(0.12)
 
-            # 设置 NPC 模式
+            # note NPC note
             if npc_mode == "static":
                 npc.set_mode("static", 0.0)
                 try:
@@ -3683,7 +3683,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 if not npc.running:
                     npc.start_driving()
 
-            # 更新 fine_track_idx
+            # note fine_track_idx
             if self.track_cache:
                 nx, ny, nz = npc.get_telemetry_position()
                 npc.fine_track_idx, _ = self.track_cache.find_nearest_fine_track(self.scene_name, nx, nz)
@@ -3730,7 +3730,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
     def reset(self, **kwargs):
         self._reset_index += 1
 
-        # 复用 base 的上一回合统计记录逻辑（复制必要部分，避免调用旧 reset 的 spawn）
+        # note base note(note, note reset note spawn)
         if self.episode_stats.get("steps", 0) > 0:
             avg_cte = self.episode_stats['cte_sum'] / max(1, self.episode_stats['steps'])
             term_reason = self.episode_stats.get('termination_reason', 'max_steps')
@@ -3739,8 +3739,8 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 self.episode_stats.get('termination_reason') in ('two_laps_success', 'success_laps_target')
                 or self.episode_stats.get('success_2laps', False)
             )
-            # v11.3: 累加本回合完成的整圈数到跨回合计数器
-            # 扣除 step() 中已经实时累加过的圈数，避免双重计数
+            # v11.3: note
+            # note step() note, note
             episode_laps = int(self.episode_stats.get('full_lap_bonus_count', 0))
             remaining_laps = episode_laps - self._mid_episode_laps_already_counted
             if remaining_laps > 0:
@@ -3766,29 +3766,29 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             pbar = self._format_progress_bar(progress_goal, width=14)
             rev_blk = int(self.episode_stats.get('reverse_gate_blocks', 0))
             rev_esc = int(self.episode_stats.get('reverse_escape_windows', 0))
-            print(f"[{stage_name}] 步{self.total_train_steps:,} | 回合{self.total_episodes:,}: "
-                  f"{self.episode_stats['steps']}步 R={self.episode_stats['total_reward']:.1f} "
+            print(f"[{stage_name}] note{self.total_train_steps:,} | note{self.total_episodes:,}: "
+                  f"{self.episode_stats['steps']}note R={self.episode_stats['total_reward']:.1f} "
                   f"CTE={avg_cte:.2f} v_max={self.episode_stats['max_speed']:.1f} "
-                  f"Prog={laps_est:.2f}圈 {pbar} {progress_goal*100:.0f}% "
+                  f"Prog={laps_est:.2f}note {pbar} {progress_goal*100:.0f}% "
                   f"RevBlk={rev_blk} RevEsc={rev_esc} "
-                  f"结束={term_reason}")
+                  f"note={term_reason}")
 
         obs = self.env.reset(**kwargs)
         time.sleep(0.15)
         self._clear_handler_over()
 
-        # v10.2: 阶段需要时再连接 NPC，避免 Stage A 占用渲染资源
+        # v10.2: stagenote NPC, note Stage A note
         self._ensure_npc_connections_for_stage()
 
         stage = int(self.curriculum_stage_ref.get("stage", 1))
-        # 课程学习：早期固定出生点，鲁棒性阶段再开放随机出生
+        # note: note, notestagenote
         stage_random_start_override = self.curriculum_stage_ref.get("stage_random_start_enabled", None)
         if stage_random_start_override is None:
             stage_random_start = bool(self.use_random_start and stage >= self.random_start_from_stage)
         else:
             stage_random_start = bool(self.use_random_start and bool(stage_random_start_override))
         if stage <= 1:
-            # Stage1 使用独立CTE门槛，避免基类动态收紧影响基础驾驶入门
+            # Stage1 noteCTEnote, noteclassdynamicnote
             self.current_max_cte = max(float(getattr(self, "current_max_cte", 0.0)), self.stage1_cte_reset_limit)
         stage_cte_limit = self.curriculum_stage_ref.get("stage_cte_reset_limit", None)
         if stage_cte_limit is not None:
@@ -3797,13 +3797,13 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             except Exception:
                 pass
 
-        # 非活动NPC先移出赛道
+        # noteNPCnotetrack
         self._park_unused_npcs()
 
         spawn_result = {"ok": True, "obs": None, "info": {}, "debug": None}
         active_npcs = self._active_npcs()
-        # 关键修复：即使早期关闭了“随机出生”，有NPC的阶段也必须执行赛道布局spawn，
-        # 否则NPC会停留在连接时的停车位(飞天)而无法与learner交互。
+        # note: note"note", noteNPCnotestagenoterowstracknotespawn,
+        # noteNPCnote(note)notelearnernote.
         need_track_spawn_layout = bool(self.track_cache and self._track_nodes() and (stage_random_start or len(active_npcs) > 0))
         if need_track_spawn_layout:
             refresh_layout, refresh_reason = self.should_refresh_npc_layout(active_npcs)
@@ -3811,7 +3811,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             npc_state_invalid = False
             attempted_agent_only_fallback = False
             if (not spawn_result.get("ok")) and (not refresh_layout) and len(active_npcs) > 0:
-                # persist模式下优先 learner-only 回退，避免 learner reset 时 NPC 跟着闪烁。
+                # persistnote learner-only note, note learner reset note NPC note.
                 _dbg = spawn_result.get("debug") or {}
                 _fail = str(_dbg.get("spawn_fail_reason", "") or "")
                 npc_state_invalid = _fail in (
@@ -3827,22 +3827,22 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                     spawn_result = self._spawn_episode_layout(refresh_npc_layout=True, refresh_reason=force_reason)
                 elif self._npc_persist_mode_enabled():
                     attempted_agent_only_fallback = True
-                    print("⚠️ agent-only spawn失败，尝试 learner-only 回退（保持NPC原位）")
+                    print("⚠️ agent-only spawnfailed, note learner-only note(noteNPCnote)")
                     spawn_result = self._fallback_spawn_relaxed_agent_only(active_npcs)
             if not spawn_result.get("ok"):
-                # v11.4 回退: 不再使用父类的 _randomize_start_position（它用粗糙 node 坐标，
-                # CTE 永远 >6 导致所有节点被加入黑名单，产生闪烁和1步无效回合）。
-                # 新策略：使用 fixed2 的 fine-point spawn，但完全跳过间距约束。
+                # v11.4 note: noteclassnote _randomize_start_position(note node note,
+                # CTE note >6 note, note1note).
+                # note: note fixed2 note fine-point spawn, note.
                 _dbg = spawn_result.get("debug") or {}
                 _fail = _dbg.get("spawn_fail_reason", "?")
                 _fc = _dbg.get("attempt_fail_counts", {})
                 if self._npc_persist_mode_enabled() and len(active_npcs) > 0 and (not npc_state_invalid) and (not attempted_agent_only_fallback):
                     attempted_agent_only_fallback = True
-                    print(f"⚠️ v10 spawn校验失败，追加 learner-only 回退（保持NPC原位）fail={_fail} counts={_fc}")
+                    print(f"⚠️ v10 spawnnotefailed, note learner-only note(noteNPCnote)fail={_fail} counts={_fc}")
                     spawn_result = self._fallback_spawn_relaxed_agent_only(active_npcs)
                 if (not spawn_result.get("ok")) and self._npc_persist_mode_enabled() and len(active_npcs) > 0 and (not npc_state_invalid):
-                    # 最后兜底：保留 NPC，接受 env.reset 的默认 learner 位置，避免 NPC 连带闪烁。
-                    print(f"⚠️ learner回退仍失败，保留NPC布局不重排；沿用默认重置位 fail={_fail} counts={_fc}")
+                    # note: note NPC, note env.reset notedefault learner note, note NPC note.
+                    print(f"⚠️ learnernotefailed, noteNPCnote; notedefaultnote fail={_fail} counts={_fc}")
                     dbg_keep = dict(_dbg)
                     dbg_keep.setdefault("reset_idx", self._reset_index)
                     dbg_keep.setdefault("stage", int(self.curriculum_stage_ref.get("stage", 1)))
@@ -3853,15 +3853,15 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                     dbg_keep.setdefault("spawn_validation_pass", False)
                     spawn_result = {"ok": True, "obs": obs, "info": {}, "debug": dbg_keep}
                 elif not spawn_result.get("ok"):
-                    print(f"⚠️ v10 spawn校验失败，使用 v11.5 宽松回退（预检+单次teleport）fail={_fail} counts={_fc}")
+                    print(f"⚠️ v10 spawnnotefailed, note v11.5 note(note+noteteleport)fail={_fail} counts={_fc}")
                     spawn_result = self._fallback_spawn_relaxed(active_npcs)
             if spawn_result.get("ok"):
-                # 布局年龄只在成功spawn后更新
+                # notesucceededspawnnote
                 if len(active_npcs) > 0:
                     if spawn_result.get("debug", {}).get("layout_reused"):
                         self.npc_layout_age_agent_resets += 1
                     else:
-                        # NPC 布局已刷新：同步更新圈数基准，防止立即再次触发
+                        # NPC note: note, note
                         self.npc_layout_age_agent_resets = 0
                         self._npc_layout_last_reset_at_laps = self._total_laps_completed
                 self._consecutive_layout_failures = 0
@@ -3873,18 +3873,18 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         if spawn_result.get("debug"):
             self.reset_debug_history.append(spawn_result["debug"])
 
-        # 最终取一帧干净观测
+        # note
         final_obs = spawn_result.get("obs")
         final_info = spawn_result.get("info", {})
         if final_obs is None:
             final_obs, final_info = self._idle_step_for_telemetry(2)
         else:
-            # 再取一次，减小teleport残余影响
+            # note, noteteleportnote
             final_obs, final_info = self._idle_step_for_telemetry(1)
 
         self._log_obs_caps_once(final_info if isinstance(final_info, dict) else {})
 
-        # reset state (与v9一致 + v10额外统计)
+        # reset state (notev9note + v10note)
         self.episode_step = 0
         self.nodes_passed = 0
         self.speed_history.clear()
@@ -3902,8 +3902,8 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self._episode_spawn_z = None
         self._last_progress_milestone = 0
         self._last_full_lap_bonus = 0
-        self._mid_episode_laps_already_counted = 0   # 新回合归零
-        self._bad_nodes = set()  # v11.4: 每回合清空，防止父类残留写入导致累积
+        self._mid_episode_laps_already_counted = 0   # note
+        self._bad_nodes = set()  # v11.4: note, noteclassnote
         self._reverse_escape_steps_left = 0
         self._reverse_escape_cooldown_left = 0
         self._low_progress_counter = 0
@@ -3993,26 +3993,26 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self.episode_stats['progress_goal_ratio'] = float(info.get('episode_progress_ratio_to_goal', 0.0))
         reward_decay_scale, penalty_decay_scale = self._shaping_decay_factor()
 
-        # 赛道半宽（CTE单位）
-        _half_w = self._half_width_avg_cte_at_fine(self.learner_fine_idx)   # 平均半宽
-        _wide_w = self._half_width_wide_cte_at_fine(self.learner_fine_idx)  # 宽侧，CTE惩罚梯度
-        ontrack = float(cte <= _wide_w)  # 用宽侧做ontrack判定（宽松），CTE梯度已覆盖偏移惩罚
+        # tracknote(CTEnote)
+        _half_w = self._half_width_avg_cte_at_fine(self.learner_fine_idx)   # note
+        _wide_w = self._half_width_wide_cte_at_fine(self.learner_fine_idx)  # note, CTEnote
+        ontrack = float(cte <= _wide_w)  # noteontracknote(note), CTEnote
         reward = 0.0
         done = False
         rt = self._rt_add
 
         # ═══════════════════════════════════════════════════
-        # [R1] 生存奖励：每步固定 +0.10
+        # [R1] notereward: note +0.10
         # ═══════════════════════════════════════════════════
         reward += 0.10
         rt(info, "base_alive", 0.10)
 
         # ═══════════════════════════════════════════════════
-        # [R2] 速度奖励 + 安全驾驶速度带惩罚
-        #      v_norm 按 max_speed 归一化，奖励 +0.8 × v_norm
-        #      speed > safe_hi → 超速线性惩罚（越快惩罚越大）
-        #      speed < safe_lo → 龟速线性惩罚（越慢惩罚越大）
-        #      safe_lo ≤ speed ≤ safe_hi → 安全速度带，无额外惩罚
+        # [R2] notereward + note
+        #      v_norm note max_speed note, reward +0.8 x v_norm
+        #      speed > safe_hi -> note(note)
+        #      speed < safe_lo -> note(note)
+        #      safe_lo <= speed <= safe_hi -> note, note
         # ═══════════════════════════════════════════════════
         _speed_max = 2.0
         _speed_safe_hi = 1.5
@@ -4022,13 +4022,13 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         reward += speed_reward
         rt(info, "base_speed", speed_reward)
 
-        # 超速惩罚：speed > 1.5 时，线性增长到 speed=2.0 时 -0.5/step
+        # note: speed > 1.5 note, note speed=2.0 note -0.5/step
         if speed > _speed_safe_hi:
             _over_ratio = min(1.0, (speed - _speed_safe_hi) / max(1e-6, _speed_max - _speed_safe_hi))
             _over_pen = -0.5 * _over_ratio * penalty_decay_scale
             reward += _over_pen
             rt(info, "speed_overspeed_penalty", _over_pen)
-        # 龟速惩罚：speed < 0.5 时，线性增长到 speed=0 时 -0.3/step
+        # note: speed < 0.5 note, note speed=0 note -0.3/step
         elif speed < _speed_safe_lo and self.episode_step > 30:
             _slow_ratio = min(1.0, (_speed_safe_lo - speed) / max(1e-6, _speed_safe_lo))
             _slow_pen = -0.3 * _slow_ratio * penalty_decay_scale
@@ -4036,10 +4036,10 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             rt(info, "speed_tooslow_penalty", _slow_pen)
 
         # ═══════════════════════════════════════════════════
-        # [R3] 赛道内保持奖励（ontrack keeping bonus）
-        #      cte < 0.3×_wide_w → +0.25 (核心区)
-        #      cte < 0.6×_wide_w → +0.15 (舒适区)
-        #      cte < _wide_w     → +0.05 (边缘区)
+        # [R3] tracknotereward(ontrack keeping bonus)
+        #      cte < 0.3x_wide_w -> +0.25 (note)
+        #      cte < 0.6x_wide_w -> +0.15 (note)
+        #      cte < _wide_w     -> +0.05 (note)
         # ═══════════════════════════════════════════════════
         if cte < 0.3 * _wide_w:
             _keeping = 0.25
@@ -4055,9 +4055,9 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             rt(info, "ontrack_keeping_edge", _keeping)
 
         # ═══════════════════════════════════════════════════
-        # [R4] CTE 出界惩罚 + max_cte 直接 done
-        #      cte > max_cte → 大惩罚 + done
-        #      cte > _wide_w → 梯度惩罚（出界但未到极限）
+        # [R4] CTE note + max_cte note done
+        #      cte > max_cte -> note + done
+        #      cte > _wide_w -> note(note)
         # ═══════════════════════════════════════════════════
         cte_for_done = float(cte)
         if cte_for_done >= self.current_max_cte and self.episode_step <= 8:
@@ -4088,21 +4088,21 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             reward += cte_term
             rt(info, "cte_edge_penalty", cte_term)
 
-        # 碰撞：起步未确认阶段放宽，避免spawn后物理抖动/接触导致“未动即重置”
+        # note: notestagenote, notespawnnote/note"note"
         collision_guard_ok = bool(self._episode_motion_armed) or (self.episode_step > max(120, self.startup_grace_steps))
-        if hit != 'none' and self.episode_step > 20 and collision_guard_ok:
+        if hit!= 'none' and self.episode_step > 20 and collision_guard_ok:
             self.episode_stats['collision'] = True
-            # 统一处理：不论有无NPC，直接给惩罚 + 直接done
+            # unifiednote: noteNPC, note + notedone
             reward -= 5.0
             rt(info, "event_collision", -5.0)
             done = True
             info['termination_reason'] = 'collision'
             self.episode_stats['termination_reason'] = 'collision'
         else:
-            # 未发生碰撞，重置持续计数器
+            # note, note
             self._collision_persist_counter = 0
 
-        # [R5] 进度奖励：ontrack满额，offtrack给50%
+        # [R5] notereward: ontracknote, offtracknote50%
         if progress_step_sim > 0:
             _prog_scale = 1.0 if ontrack else 0.5
             progress_boost = 1.0
@@ -4117,9 +4117,9 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             prog_term = -(self.progress_backward_penalty_scale * penalty_decay_scale) * abs(progress_step_sim)
             reward += prog_term
             rt(info, "progress_backward_penalty", prog_term)
-        # 相对出生点累计进度里程碑奖励：完成越多奖励越多（与出生点无关）
-        # B1 fix: 里程碑和整圈奖励必须用单调递增的前进累计量（_episode_progress_fine_forward），
-        # 而非 laps_net（V11.1 signed值可以回退后再超阈值，导致重复给奖励）。
+        # notereward: noterewardnote(note)
+        # B1 fix: noterewardnotefirstnote(_episode_progress_fine_forward),
+        # note laps_net(V11.1 signednote, notereward).
         milestone_progress = float(self._episode_progress_fine_forward) / float(max(1, fine_total))
         milestone_lap = max(0.02, self.progress_milestone_lap)
         cur_milestone = int(milestone_progress / milestone_lap)
@@ -4132,7 +4132,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             info['progress_milestone'] = cur_milestone
             info['progress_reward_decay_scale'] = float(reward_decay_scale)
 
-        # 整圈进度奖励：按相对出生点累计进度整圈跨越给一次性奖励（不依赖lap_count）
+        # notereward: notereward(notelap_count)
         full_laps = int(max(0.0, milestone_progress))
         if full_laps > self._last_full_lap_bonus:
             gained_laps = full_laps - self._last_full_lap_bonus
@@ -4144,7 +4144,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             info['full_lap_bonus_laps'] = int(gained_laps)
             info['full_lap_bonus_reward'] = float(lap_bonus)
 
-            # v11.3: 回合进行中完成整圈时，实时刷新 NPC 位置
+            # v11.3: noterowsnote, note NPC note
             reset_every_laps = int(self.curriculum_stage_ref.get("npc_layout_reset_every_laps", 0))
             if reset_every_laps > 0 and gained_laps >= reset_every_laps:
                 self._total_laps_completed += int(gained_laps)
@@ -4152,7 +4152,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 if not self._npc_persist_mode_enabled():
                     self._refresh_npc_layout_mid_episode()
 
-        # reverse gate 的脱困窗口判定也依赖“低速低进度”统计
+        # reverse gate note"note"note
         if self.episode_step > 20 and abs(progress_step_sim) <= self.reverse_escape_low_progress_step_sim and abs(speed) < max(0.35, self.reverse_gate_brake_speed):
             self._low_progress_counter += 1
         elif progress_step_sim > self.reverse_escape_low_progress_step_sim * 1.5:
@@ -4165,7 +4165,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         stuck_guard_ok = bool(self._episode_motion_armed) and (progress_laps_est >= self.stuck_guard_progress_laps)
         if self.episode_step > 20 and stuck_guard_ok and ontrack and speed < 0.1:
             self.stuck_counter += 1
-            # 每步持续惩罚，让模型学到卡住是不好的
+            # note, notemodelnote
             _stuck_per_step = -0.5
             reward += _stuck_per_step
             rt(info, "stuck_per_step_penalty", _stuck_per_step)
@@ -4177,7 +4177,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             info['termination_reason'] = 'stuck'
             self.episode_stats['termination_reason'] = 'stuck'
 
-        # [P4] 平滑惩罚
+        # [P4] note
         abs_delta = abs(actual_delta)
         abs_jerk = abs(actual_delta - prev_delta_steer)
         delta_term = -(self.w_d * penalty_decay_scale) * abs_delta
@@ -4190,13 +4190,13 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         rt(info, "smooth_jerk_penalty", jerk_term)
         rt(info, "smooth_sat_penalty", sat_term)
 
-        # activeNode 仅做兼容观测统计（奖励改由 fine_track progress 驱动）
+        # activeNode note(rewardnote fine_track progress note)
         active_node = self._extract_active_node(info)
-        if active_node != self.last_active_node:
+        if active_node!= self.last_active_node:
             self.nodes_passed += 1
             self.last_active_node = active_node
 
-        # 圈完成奖励（基于relative progress + lap_count护栏），避免 teleport 噪声误触发
+        # notereward(noterelative progress + lap_countnote), note teleport note
         lap1_valid = (lap_count >= 1) and (progress_laps_est >= 0.60)
         lap2_valid = (lap_count >= 2) and (progress_laps_est >= 1.70)
         success_target_valid = (
@@ -4204,13 +4204,13 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             and progress_laps_est >= max(1.70, float(self.success_laps_target) - 0.30)
         )
         if lap1_valid and not info.get('task_success', False):
-            # 保留与lap_count对齐的任务信号，但不再每步重复刷奖励
+            # notelap_countnote, notereward
             info['laps_completed'] = max(int(_safe_float(info.get('lap_count', 0), 0)), 1)
         if lap2_valid:
             info['two_lap_progress_success'] = True
             info['laps_completed'] = max(int(_safe_float(info.get('lap_count', 0), 0)), 2)
-            # v10.12: 训练回合到2圈不再强制结束，但需要把“无碰撞完成两圈”记到episode_stats，
-            # 供下次reset时hybrid策略触发NPC布局重刷。
+            # v10.12: trainingnote2note, note"note"noteepisode_stats,
+            # noteresetnotehybridnoteNPCnote.
             if not bool(self.episode_stats.get('collision', False)):
                 self.episode_stats['success_2laps'] = True
                 info['episode_success_2laps'] = True
@@ -4250,7 +4250,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             nx, ny, nz = npc.get_telemetry_position()
             dist = math.sqrt((lx - nx) ** 2 + (lz - nz) ** 2)
             prev_dist = self._last_npc_dists.get(npc.npc_id, dist)
-            closing_speed = max(0.0, prev_dist - dist) / 0.05  # 粗略(每step约50ms量级，仅作奖励启发)
+            closing_speed = max(0.0, prev_dist - dist) / 0.05  # note(notestepnote50msnote, noterewardnote)
             self._last_npc_dists[npc.npc_id] = dist
             npc_fi = npc.fine_track_idx
             progress_diff = self.track_cache.progress_diff(self.scene_name, learner_fi, npc_fi) if self.track_cache else 0
@@ -4278,9 +4278,9 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
 
     def _apply_reverse_displacement_penalty(self, reward, info):
         """
-        v10.2: 连续后退位移惩罚（不是速度符号）
-        用 fine_track 进度位移近似沿赛道前后运动。
-        v10.7: 改为更强的 reward-based shaping（默认优先于 reverse gate）。
+        v10.2: note(note)
+        note fine_track notetrackfirstnote.
+        v10.7: note reward-based shaping(defaultnote reverse gate).
         """
         if not self.track_cache:
             return reward
@@ -4305,7 +4305,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             self._reverse_reset_streak += 1
             info['reverse_reset_streak'] = int(self._reverse_reset_streak)
 
-            # reward-based anti-reverse：后退越多、持续越久，惩罚越大
+            # reward-based anti-reverse: note, note, note
             _, penalty_decay_scale = self._shaping_decay_factor()
             backdist_term = -(self.reverse_backdist_penalty_scale * penalty_decay_scale) * back_dist
             reward += backdist_term
@@ -4316,7 +4316,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 self._rt_add(info, "reverse_onset_penalty", onset_term)
                 info['reverse_onset_penalty'] = True
             else:
-                # 连续倒车惩罚逐步加重，但限制斜率避免数值爆炸
+                # note, note
                 streak_extra = self.reverse_streak_penalty_scale * penalty_decay_scale * min(8, self.reverse_progress_counter - 1)
                 reward -= streak_extra
                 self._rt_add(info, "reverse_streak_penalty", -streak_extra)
@@ -4336,7 +4336,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             info['reverse_penalty'] = True
             info['reverse_progress_counter'] = self.reverse_progress_counter
             info['reverse_progress_accum'] = self.reverse_progress_accum
-            # 触发后重置，避免连续每步都扣爆
+            # note, note
             self.reverse_progress_counter = 0
             self.reverse_progress_accum = 0.0
 
@@ -4362,13 +4362,13 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             speed = f['learner_speed']
             closing = float(f.get('closing_speed', 0.0))
 
-            # 安全跟车/绕行窗口奖励：必须不太近，且速度在可控区间
+            # note/noterowsnotereward: note, note
             if d_safe_min <= dist <= d_safe_max and 0.30 < speed < 1.60:
                 reward += 0.06
                 rt(info, "avoid_static_safe_follow_bonus", 0.06)
 
-            # 近距离危险惩罚（不再要求“高速才惩罚”）
-            # 距离越近、接近速度越大，惩罚越强。
+            # note(note"note")
+            # note, note, note.
             if dist < d_danger:
                 danger_ratio = float(np.clip((d_danger - dist) / max(1e-6, d_danger), 0.0, 1.0))
                 pen = 0.35 + 0.85 * danger_ratio
@@ -4378,18 +4378,18 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                     pen += 0.20 * float(np.clip((closing - 0.35) / 1.0, 0.0, 1.0))
                 reward -= pen
                 rt(info, "avoid_static_danger_penalty", -pen)
-                # 极近距离额外惩罚，尽快把策略从“贴脸擦过”拉开
+                # note, note"note"note
                 if dist < 0.65 * d_danger:
                     reward -= 0.25
                     rt(info, "avoid_static_emergency_gap_penalty", -0.25)
             elif dist < d_safe_min:
-                # 非危险区但偏近：给小惩罚，抑制长期近距并行
+                # note: note, noterows
                 near_ratio = float(np.clip((d_safe_min - dist) / max(1e-6, d_safe_min - d_danger), 0.0, 1.0))
                 soft_pen = 0.08 * near_ratio
                 reward -= soft_pen
                 rt(info, "avoid_static_near_penalty", -soft_pen)
 
-            # 通过窗口奖励：必须高于安全下界，防止与危险区重叠给正奖
+            # notereward: note, note
             if max(d_safe_min, d_danger) < dist < d_pass and 0.20 < speed < 1.80:
                 reward += 0.05
                 rt(info, "avoid_static_pass_window_bonus", 0.05)
@@ -4409,7 +4409,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             dist = f['dist']
             closing = f['closing_speed']
             progress_diff = f['progress_diff']
-            # 只在 learner 在后方/附近跟车时强调距离带
+            # note learner note/note
             if progress_diff < 0:
                 if d_safe_min <= dist <= d_safe_max:
                     reward += 0.18
@@ -4418,7 +4418,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                     reward -= 0.9
                     rt(info, "follow_danger_penalty", -0.9)
                     self.episode_stats['unsafe_follow_steps'] += 1
-                    # 追尾风险近似：距离很近 + 接近速度大
+                    # note: note + note
                     if closing > 0.7:
                         reward -= 0.6
                         rt(info, "follow_rear_end_risk_penalty", -0.6)
@@ -4426,11 +4426,11 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                 elif dist < d_safe_min:
                     reward -= 0.25
                     rt(info, "follow_too_close_penalty", -0.25)
-                # 近距激进变道惩罚（使用转向变化率信号由 base平滑项已覆盖，这里仅在近距再加）
+                # note(note basenote, note)
                 if dist < d_safe_max and abs(self.delta_steer_prev) > 0.18:
                     reward -= 0.12
                     rt(info, "follow_aggressive_steer_penalty", -0.12)
-            # 不鼓励贴着NPC长时间并排抖动
+            # noteNPCnote
             if abs(progress_diff) < max(8, int(self.dist_scale.get('spawn_min_gap_progress', 30) * 0.25)) and dist < d_safe_min:
                 reward -= 0.15
                 rt(info, "follow_parallel_close_penalty", -0.15)
@@ -4439,10 +4439,10 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         return reward, done
 
     def _reward_overtake_mode(self, reward, done, info):
-        # 先应用跟车安全底座，再在安全窗口下复用v9超车奖励逻辑
+        # note, notev9noterewardnote
         reward, done = self._reward_follow_only(reward, done, info)
 
-        # 只有在安全窗口下才进入超车判定加分
+        # note
         feats = self._npc_distance_features(info)
         safe_gate = True
         d_danger = float(self.dist_scale.get('danger_close_sim', 1.2))
@@ -4459,7 +4459,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self.episode_step += 1
         self.total_train_steps += 1
 
-        # ===== ActionSafety (沿用v9) =====
+        # ===== ActionSafety (notev9) =====
         steer_raw = float(action[0])
         throttle_raw = float(action[1])
 
@@ -4482,7 +4482,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         self.steer_prev_limited = steer_limited
         self.steer_prev_exec = steer_exec
 
-        # v10.2/v10.6: throttle action space [-1, 1] + reverse gate（允许刹车，限制低速倒车）
+        # v10.2/v10.6: throttle action space [-1, 1] + reverse gate(note, note)
         throttle_cmd = float(np.clip(throttle_raw, -1.0, 1.0))
         startup_forced = False
         neg_throttle_request = False
@@ -4523,7 +4523,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
 
         reward, done = self._base_drive_reward(info, safe_action, actual_delta, prev_delta_steer, rate_excess_bounded)
 
-        # 连续负油门 reset（按动作请求），但只在低速且无前进时计数，避免把刹车当倒车
+        # note reset(note), notefirstnote, note
         speed_now = abs(_safe_float(info.get('speed', 0.0), 0.0))
         progress_step_now = _safe_float(info.get('episode_progress_step_sim', 0.0), 0.0)
         neg_reset_gate = bool(neg_throttle_request and speed_now <= self.negative_throttle_reset_speed_max and progress_step_now <= 0.005)
@@ -4550,7 +4550,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             if npc_metrics.get("min_dist") is not None:
                 info['npc_min_dist'] = float(npc_metrics.get("min_dist"))
 
-        # v10.2: 连续后退位移惩罚（与是否有NPC无关）
+        # v10.2: note(noteNPCnote)
         reward = self._apply_reverse_displacement_penalty(reward, info)
         if self._negative_throttle_streak >= max(1, int(self.reverse_reset_steps)):
             done = True
@@ -4561,11 +4561,11 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             self.episode_stats['termination_reason'] = 'negative_throttle_streak_reset'
             self.episode_stats['reverse_reset_terminations'] = self.episode_stats.get('reverse_reset_terminations', 0) + 1
 
-        # 兼容保留位移后退告警，但不再用它直接终止（避免与负油门规则叠加过重）
+        # note, note(note)
         if info.get('reverse_streak_reset', False):
             info['reverse_streak_reset_armed'] = True
 
-        # 追尾事件标记（基于碰撞时的相对进度+近距近似）
+        # note(note+note)
         if self.episode_stats.get('collision'):
             feats = self._npc_distance_features(info)
             for f in feats:
@@ -4574,7 +4574,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
                     self.episode_stats['rear_end'] = True
                     break
 
-        # rear-end 风险事件可转成终止（先保守，不直接终止）
+        # rear-end note(note, note)
         if info.get('rear_end_risk'):
             info['rear_end'] = False
 
@@ -4596,7 +4596,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
         if self.reward_clip_abs and self.reward_clip_abs > 0:
             raw_reward = float(reward)
             reward = float(np.clip(reward, -self.reward_clip_abs, self.reward_clip_abs))
-            if reward != raw_reward:
+            if reward!= raw_reward:
                 info['reward_clipped'] = True
                 info['raw_reward_unclipped'] = raw_reward
 
@@ -4607,7 +4607,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
 
     # ---------------- debug utilities ----------------
     def reset_stress_test(self, n_resets=50, rollout_steps=20):
-        """仅用于 debug：连续 reset 观察 spawn 质量和前20步碰撞率。"""
+        """note debug: note reset note spawn notefirst20note."""
         stress_constraints = self._spawn_constraints()
         near_spawn_thresh = float(stress_constraints["ego_npc"]["min_euclid"])
         stats = {
@@ -4642,7 +4642,7 @@ class GeneratedTrackV10Wrapper(OvertakeTrainingWrapper):
             for _ in range(int(rollout_steps)):
                 _, _, done, info = self.step(np.array([0.0, 0.15], dtype=np.float32))
                 cte = abs(_safe_float(info.get('cte', 0.0), 0.0))
-                if info.get('hit', 'none') != 'none':
+                if info.get('hit', 'none')!= 'none':
                     collided = True
                 if cte > self.current_max_cte * 1.5:
                     offtrack = True
@@ -4697,9 +4697,9 @@ class GeneratedTrackV11_1Wrapper(GeneratedTrackV10Wrapper):
         self.speed_i_leak = float(kwargs.pop("speed_i_leak", 3.0))
         self.speed_i_fwd_max = float(kwargs.pop("speed_i_fwd_max", 0.40))
         self.speed_i_brake_max = float(kwargs.pop("speed_i_brake_max", 0.25))
-        # B2 fix: 先把值保存到临时变量，super().__init__() (V10) 会用
-        # curriculum_stage_ref 再次覆盖 self.startup_force_throttle_steps（默认10），
-        # super() 调用完成后需要重新断言 V11.1 的值。
+        # B2 fix: notesavenote, super().__init__() (V10) note
+        # curriculum_stage_ref note self.startup_force_throttle_steps(default10),
+        # super() note V11.1 note.
         _startup_force_throttle_steps = int(kwargs.pop("startup_force_throttle_steps", 24))
         _startup_force_throttle = float(kwargs.pop("startup_force_throttle", 0.20))
         self.startup_force_throttle_steps = _startup_force_throttle_steps
@@ -4728,9 +4728,9 @@ class GeneratedTrackV11_1Wrapper(GeneratedTrackV10Wrapper):
 
         super().__init__(*args, **kwargs)
 
-        # B2 fix: super().__init__() (V10) 从 curriculum_stage_ref 重新设置了以下属性，
-        # 会以默认值10覆盖 V11.1 通过 kwargs 传入的值（默认24）。
-        # 在 super() 之后重新断言，确保 V11.1 的 kwargs 参数优先。
+        # B2 fix: super().__init__() (V10) note curriculum_stage_ref note,
+        # notedefaultnote10note V11.1 note kwargs note(default24).
+        # note super() note, note V11.1 note kwargs note.
         self.startup_force_throttle_steps = _startup_force_throttle_steps
         self.startup_force_throttle = _startup_force_throttle
 
@@ -4757,7 +4757,7 @@ class GeneratedTrackV11_1Wrapper(GeneratedTrackV10Wrapper):
         self._unit_calib_done = False
         self._unit_calib_ratio = None
 
-        print("   ✅ V11.1 控制架构已启用: policy->[v_ref,kappa_ref]->controller->[steer,throttle]")
+        print("   PASS V11.1 controlnote: policy->[v_ref,kappa_ref]->controller->[steer,throttle]")
         print(f"      steer_softsat_gain={self.steer_softsat_gain:.2f}, ff_headroom={self.steer_ff_headroom:.2f}, "
               f"steer_slew_rate_max={self.steer_slew_rate_max:.2f}/s, kappa_ref_rate_max={self.kappa_ref_rate_max:.2f}/s")
 
@@ -4949,7 +4949,7 @@ class GeneratedTrackV11_1Wrapper(GeneratedTrackV10Wrapper):
             self.ctrl_sign_flip_applied = True
             print(f"⚠️ V11.1 sign-check: gyro_z sign flipped (corr={corr:.3f}, lag={lag}, n={n})")
         else:
-            print(f"✅ V11.1 sign-check: gyro_z sign aligned (corr={corr:.3f}, lag={lag}, n={n})")
+            print(f"PASS V11.1 sign-check: gyro_z sign aligned (corr={corr:.3f}, lag={lag}, n={n})")
         self._sign_check_locked = True
 
     def _update_unit_calibration(self, info):
@@ -4992,7 +4992,7 @@ class GeneratedTrackV11_1Wrapper(GeneratedTrackV10Wrapper):
                 raise RuntimeError(msg)
             print(msg)
         else:
-            print(f"✅ V11.1 unit-check pass: rmse_deg/rmse_rad={ratio:.2f}")
+            print(f"PASS V11.1 unit-check pass: rmse_deg/rmse_rad={ratio:.2f}")
 
     def _reset_controller_state(self):
         self.v_ref = float(self.v_ref_min)
@@ -5115,7 +5115,7 @@ class GeneratedTrackV11_1Wrapper(GeneratedTrackV10Wrapper):
 
         raw_dfi = int(self.track_cache.progress_diff(self.scene_name, int(cur_fi), int(self._episode_prev_fine_idx)))
         dfi = int(np.clip(raw_dfi, -self._progress_step_clip, self._progress_step_clip))
-        clipped = bool(dfi != raw_dfi)
+        clipped = bool(dfi!= raw_dfi)
         idle_freeze = False
         try:
             spd = abs(float(speed)) if speed is not None else abs(float(_safe_float(info.get('speed', 0.0), 0.0)))
@@ -5257,9 +5257,9 @@ class GeneratedTrackV11_1Wrapper(GeneratedTrackV10Wrapper):
         self.steer_prev_limited = steer_exec
         self.steer_prev_exec = steer_exec
         self._last_exec_steer = steer_exec
-        # P0-4 fix: V11.1 执行层已由 steer_slew_rate_max(1/s)×dt 限速，
-        # rate_excess 应对照 controller 自身限速（per-step），而非 V9 delta_max（语义不同）。
-        # 这样 w_sat 惩罚与实际控制层一致：只有 _rate_limit 被撑满时才触发。
+        # P0-4 fix: V11.1 noterowsnote steer_slew_rate_max(1/s)xdt note,
+        # rate_excess note controller note(per-step), note V9 delta_max(note).
+        # note w_sat notecontrolnote: note _rate_limit note.
         allowed_per_step = max(float(self.steer_slew_rate_max) * float(dt_used), 1e-6)
         rate_excess_raw = max(0.0, abs(actual_delta) - allowed_per_step) / allowed_per_step
         rate_excess_bounded = float(np.tanh(rate_excess_raw))
@@ -5419,7 +5419,7 @@ class GeneratedTrackV11_1Wrapper(GeneratedTrackV10Wrapper):
         if self.reward_clip_abs and self.reward_clip_abs > 0:
             raw_reward = float(reward)
             reward = float(np.clip(reward, -self.reward_clip_abs, self.reward_clip_abs))
-            if reward != raw_reward:
+            if reward!= raw_reward:
                 info['reward_clipped'] = True
                 info['raw_reward_unclipped'] = raw_reward
                 self._rt_add(info, "reward_clip_adjust", float(reward - raw_reward))
@@ -5493,20 +5493,20 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
         self.event_reward_gap_spike_abs = float(kwargs.pop("event_reward_gap_spike_abs", 2.0))
         self.event_progress_jump_fi = int(kwargs.pop("event_progress_jump_fi", 12))
         self.event_progress_clip_ratio_high = float(kwargs.pop("event_progress_clip_ratio_high", 0.25))
-        # P3 fix: 默认阈值从 4.4 降为 3.2，低于 spawn_min_gap_sim_ego_npc=4.0，
-        # 避免合法出生距离（4.0~4.4）产生大量假阳性 spawn_near 告警。
+        # P3 fix: defaultnote 4.4 note 3.2, note spawn_min_gap_sim_ego_npc=4.0,
+        # note(4.0~4.4)note spawn_near note.
         self.event_spawn_near_dist = float(kwargs.pop("event_spawn_near_dist", 3.2))
         self.event_periodic_sample_steps = int(kwargs.pop("event_periodic_sample_steps", 20000))
 
         super().__init__(*args, **kwargs)
 
         if self._fixed2_enabled():
-            # 仅在有NPC的阶段才强制fixed2的NPC/reward行为；阶段1(npc_count=0)保持纯驾驶
+            # noteNPCnotestagenotefixed2noteNPC/rewardrowsnote; stage1(npc_count=0)note
             _init_npc_count = int(self.curriculum_stage_ref.get("npc_count", 0))
             if _init_npc_count > 0:
-                # npc_count 使用阶段配置值，不被 fixed_npc_count 提升
+                # npc_count notestageconfigurationnote, note fixed_npc_count note
                 self.curriculum_stage_ref["npc_count"] = _init_npc_count
-                # npc_mode 保留阶段配置（static / wobble 等）
+                # npc_mode notestageconfiguration(static / wobble note)
                 if not self.curriculum_stage_ref.get("npc_mode"):
                     self.curriculum_stage_ref["npc_mode"] = "static"
                 self.curriculum_stage_ref["reward_mode"] = "avoid_static"
@@ -5517,13 +5517,13 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
                 if not self.curriculum_stage_ref.get("npc_layout_reset_policy"):
                     self.curriculum_stage_ref["npc_layout_reset_policy"] = "agent_only"
             self.curriculum_stage_ref["terminate_on_success_laps"] = False
-            # 随机出生点由 STAGE_TRAIN_PROFILES[stage].random_start_enabled 控制，不在此强制
+            # note STAGE_TRAIN_PROFILES[stage].random_start_enabled control, note
 
         self.manual_spawn = ManualWidthSpawnSampler(self.manual_width_profile, self.scene_name)
         if self._fixed2_enabled():
             if self.manual_spawn.loaded:
                 print(
-                    "   ✅ V11.2 manual-width spawn loaded:",
+                    "   PASS V11.2 manual-width spawn loaded:",
                     f"fine={len(self.manual_spawn.fine_track)}",
                     f"fine_gap={self.manual_spawn.fine_gap_sim:.4f}",
                     f"width_med={self.manual_spawn.width_median_sim:.3f}",
@@ -5630,7 +5630,7 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
         }
         self._append_jsonl(self.episode_summary_jsonl, row)
         self._append_csv_row(self.episode_summary_csv, row)
-        # 回合结束时把仍在等待post-window的事件强制落盘，避免丢失尾部样本。
+        # notepost-windownote, note.
         self._trace_flush_pending(force=True)
 
     def _trace_build_step_snapshot(self, info, reward, done):
@@ -5860,8 +5860,8 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
             self.episode_stats["spawn_retries"] = int(_safe_float(info.get("spawn_retries", 0), 0))
         if "spawn_safe_anchor_count" in info:
             self.episode_stats["spawn_safe_anchor_count"] = int(_safe_float(info.get("spawn_safe_anchor_count", 0), 0))
-        # P4 fix: ego_npc_min_dist_spawn 应只在 episode 首步（spawn 后）写入一次，
-        # 后续步骤 NPC 距离会因行驶而变化，不应覆盖出生距离快照。
+        # P4 fix: ego_npc_min_dist_spawn note episode note(spawn note)note,
+        # note NPC noterowsnote, note.
         if "ego_npc_min_dist" in info and float(_safe_float(self.episode_stats.get("ego_npc_min_dist_spawn", -1.0), -1.0)) < 0.0:
             self.episode_stats["ego_npc_min_dist_spawn"] = float(_safe_float(info.get("ego_npc_min_dist", -1.0), -1.0))
 
@@ -5943,19 +5943,19 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
         return float(2.0 * cross / denom)
 
     def _half_width_cte_at_fine(self, fi):
-        """返回该点窄侧半宽（min(左,右)），保留兼容。"""
+        """note(min(note,note)), note."""
         if self.manual_spawn.loaded:
             return float(max(1e-3, self.manual_spawn.half_width_narrow_cte_at(fi)))
         return float(max(1e-3, self.current_max_cte))
 
     def _half_width_avg_cte_at_fine(self, fi):
-        """返回该点平均半宽（(左+右)/2），用于CTE无方向时的ontrack判定。"""
+        """note((note+note)/2), noteCTEnoteontracknote."""
         if self.manual_spawn.loaded:
             return float(max(1e-3, self.manual_spawn.half_width_cte_at(fi)))
         return float(max(1e-3, self.current_max_cte))
 
     def _half_width_wide_cte_at_fine(self, fi):
-        """返回该点宽侧半宽（max(左,右)），用于CTE惩罚梯度基准。"""
+        """note(max(note,note)), noteCTEnote."""
         if self.manual_spawn.loaded:
             return float(max(1e-3, self.manual_spawn.half_width_wide_cte_at(fi)))
         return float(max(1e-3, self.current_max_cte))
@@ -5973,7 +5973,7 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
         min_g = int(c_ego.get("min_progress_gap", 0))
         max_keep = max(8, int(self.spawn_safe_anchor_pool))
 
-        # v11.3: bad_nodes 已废弃，直接使用全量节点
+        # v11.3: bad_nodes note, note
         candidates = list(range(n))
         random.shuffle(candidates)
 
@@ -6095,13 +6095,13 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
         )
         n = len(self.manual_spawn.fine_track)
 
-        # v11.4: 先获取 ego 上一回合的 fine_idx 位置（如可用），用于将 NPC 偏置到 ego 前方。
-        # 这确保 agent 每回合都会尽早遇到 NPC，减少无效步数。
+        # v11.4: note ego note fine_idx note(note), note NPC note ego firstnote.
+        # note agent note NPC, note.
         ego_fi_hint = getattr(self, 'learner_fine_idx', None)
         if ego_fi_hint is None or not isinstance(ego_fi_hint, int):
             ego_fi_hint = None
 
-        # 所有满足宽度和曲率的候选 fine points
+        # note fine points
         all_candidates = [
             i for i in range(n)
             if float(self.manual_spawn.width_sim[i]) >= width_min and abs(self._track_kappa(i)) <= float(self.spawn_kappa_max)
@@ -6109,20 +6109,20 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
         if len(all_candidates) < count:
             return [], []
 
-        # v11.4: 如果有 ego 位置提示，优先选择 ego 前方 40-250 fine points 范围内的候选
-        # （约 1-6m 赛道距离），NPC 在 agent 必经之路上，大幅增加避障交互频率。
-        NPC_AHEAD_MIN = 40    # 最近距离 (~1m)，太近会出生在 ego 视野内太突然
-        NPC_AHEAD_MAX = 250   # 最远距离 (~6m)，确保一回合内肯定遇到
+        # v11.4: note ego note, note ego firstnote 40-250 fine points note
+        # (note 1-6m tracknote), NPC note agent note, note.
+        NPC_AHEAD_MIN = 40    # note (~1m), note ego note
+        NPC_AHEAD_MAX = 250   # note (~6m), note
         candidates = all_candidates  # fallback
         if ego_fi_hint is not None:
             ahead_candidates = []
             for fi in all_candidates:
-                ahead_dist = (fi - ego_fi_hint) % n  # 正方向（前方）距离
+                ahead_dist = (fi - ego_fi_hint) % n  # note(firstnote)note
                 if NPC_AHEAD_MIN <= ahead_dist <= NPC_AHEAD_MAX:
                     ahead_candidates.append(fi)
             if len(ahead_candidates) >= count:
                 candidates = ahead_candidates
-            # else: fallback 到全量 candidates
+            # else: fallback note candidates
 
         lane_sides = ["left", "right"] + ["center"] * max(0, count - 2)
         random.shuffle(lane_sides)
@@ -6160,11 +6160,11 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
         return poses, meta
 
     def _build_npc_ahead_of_ego(self, npc_count, ego_fine_idx):
-        """v11.4 ego-first NPC 放置：在 ego 前方 40-250 fine points 内选择 NPC 位置。
+        """v11.4 ego-first NPC note: note ego firstnote 40-250 fine points note NPC note.
 
-        确保每回合 agent 一定会在前方遇到 NPC 障碍，大幅增加有效避障经验。
-        NPC 1 放在 ego 前方 40-120 fine points（近处，很快遇到）
-        NPC 2 放在 ego 前方 130-250 fine points（远处，第二个障碍）
+        note agent notefirstnote NPC obstacle, note.
+        NPC 1 note ego firstnote 40-120 fine points(note, note)
+        NPC 2 note ego firstnote 130-250 fine points(note, noteobstacle)
         """
         if not self.manual_spawn.loaded:
             return []
@@ -6182,15 +6182,15 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
             float(self.npc_min_track_width_ratio) * float(self.manual_spawn.width_median_sim),
         )
 
-        # 定义每个 NPC 的前方搜索区间（fine points offset from ego）
-        # NPC 1: 近处 [40, 120]   → agent 约 10-30 步就遇到
-        # NPC 2: 远处 [130, 250]  → agent 约 30-60 步遇到
-        # 更多 NPC: 依次往前
+        # note NPC notefirstnote(fine points offset from ego)
+        # NPC 1: note [40, 120]   -> agent note 10-30 note
+        # NPC 2: note [130, 250]  -> agent note 30-60 note
+        # note NPC: notefirst
         npc_zones = []
         for i in range(count):
-            zone_start = 40 + i * 90   # 40, 130, 220, ...
-            zone_end = 120 + i * 90    # 120, 210, 300, ...
-            zone_end = min(zone_end, n // 2)  # 不超过半圈
+            zone_start = 40 + i * 90   # 40, 130, 220,...
+            zone_end = 120 + i * 90    # 120, 210, 300,...
+            zone_end = min(zone_end, n // 2)  # note
             if zone_start >= zone_end:
                 zone_start = max(40, n // (count + 1) * i)
                 zone_end = min(zone_start + 80, n // 2)
@@ -6208,7 +6208,7 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
                     continue
                 if abs(self._track_kappa(fi)) > float(self.spawn_kappa_max):
                     continue
-                # 检查与已选 NPC 的间距
+                # note NPC note
                 ok = True
                 for cj in chosen_fis:
                     gap = abs(fi - cj)
@@ -6222,7 +6222,7 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
             if zone_candidates:
                 chosen_fis.append(random.choice(zone_candidates))
             else:
-                # zone 内没有合适的点，扩大搜索到 [20, n//2]
+                # zone note, note [20, n//2]
                 for offset in range(20, n // 2):
                     fi = (ego_fine_idx + offset) % n
                     if float(self.manual_spawn.width_sim[fi]) < width_min:
@@ -6271,10 +6271,10 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
         elif not self.npc_layout_cached_poses:
             refresh = True
             reason = "no_cached_layout"
-        elif self._npc_layout_active_count != count:
+        elif self._npc_layout_active_count!= count:
             refresh = True
             reason = "active_count_changed"
-        elif self._npc_layout_stage_id != stage:
+        elif self._npc_layout_stage_id!= stage:
             refresh = True
             reason = "stage_changed"
         elif self._consecutive_layout_failures >= self._layout_fail_refresh_threshold():
@@ -6324,7 +6324,7 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
         base_reward = float(reward)
         dt = max(0.0, _safe_float(info.get("ctrl_dt", self.ctrl_dt_fallback), self.ctrl_dt_fallback))
         hit_v = str(info.get("hit", "none"))
-        hit_event = (hit_v != "none")
+        hit_event = (hit_v!= "none")
 
         progress_laps = float(_safe_float(info.get("episode_progress_laps_est", 0.0), 0.0))
         lap_count = int(_safe_float(info.get("lap_count", 0), 0))
@@ -6431,7 +6431,7 @@ class GeneratedTrackV11_2Wrapper(GeneratedTrackV11_1Wrapper):
 
 
 class CurriculumManager(object):
-    """训练外层（learn chunk之后）执行评估与升阶。"""
+    """trainingnote(learn chunknote)noterowsnote."""
 
     def __init__(self, curriculum_stage_ref, eval_freq_steps=20000, eval_episodes=2,
                  success_laps=2, consecutive_success_required=2,
@@ -6468,13 +6468,13 @@ class CurriculumManager(object):
                 stage.sid, self.ref, args=self.args, wrapper=wrapper, model=model,
                 cli_overrides=self.cli_overrides, verbose=False
             )
-        # P0-1 fix: apply_stage_train_profile 会覆盖 npc_layout_reset_policy 等 fixed2 专属键；
-        # 在 set_stage 完成后立即重新应用 fixed2 约束，确保覆盖不生效。
+        # P0-1 fix: apply_stage_train_profile note npc_layout_reset_policy note fixed2 note;
+        # note set_stage note fixed2 note, note.
         if self.args is not None:
             _apply_v11_2_curriculum_overrides(self.args, self.ref)
             _apply_npc_mode_override(self.args, self.ref)
         gate = STAGE_EVAL_GATES.get(stage.sid)
-        print(f"🎓 切换阶段 -> {stage.sid}: {stage.name} | reward={stage.reward_mode} | npc={self.ref.get('npc_count', stage.npc_count)}")
+        print(f"🎓 notestage -> {stage.sid}: {stage.name} | reward={stage.reward_mode} | npc={self.ref.get('npc_count', stage.npc_count)}")
         if profile is not None:
             print("   StageProfile:",
                   f"throttle={self.ref.get('max_throttle', getattr(wrapper, 'max_throttle', 'n/a')) if wrapper else getattr(self.args, 'max_throttle', 'n/a')}",
@@ -6504,7 +6504,7 @@ class CurriculumManager(object):
             return None
         if global_step - self.stage_enter_step < min_stage_steps:
             self.last_eval_at = global_step
-            print(f"⏳ 阶段{stage_id}未达到最小步数 {min_stage_steps}, 跳过升阶评估")
+            print(f"⏳ stage{stage_id}note {min_stage_steps}, note")
             return None
 
         self.last_eval_at = global_step
@@ -6536,7 +6536,7 @@ class CurriculumManager(object):
 
 def evaluate_stage_on_same_env(model, wrapper, curriculum_stage_ref, n_episodes=2, success_laps=2,
                                eval_gate=None, eval_max_steps=1000, stop_on_laps=False):
-    """在训练间隙用同一环境做评估（非并发）。适配 RecurrentPPO predict 接口。"""
+    """notetrainingnote(note).note RecurrentPPO predict note."""
     out = {
         'episodes': [],
         'success': False,
@@ -6574,14 +6574,14 @@ def evaluate_stage_on_same_env(model, wrapper, curriculum_stage_ref, n_episodes=
         max_eval_steps = int(eval_max_steps) if int(eval_max_steps) > 0 else int(wrapper.max_episode_steps)
         max_eval_steps = min(int(wrapper.max_episode_steps), max_eval_steps)
         while not done and ep_steps < max_eval_steps:
-            # RecurrentPPO 和 PPO 都兼容这个predict签名（多余参数会被忽略/兼容）
+            # RecurrentPPO note PPO notepredictnote(note/note)
             action, lstm_state = model.predict(obs, state=lstm_state, episode_start=episode_start, deterministic=True)
             obs, reward, done, info = wrapper.step(action)
             episode_start = np.array([done], dtype=bool)
             ep_steps += 1
             laps = max(laps, int(_safe_float(info.get('lap_count', 0), 0)))
             max_rel_prog = max(max_rel_prog, float(_safe_float(info.get('episode_progress_laps_est', 0.0), 0.0)))
-            if info.get('hit', 'none') != 'none':
+            if info.get('hit', 'none')!= 'none':
                 collisions = True
             if info.get('rear_end', False):
                 rear_end = True
@@ -6595,12 +6595,12 @@ def evaluate_stage_on_same_env(model, wrapper, curriculum_stage_ref, n_episodes=
                 unsafe_cutin += 1
             term_reason = info.get('termination_reason', term_reason)
             if stop_on_laps and laps >= success_laps and not collisions:
-                # 评估成功后可提前结束
+                # notesucceedednotefirstnote
                 done = True
 
-        # B3 fix: fixed2 模式下成功终止原因为 "success_avoidance_2laps"，
-        # 此时 lap_count 可能因 success_progress_only/milestone 路径而未达到 success_laps，
-        # 需要将该终止原因也纳入成功判断。
+        # B3 fix: fixed2 notesucceedednote "success_avoidance_2laps",
+        # note lap_count note success_progress_only/milestone pathnote success_laps,
+        # notesucceedednote.
         fixed2_success = (term_reason == "success_avoidance_2laps") and (not collisions) and (not rear_end)
         success = (fixed2_success or (laps >= success_laps)) and (not collisions) and (term_reason not in ('persistent_offtrack', 'stuck')) and (not rear_end)
         ep_stats = getattr(wrapper, "episode_stats", {}) or {}
@@ -6652,12 +6652,12 @@ def _extract_step_from_ckpt_path(path):
 
 def _checkpoint_eval_sort_key(item):
     """
-    排序优先级：
+    note:
     1) gate_passed
     2) avg_relative_progress_laps
     3) avg_laps
-    4) 低 collision_rate / rear_end_rate
-    5) checkpoint step（更新一点优先）
+    4) note collision_rate / rear_end_rate
+    5) checkpoint step(note)
     """
     r = item.get("result", {}) or {}
     return (
@@ -6673,24 +6673,24 @@ def _checkpoint_eval_sort_key(item):
 def _apply_v11_2_curriculum_overrides(args, curriculum_stage_ref):
     """Apply fixed2 mode overrides. Does NOT force stage to 2.
     Each stage's npc_count/reward_mode is governed by STAGES and STAGE_TRAIN_PROFILES."""
-    if str(getattr(args, "v11_2_mode", "fixed2")).lower() != "fixed2":
+    if str(getattr(args, "v11_2_mode", "fixed2")).lower()!= "fixed2":
         return
-    # 不再强制 stage = 2，让 --start-stage 参数自由控制阶段。
+    # note stage = 2, note --start-stage notecontrolstage.
     current_npc_count = int(curriculum_stage_ref.get("npc_count", 0))
 
-    # 仅在有NPC的阶段才覆盖reward_mode/npc_mode为fixed2静态避障模式
+    # noteNPCnotestagenotereward_mode/npc_modenotefixed2staticnote
     if current_npc_count > 0:
         curriculum_stage_ref["reward_mode"] = "avoid_static"
-        # npc_count 使用阶段配置值，不再被 fixed_npc_count 提升
-        # fixed_npc_count 仅控制 NPC 控制器对象池大小
+        # npc_count notestageconfigurationnote, note fixed_npc_count note
+        # fixed_npc_count notecontrol NPC controlnote
         curriculum_stage_ref["npc_count"] = current_npc_count
-        # npc_mode 保留阶段配置（static / wobble 等），仅在未设时补 static
+        # npc_mode notestageconfiguration(static / wobble note), note static
         if not curriculum_stage_ref.get("npc_mode"):
             curriculum_stage_ref["npc_mode"] = "static"
         curriculum_stage_ref["npc_speed_min"] = 0.0
         curriculum_stage_ref["npc_speed_max"] = 0.0
         curriculum_stage_ref["p_ego_behind"] = 0.0
-        # npc_layout_reset_policy / spawn gaps 由 StageTrainProfile 控制，仅在未设置时补默认值
+        # npc_layout_reset_policy / spawn gaps note StageTrainProfile control, notedefaultnote
         if not curriculum_stage_ref.get("npc_layout_reset_policy"):
             curriculum_stage_ref["npc_layout_reset_policy"] = "agent_only"
         if not curriculum_stage_ref.get("npc_layout_reset_on_collision"):
@@ -6716,12 +6716,12 @@ def _apply_v11_2_curriculum_overrides(args, curriculum_stage_ref):
 
     curriculum_stage_ref["success_laps_target"] = int(max(1, int(getattr(args, "fixed_success_laps", 2))))
     curriculum_stage_ref["terminate_on_success_laps"] = False
-    # 不再强制 stage_random_start_enabled=True；由 STAGE_TRAIN_PROFILES[stage].random_start_enabled 控制
-    # fixed2模式下各阶段是否随机出生点跟随阶段配置，不全局强制
+    # note stage_random_start_enabled=True; note STAGE_TRAIN_PROFILES[stage].random_start_enabled control
+    # fixed2notestagenotestageconfiguration, note
 
 
 def _apply_npc_mode_override(args, curriculum_stage_ref):
-    """允许通过CLI强制覆盖 NPC 行为模式（跨阶段保持）。"""
+    """noteCLInote NPC rowsnote(notestagenote)."""
     if args is None or curriculum_stage_ref is None:
         return
     raw = str(getattr(args, "npc_mode_override", "none") or "none").strip().lower()
@@ -6748,12 +6748,12 @@ def _apply_npc_mode_override(args, curriculum_stage_ref):
         curriculum_stage_ref["npc_speed_max"] = max(float(curriculum_stage_ref["npc_speed_min"]), float(vmax))
 
 def eval_checkpoints_mode(args):
-    """模式4：批量评估checkpoint并挑选当前最佳模型。"""
+    """note4: notecheckpointnotecurrentnotemodel."""
     try:
         from sb3_contrib import RecurrentPPO
     except Exception as e:
         raise RuntimeError(
-            "未找到 sb3_contrib（需要 RecurrentPPO）。请安装兼容版本: pip install sb3_contrib==1.8.0"
+            "note sb3_contrib(note RecurrentPPO).note: pip install sb3_contrib==1.8.0"
         ) from e
 
     stage_id = int(args.eval_ckpt_stage or args.start_stage)
@@ -6828,7 +6828,7 @@ def eval_checkpoints_mode(args):
     _apply_npc_mode_override(args, curriculum_stage_ref)
     stage_id = int(curriculum_stage_ref.get("stage", stage_id))
 
-    # 阶段需要时创建/延迟连接NPC
+    # stagenote/noteNPC
     stage_npc_count = int(curriculum_stage_ref.get('npc_count', 0))
     lazy_connect_npcs = bool(stage_npc_count > 0 and int(args.num_npc) > 0)
     saved_num_npc = args.num_npc
@@ -6844,21 +6844,21 @@ def eval_checkpoints_mode(args):
     pattern = args.eval_ckpt_glob
     ckpts = sorted(glob.glob(pattern))
     if not ckpts:
-        raise RuntimeError(f"未找到checkpoint: {pattern}")
+        raise RuntimeError(f"notecheckpoint: {pattern}")
     if args.eval_ckpt_limit and int(args.eval_ckpt_limit) > 0:
-        # 默认按step排序后取最近N个，更符合“挑当前最佳”诉求
+        # defaultnotestepnoteNnote, note"notecurrentnote"note
         ckpts = sorted(ckpts, key=_extract_step_from_ckpt_path)[-int(args.eval_ckpt_limit):]
 
-    print(f"\n🔎 批量评估checkpoint | stage={stage_id} ({STAGES[stage_id].name})")
+    print(f"\n🔎 notecheckpoint | stage={stage_id} ({STAGES[stage_id].name})")
     print(f"   files={len(ckpts)} pattern={pattern}")
     if gate is not None:
         print(f"   gate: min_prog={gate.min_relative_progress_laps} lap>={gate.require_lap_count_at_least} "
-              f"max_collision={gate.max_collisions} passes={gate.consecutive_passes_required} (单次评估展示)")
+              f"max_collision={gate.max_collisions} passes={gate.consecutive_passes_required} (note)")
 
     rows = []
     try:
         for i, path in enumerate(ckpts, 1):
-            print(f"\n[{i}/{len(ckpts)}] 评估: {os.path.basename(path)}")
+            print(f"\n[{i}/{len(ckpts)}] note: {os.path.basename(path)}")
             model = RecurrentPPO.load(path, env=vec_env)
             early_stop_laps = max(1, int(gate.require_lap_count_at_least)) if gate else int(args.eval_success_laps)
             result = evaluate_stage_on_same_env(
@@ -6899,7 +6899,7 @@ def eval_checkpoints_mode(args):
 
     best = rows_sorted[0]
     best_r = best["result"]
-    print("\n✅ 推荐checkpoint")
+    print("\nPASS notecheckpoint")
     print(json.dumps({
         "path": best["path"],
         "step": best["step"],
@@ -6915,8 +6915,8 @@ def eval_checkpoints_mode(args):
 def force_reload_scene(handler, scene_name="generated_track", load_timeout=25.0,
                        exit_wait=1.5, settle_wait=1.0, max_attempts=2):
     """
-    强制切场景：先 exit_scene 再 load_scene，防止落到默认地图。
-    返回是否确认加载成功（handler.loaded=True）。
+    note: note exit_scene note load_scene, notedefaultnote.
+    notesucceeded(handler.loaded=True).
     """
     if handler is None:
         return False
@@ -6924,7 +6924,7 @@ def force_reload_scene(handler, scene_name="generated_track", load_timeout=25.0,
     target = str(scene_name)
     timeout = max(1.0, float(load_timeout))
     for attempt in range(1, max(1, int(max_attempts)) + 1):
-        print(f"🗺️ 场景切换 attempt={attempt}: exit_scene -> load_scene({target})")
+        print(f"🗺️ note attempt={attempt}: exit_scene -> load_scene({target})")
 
         try:
             handler.loaded = False
@@ -6935,7 +6935,7 @@ def force_reload_scene(handler, scene_name="generated_track", load_timeout=25.0,
             handler.blocking_send({"msg_type": "exit_scene"})
             time.sleep(max(0.2, float(exit_wait)))
         except Exception as e:
-            print(f"⚠️ exit_scene 发送失败: {e}")
+            print(f"⚠️ exit_scene notefailed: {e}")
 
         try:
             handler.loaded = False
@@ -6945,24 +6945,24 @@ def force_reload_scene(handler, scene_name="generated_track", load_timeout=25.0,
         try:
             handler.blocking_send({"msg_type": "load_scene", "scene_name": target})
         except Exception as e:
-            print(f"⚠️ load_scene({target}) 发送失败: {e}")
+            print(f"⚠️ load_scene({target}) notefailed: {e}")
             continue
 
         deadline = time.time() + timeout
         while time.time() < deadline:
             if bool(getattr(handler, "loaded", False)):
                 time.sleep(max(0.1, float(settle_wait)))
-                print(f"✅ 场景已确认加载: {target}")
+                print(f"PASS note: {target}")
                 return True
             time.sleep(0.2)
 
-        print(f"⚠️ load_scene({target}) 超时 {timeout:.1f}s，准备重试")
+        print(f"⚠️ load_scene({target}) note {timeout:.1f}s, note")
 
     return bool(getattr(handler, "loaded", False))
 
 
 def create_generated_env_and_npcs(args, curriculum_stage_ref, dist_scale_profile, track_cache=None, lazy_connect_npcs=False):
-    """单地图 generated_track 环境创建（无多地图切换）。"""
+    """note generated_track note(note)."""
     track_cache = track_cache or TrackNodeCache()
     body_rgb = tuple(int(np.clip(v, 0, 255)) for v in args.body_rgb)
     conf = {
@@ -6978,7 +6978,7 @@ def create_generated_env_and_npcs(args, curriculum_stage_ref, dist_scale_profile
         "font_size": 50,
         "level": "generated_track",
         "max_cte": args.max_cte,
-        # v10.2: 允许负油门（倒车），由wrapper动作空间与奖励约束控制
+        # v10.2: note(note), notewrappernoterewardnotecontrol
         "throttle_min": -1.0,
         "throttle_max": 1.0,
         "cam_resolution": (120, 160, 3),
@@ -7004,7 +7004,7 @@ def create_generated_env_and_npcs(args, curriculum_stage_ref, dist_scale_profile
     env = gym.make("donkey-generated-track-v0", conf=conf)
     time.sleep(1.5)
 
-    # 查询节点 + fine_track
+    # note + fine_track
     handler = env.viewer.handler
     if bool(getattr(args, "force_scene_reload", True)):
         ok = force_reload_scene(
@@ -7014,12 +7014,12 @@ def create_generated_env_and_npcs(args, curriculum_stage_ref, dist_scale_profile
             max_attempts=2,
         )
         if not ok:
-            raise RuntimeError("场景切换失败：未能确认加载 generated_track（已执行 exit_scene -> load_scene）")
+            raise RuntimeError("notefailed: note generated_track(noterows exit_scene -> load_scene)")
     track_cache.query_nodes(handler, "generated_track", total_nodes=108)
     if not track_cache.fine_track.get("generated_track"):
         track_cache._build_fine_track("generated_track")
 
-    # 创建 NPC（最多 args.num_npc，具体活跃数由阶段控制）
+    # note NPC(note args.num_npc, notestagecontrol)
     npc_controllers = []
     npc_colors = [(255, 100, 100), (100, 255, 100), (255, 255, 100), (100, 100, 255), (255, 165, 0), (180, 0, 255)]
     for i in range(int(args.num_npc)):
@@ -7033,7 +7033,7 @@ def create_generated_env_and_npcs(args, curriculum_stage_ref, dist_scale_profile
         body_rgb = npc_colors[i % len(npc_colors)]
         npc._desired_body_rgb = body_rgb
         if lazy_connect_npcs:
-            # 延迟连接：先保留 controller 对象，等阶段需要时在 wrapper.reset() 中连接
+            # note: note controller note, notestagenote wrapper.reset() note
             npc_controllers.append(npc)
         else:
             if npc.connect(body_rgb=body_rgb):
@@ -7187,7 +7187,7 @@ def create_generated_env_and_npcs(args, curriculum_stage_ref, dist_scale_profile
 
 
 def calibrate_only(args):
-    """模式1：只做节点查询与比例尺标定。"""
+    """note1: note."""
     _apply_global_seeds(getattr(args, "seed", 42))
     curriculum_stage_ref = {
         'stage': 1, 'reward_mode': 'drive_only', 'npc_count': 0,
@@ -7203,7 +7203,7 @@ def calibrate_only(args):
     }
     saved_num_npc = args.num_npc
     try:
-        args.num_npc = 0  # v10.1: calibrate 默认不创建NPC
+        args.num_npc = 0  # v10.1: calibrate defaultnoteNPC
         vec_env, wrapper, npcs, track_cache = create_generated_env_and_npcs(
             args, curriculum_stage_ref, dict(DEFAULT_DIST_SCALE_PROFILE_GENERATED_TRACK)
         )
@@ -7215,12 +7215,12 @@ def calibrate_only(args):
     if args.scale_profile_out:
         with open(args.scale_profile_out, 'w') as f:
             json.dump(profile, f, indent=2)
-        print(f"💾 已保存比例尺档案: {args.scale_profile_out}")
+        print(f"saved notesavenote: {args.scale_profile_out}")
     cleanup_envs(vec_env, npcs)
 
 
 def reset_stress_mode(args):
-    """模式2：连续 reset 压测，验证 spawn 稳定性。"""
+    """note2: note reset note, note spawn stablenote."""
     _apply_global_seeds(getattr(args, "seed", 42))
     profile = dict(DEFAULT_DIST_SCALE_PROFILE_GENERATED_TRACK)
     curriculum_stage_ref = {
@@ -7285,7 +7285,7 @@ def reset_stress_mode(args):
     }
     _apply_v11_2_curriculum_overrides(args, curriculum_stage_ref)
     _apply_npc_mode_override(args, curriculum_stage_ref)
-    # Stage1 不需要 NPC：避免无意义连接/渲染，防止看到“飞天NPC”
+    # Stage1 note NPC: note/note, note"noteNPC"
     saved_num_npc = args.num_npc
     try:
         need_npc = _max_npc_count_from_stage(int(curriculum_stage_ref.get('stage', args.start_stage)))
@@ -7300,10 +7300,10 @@ def reset_stress_mode(args):
     cleanup_envs(vec_env, npcs)
 
 def export_spawn_table_mode(args):
-    """模式5：仅根据 manual width profile 导出赛道内离散出生点表。"""
+    """note5: note manual width profile notetracknote."""
     sampler = ManualWidthSpawnSampler(args.manual_width_profile, "generated_track")
     if not sampler.loaded:
-        raise RuntimeError(f"manual width profile 加载失败: {sampler.error}")
+        raise RuntimeError(f"manual width profile notefailed: {sampler.error}")
 
     lane_fracs = _parse_float_list(
         getattr(args, "spawn_table_lane_fracs", ""),
@@ -7375,7 +7375,7 @@ def export_spawn_table_mode(args):
                     float(_safe_float(p.get("kappa", 0.0), 0.0)),
                     float(_safe_float(p.get("width_sim", 0.0), 0.0)),
                 ])
-        print(f"🧾 赛道内出生点CSV已写入: {csv_path}")
+        print(f"🧾 tracknoteCSVnote: {csv_path}")
 
     print("\n🗺️ Spawn Table Export Summary")
     print(json.dumps(summary, indent=2, ensure_ascii=False))
@@ -7521,16 +7521,16 @@ class V11ControlTBCallback(BaseCallback):
 
 
 def train_mode(args):
-    """模式3：RecurrentPPO(LSTM) 单地图训练 + 分阶段评估升阶。"""
+    """note3: RecurrentPPO(LSTM) notetraining + notestagenote."""
     try:
         from sb3_contrib import RecurrentPPO
     except Exception as e:
         raise RuntimeError(
-            "未找到 sb3_contrib（需要 RecurrentPPO）。请安装兼容版本: pip install sb3_contrib==1.8.0"
+            "note sb3_contrib(note RecurrentPPO).note: pip install sb3_contrib==1.8.0"
         ) from e
 
     seed = _apply_global_seeds(getattr(args, "seed", 42))
-    print(f"🎲 随机种子: {seed}")
+    print(f"🎲 note: {seed}")
 
     stage_id = int(args.start_stage)
     stage_id = max(1, min(stage_id, max(STAGES.keys())))
@@ -7604,20 +7604,20 @@ def train_mode(args):
     _apply_npc_mode_override(args, curriculum_stage_ref)
     stage_id = int(curriculum_stage_ref.get("stage", stage_id))
 
-    # v10.2: 训练初期（尤其Stage A）不连接/不渲染NPC，阶段需要时由wrapper延迟连接。
-    # 修复：即使 Stage1 npc_count=0，只要 num_npc>0 就预先创建 NPC 控制器对象（lazy模式），
-    # 这样后续晋级到 Stage2+ 时 _pending_npc_connect 列表非空，可以成功延迟连接。
+    # v10.2: trainingnote(noteStage A)note/noteNPC, stagenotewrappernote.
+    # note: note Stage1 npc_count=0, note num_npc>0 note NPC controlnote(lazynote),
+    # note Stage2+ note _pending_npc_connect note, notesucceedednote.
     stage_npc_count = int(curriculum_stage_ref.get('npc_count', 0))
     saved_num_npc = args.num_npc
-    lazy_connect_npcs = bool(int(saved_num_npc) > 0)   # 只要有 NPC 槽位就全部用 lazy 模式
-    # 不再清零 args.num_npc，让 create_generated_env_and_npcs 始终创建足够的 NPC 对象
+    lazy_connect_npcs = bool(int(saved_num_npc) > 0)   # note NPC note lazy note
+    # note args.num_npc, note create_generated_env_and_npcs note NPC note
     vec_env, wrapper, npcs, track_cache = create_generated_env_and_npcs(
         args, curriculum_stage_ref, dict(DEFAULT_DIST_SCALE_PROFILE_GENERATED_TRACK),
         lazy_connect_npcs=lazy_connect_npcs,
     )
     args.num_npc = saved_num_npc
     wrapper.dist_scale = build_dist_scale_profile(track_cache, "generated_track")
-    print("\n📏 使用比例尺档案:")
+    print("\n📏 note:")
     print(json.dumps(wrapper.dist_scale, indent=2, ensure_ascii=False))
     try:
         vec_env.seed(seed)
@@ -7656,7 +7656,7 @@ def train_mode(args):
     os.makedirs(save_dir, exist_ok=True)
 
     if args.pretrained_model and os.path.exists(args.pretrained_model):
-        print(f"📦 加载模型: {args.pretrained_model}")
+        print(f"build notemodel: {args.pretrained_model}")
         model = RecurrentPPO.load(args.pretrained_model, env=vec_env, tensorboard_log=args.tb_log)
         try:
             model.set_random_seed(seed)
@@ -7682,9 +7682,9 @@ def train_mode(args):
             seed=seed,
         )
 
-    print("\n🚀 V11.2 训练启动（随机出生 + fixed2静态NPC，目标层+控制层，generated_track + LSTM）")
-    print(f"   总步数: {args.total_steps:,}")
-    print(f"   起始阶段: {stage_id} ({STAGES[stage_id].name})")
+    print("\n🚀 V11.2 trainingnote(note + fixed2staticNPC, goalnote+controlnote, generated_track + LSTM)")
+    print(f"   note: {args.total_steps:,}")
+    print(f"   notestage: {stage_id} ({STAGES[stage_id].name})")
     print(f"   v11_2_mode: {args.v11_2_mode}")
     print(f"   auto_promote: {args.auto_promote}")
     print(f"   eval_freq_steps: {args.eval_freq_steps:,}")
@@ -7721,23 +7721,23 @@ def train_mode(args):
                 cur_stage = int(curriculum_stage_ref.get('stage', stage_id))
                 path = os.path.join(save_dir, f"v11_2_fixed2_lstm_stage{cur_stage}_step{total_done}")
                 model.save(path)
-                print(f"💾 已保存: {path}.zip")
+                print(f"saved notesave: {path}.zip")
 
             if args.auto_promote:
                 curriculum.maybe_eval_and_promote(model, wrapper, total_done)
                 try:
-                    vec_env.reset()  # 评估走了wrapper直连接口，重置VecEnv缓存避免状态不同步
+                    vec_env.reset()  # notewrappernote, noteVecEnvnote
                 except Exception as e:
-                    print(f"⚠️ vec_env.reset() 同步失败: {e}")
+                    print(f"⚠️ vec_env.reset() notefailed: {e}")
 
     finally:
         final_stage = int(curriculum_stage_ref.get('stage', stage_id))
         final_path = os.path.join(save_dir, f"v11_2_fixed2_lstm_final_stage{final_stage}")
         try:
             model.save(final_path)
-            print(f"💾 最终模型: {final_path}.zip")
+            print(f"saved notemodel: {final_path}.zip")
         except Exception as e:
-            print(f"⚠️ 保存最终模型失败: {e}")
+            print(f"⚠️ savenotemodelfailed: {e}")
         cleanup_envs(vec_env, npcs)
 
 
@@ -7754,54 +7754,54 @@ def cleanup_envs(vec_env, npc_controllers):
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="V11.2 generated_track fixed2/curriculum RecurrentPPO(LSTM) 训练工具")
+    p = argparse.ArgumentParser(description="V11.2 generated_track fixed2/curriculum RecurrentPPO(LSTM) trainingnote")
     p.add_argument('--mode', choices=['calibrate', 'reset-stress', 'train', 'eval-checkpoints', 'export-spawn-table'], default='calibrate')
     p.add_argument('--v11-2-mode', choices=['fixed2', 'curriculum'], default='fixed2',
-                   help='fixed2=随机出生+双静态NPC（成功后刷新）；curriculum=兼容课程模式')
+                   help='fixed2=note+notestaticNPC(succeedednote); curriculum=note')
     p.add_argument('--host', default='127.0.0.1')
     p.add_argument('--port', type=int, default=9091)
-    p.add_argument('--seed', type=int, default=42, help='全局随机种子（python/numpy/torch/sb3）')
+    p.add_argument('--seed', type=int, default=42, help='note(python/numpy/torch/sb3)')
     p.add_argument('--exe-path', type=str, default=None)
     p.add_argument('--force-scene-reload', action='store_true', default=True,
-                   help='创建环境后强制执行 exit_scene -> load_scene(generated_track)')
+                   help='noterows exit_scene -> load_scene(generated_track)')
     p.add_argument('--no-force-scene-reload', action='store_false', dest='force_scene_reload')
     p.add_argument('--scene-load-timeout', type=float, default=25.0,
-                   help='等待场景加载完成的超时时间（秒）')
+                   help='note(note)')
 
-    # 地图固定 generated_track（不开放多地图）
+    # note generated_track(note)
     p.add_argument('--max-cte', type=float, default=10.0)
     p.add_argument('--random-start', action='store_true', default=True)
     p.add_argument('--no-random-start', action='store_false', dest='random_start')
-    p.add_argument('--num-npc', type=int, default=2, help='创建NPC控制器数量（fixed2模式会强制为fixed_npc_count）')
-    p.add_argument('--fixed-npc-count', type=int, default=2, help='fixed2模式下的NPC对象池大小（默认2，覆盖各阶段最大需求）')
+    p.add_argument('--num-npc', type=int, default=2, help='noteNPCcontrolnote(fixed2notefixed_npc_count)')
+    p.add_argument('--fixed-npc-count', type=int, default=2, help='fixed2noteNPCnote(default2, notestagenote)')
     p.add_argument('--max-episode-steps', type=int, default=1500)
     p.add_argument('--body-style', choices=['donkey', 'bare', 'car01', 'f1', 'cybertruck'], default='donkey',
-                   help='Learner 车体样式（由 simulator car_config 支持）')
+                   help='Learner note(note simulator car_config note)')
     p.add_argument('--body-rgb', type=int, nargs=3, metavar=('R', 'G', 'B'), default=[128, 128, 255],
-                   help='Learner 车体颜色，0-255')
-    p.add_argument('--car-name', type=str, default='V11_2_Learner', help='Learner 车名（显示名）')
+                   help='Learner note, 0-255')
+    p.add_argument('--car-name', type=str, default='V11_2_Learner', help='Learner note(note)')
     p.add_argument('--enable-sim-lidar', action='store_true', default=False,
-                   help='启用 simulator LiDAR（在 GYM conf 注入 lidar_config）')
+                   help='note simulator LiDAR(note GYM conf note lidar_config)')
     p.add_argument('--lidar-deg-per-sweep-inc', type=float, default=2.0)
     p.add_argument('--lidar-deg-ang-down', type=float, default=0.0)
     p.add_argument('--lidar-deg-ang-delta', type=float, default=-1.0)
     p.add_argument('--lidar-num-sweeps-levels', type=int, default=1)
     p.add_argument('--lidar-max-range', type=float, default=50.0)
     p.add_argument('--lidar-noise', type=float, default=0.5)
-    p.add_argument('--lidar-offset-x', type=float, default=0.0, help='LiDAR 左右偏移')
-    p.add_argument('--lidar-offset-y', type=float, default=1.14, help='LiDAR 高度（上下）')
-    p.add_argument('--lidar-offset-z', type=float, default=0.5, help='LiDAR 前后偏移')
-    p.add_argument('--lidar-rot-x', type=float, default=0.0, help='LiDAR 俯仰角')
+    p.add_argument('--lidar-offset-x', type=float, default=0.0, help='LiDAR note')
+    p.add_argument('--lidar-offset-y', type=float, default=1.14, help='LiDAR note(note)')
+    p.add_argument('--lidar-offset-z', type=float, default=0.5, help='LiDAR firstnote')
+    p.add_argument('--lidar-rot-x', type=float, default=0.0, help='LiDAR note')
     p.add_argument('--npc-side-by-side-start', action='store_true', default=False,
-                   help='测试用：首个NPC与Learner同起点并排放置（依赖lane offset分离）')
+                   help='note: noteNPCnoteLearnernote(notelane offsetnote)')
     p.add_argument('--npc-front-start', action='store_true', default=False,
-                   help='测试用：首个NPC放在Learner正前方（同向同车道）')
+                   help='note: noteNPCnoteLearnernotefirstnote(note)')
     p.add_argument('--npc-front-offset-nodes', type=int, default=8,
-                   help='NPC正前方模式下，首个NPC相对Learner的前向节点偏移')
+                   help='NPCnotefirstnote, noteNPCnoteLearnernotefirstnote')
     p.add_argument('--npc-mode-override',
                    choices=['none', 'static', 'wobble', 'slow', 'slow_policy', 'random', 'chaos', 'random_reverse'],
                    default='none',
-                   help='强制覆盖所有阶段的npc_mode；random_reverse等价于chaos（含随机倒车）')
+                   help='notestagenotenpc_mode; random_reversenotechaos(note)')
 
     # spawn / reset debug
     p.add_argument('--spawn-jitter-s-sim', type=float, default=0.30)
@@ -7811,9 +7811,9 @@ def parse_args():
     p.add_argument('--spawn-verify-cte-threshold', type=float, default=8.0)
     p.add_argument('--no-spawn-debug', action='store_true')
     p.add_argument('--spawn-debug-violations-limit', type=int, default=5)
-    p.add_argument('--npc-layout-debug', action='store_true', help='打印NPC布局左右占道/分段信息')
+    p.add_argument('--npc-layout-debug', action='store_true', help='noteNPCnote/note')
 
-    # v10.1 NPC layout 重置策略 / 分散布局 / 占道控制
+    # v10.1 NPC layout note / note / notecontrol
     p.add_argument('--npc-layout-reset-policy', choices=['hybrid', 'agent_only', 'every_episode'], default='hybrid')
     p.add_argument('--npc-layout-reset-every', type=int, default=5)
     p.add_argument('--npc-layout-reset-on-collision', action='store_true', default=True)
@@ -7827,54 +7827,54 @@ def parse_args():
     p.add_argument('--npc-lane-offset-center-sim', type=float, default=None)
     p.add_argument('--npc-lane-jitter-sim', type=float, default=None)
 
-    # v10.1 pair-wise spawn 阈值（按需覆盖标定值）
+    # v10.1 pair-wise spawn note(note)
     p.add_argument('--spawn-min-gap-sim-ego-npc', type=float, default=None)
     p.add_argument('--spawn-min-gap-progress-ego-npc', type=int, default=None)
     p.add_argument('--spawn-min-gap-sim-npc-npc', type=float, default=None)
     p.add_argument('--spawn-min-gap-progress-npc-npc', type=int, default=None)
     p.add_argument('--npc-npc-spawn-hard-check', action='store_true', default=True,
-                   help='spawn预检/后检中将NPC-NPC间距作为硬约束（推荐开启）')
+                   help='spawnnote/noteNPC-NPCnote(note)')
     p.add_argument('--no-npc-npc-spawn-hard-check', action='store_false', dest='npc_npc_spawn_hard_check')
     p.add_argument('--npc-npc-collision-guard', action='store_true', default=True,
-                   help='启用运行时NPC-NPC防碰撞守卫（过近时后车短时急刹）')
+                   help='noterowsnoteNPC-NPCnote(note)')
     p.add_argument('--no-npc-npc-collision-guard', action='store_false', dest='npc_npc_collision_guard')
     p.add_argument('--npc-npc-guard-dist-sim', type=float, default=1.10,
-                   help='运行时NPC-NPC触发防碰撞守卫的最小距离阈值（sim）')
+                   help='noterowsnoteNPC-NPCnote(sim)')
     p.add_argument('--npc-npc-guard-progress-window', type=int, default=120,
-                   help='仅当NPC在赛道进度差小于该阈值时触发运行时防碰撞（fine idx）')
+                   help='noteNPCnotetracknoterowsnote(fine idx)')
     p.add_argument('--npc-npc-guard-brake-steps', type=int, default=7,
-                   help='运行时防碰撞触发后，NPC短时强制刹车步数')
+                   help='noterowsnote, NPCnote')
     p.add_argument('--npc-npc-guard-cooldown-steps', type=int, default=14,
-                   help='同一NPC对连续触发防碰撞守卫的冷却步数')
+                   help='noteNPCnote')
     p.add_argument('--npc-npc-contact-reset', action='store_true', default=False,
-                   help='硬兜底：检测到NPC-NPC触碰时仅重置NPC布局（不重置learner）')
+                   help='note: detectionnoteNPC-NPCnoteNPCnote(notelearner)')
     p.add_argument('--no-npc-npc-contact-reset', action='store_false', dest='npc_npc_contact_reset')
     p.add_argument('--npc-npc-contact-dist-sim', type=float, default=0.45,
-                   help='判定NPC-NPC触碰的距离阈值（sim）')
+                   help='noteNPC-NPCnote(sim)')
     p.add_argument('--npc-npc-contact-progress-window', type=int, default=26,
-                   help='判定NPC-NPC触碰时允许的进度差窗口（fine idx）')
+                   help='noteNPC-NPCnote(fine idx)')
     p.add_argument('--npc-npc-contact-cooldown-steps', type=int, default=45,
-                   help='NPC-NPC触碰重排后冷却步数，避免频繁重排')
+                   help='NPC-NPCnote, note')
     p.add_argument('--spawn-min-gap-sim-ego-npc-hard-floor', type=float, default=1.40,
-                   help='全局硬下限：任意spawn时NPC与learner最小欧氏距离（sim）')
+                   help='note: notespawnnoteNPCnotelearnernote(sim)')
     p.add_argument('--spawn-min-gap-progress-ego-npc-hard-floor', type=int, default=60,
-                   help='全局硬下限：任意spawn时NPC与learner最小进度间隔（fine idx）')
+                   help='note: notespawnnoteNPCnotelearnernote(fine idx)')
     p.add_argument('--npc-persist-across-agent-resets', action='store_true', default=True,
-                   help='默认开启：learner reset 时尽量保持NPC布局/位置不变（不跟着闪烁）')
+                   help='defaultnote: learner reset noteNPCnote/note(note)')
     p.add_argument('--no-npc-persist-across-agent-resets', action='store_false', dest='npc_persist_across_agent_resets')
     p.add_argument('--npc-stuck-reset-enable', action='store_true', default=True,
-                   help='检测到NPC卡住时执行NPC-only重排（不重置learner）')
+                   help='detectionnoteNPCnoterowsNPC-onlynote(notelearner)')
     p.add_argument('--no-npc-stuck-reset-enable', action='store_false', dest='npc_stuck_reset_enable')
     p.add_argument('--npc-stuck-speed-thresh', type=float, default=0.10,
-                   help='NPC卡住判定：速度阈值（sim）')
+                   help='NPCnote: note(sim)')
     p.add_argument('--npc-stuck-disp-thresh-sim', type=float, default=0.012,
-                   help='NPC卡住判定：单步位移阈值（sim）')
+                   help='NPCnote: note(sim)')
     p.add_argument('--npc-stuck-steps', type=int, default=80,
-                   help='NPC卡住判定：连续静止步数阈值')
+                   help='NPCnote: note')
     p.add_argument('--npc-stuck-cooldown-steps', type=int, default=120,
-                   help='NPC卡住重排后的冷却步数')
+                   help='NPCnote')
 
-    # reward / control (沿用v9接口)
+    # reward / control (notev9note)
     p.add_argument('--enable-dr', action='store_true', default=True)
     p.add_argument('--no-dr', action='store_false', dest='enable_dr')
     p.add_argument('--max-throttle', type=float, default=0.30)
@@ -7888,34 +7888,34 @@ def parse_args():
     p.add_argument('--progress-reward-scale', type=float, default=0.85)
     p.add_argument('--progress-backward-penalty-scale', type=float, default=0.25)
     p.add_argument('--progress-milestone-lap', type=float, default=0.125,
-                   help='按相对出生点累计进度，每多少圈给一次里程碑奖励')
+                   help='note, notereward')
     p.add_argument('--progress-milestone-reward', type=float, default=0.2)
     p.add_argument('--progress-reward-decay-min', type=float, default=0.35,
-                   help='课程后期 progress shaping 奖励衰减到的比例')
+                   help='note progress shaping rewardnote')
     p.add_argument('--penalty-decay-min', type=float, default=0.55,
-                   help='课程后期 shaping 惩罚衰减到的比例')
+                   help='note shaping note')
     p.add_argument('--random-start-from-stage', type=int, default=5,
-                   help='从哪个阶段开始启用随机出生点（之前固定出生）')
+                   help='notestagenote(notefirstnote)')
     p.add_argument('--stage1-cte-reset-limit', type=float, default=6.0,
-                   help='Stage1 基础驾驶固定使用的 CTE reset 阈值')
+                   help='Stage1 note CTE reset note')
     p.add_argument('--spawn-bins', type=int, default=8,
-                   help='将赛道节点分桶，均衡出生点覆盖（避免长期只在半圈）')
+                   help='notetracknote, note(note)')
     p.add_argument('--reverse-penalty-steps', type=int, default=5,
-                   help='连续后退位移步数达到该值触发惩罚（不是速度符号）')
+                   help='note(note)')
     p.add_argument('--reverse-progress-step-thresh', type=int, default=1,
-                   help='fine_track进度反向位移阈值（步）')
+                   help='fine_tracknote(note)')
     p.add_argument('--reverse-progress-dist-thresh', type=float, default=0.05,
-                   help='连续后退累计位移阈值（sim distance）')
+                   help='note(sim distance)')
     p.add_argument('--reverse-onset-penalty', type=float, default=0.12,
-                   help='开始进入后退位移时的一次性惩罚')
+                   help='note')
     p.add_argument('--reverse-streak-penalty-scale', type=float, default=0.03,
-                   help='连续后退步数的递增惩罚系数')
+                   help='note')
     p.add_argument('--reverse-backdist-penalty-scale', type=float, default=1.4,
-                   help='按后退位移长度的惩罚系数（reward-based anti-reverse）')
+                   help='note(reward-based anti-reverse)')
     p.add_argument('--reverse-event-penalty', type=float, default=0.8,
-                   help='连续后退达到阈值后的额外事件惩罚')
+                   help='note')
     p.add_argument('--enable-reverse-gate', action='store_true', default=False,
-                   help='启用控制层reverse gate（默认关闭，优先通过奖励惩罚学习）')
+                   help='notecontrolnotereverse gate(defaultnote, noterewardnote)')
 
     # v11 target + controller
     p.add_argument('--v-ref-min', type=float, default=0.05)
@@ -7924,11 +7924,11 @@ def parse_args():
     p.add_argument('--v-ref-rate-max', type=float, default=0.8)
     p.add_argument('--kappa-ref-rate-max', type=float, default=4.0)
     p.add_argument('--steer-ff-headroom', type=float, default=0.85,
-                   help='横向FF保留裕度（|steer_ff|上限），超出会回写kappa_ref')
+                   help='noteFFnote(|steer_ff|note), notekappa_ref')
     p.add_argument('--steer-softsat-gain', type=float, default=1.0,
                    help='steer soft saturation: tanh(gain * steer_raw)')
     p.add_argument('--steer-slew-rate-max', type=float, default=3.0,
-                   help='执行层转向变化率上限（1/s）')
+                   help='noterowsnote(1/s)')
     p.add_argument('--ctrl-dt-min', type=float, default=0.01)
     p.add_argument('--ctrl-dt-max', type=float, default=0.2)
     p.add_argument('--ctrl-dt-fallback', type=float, default=0.05)
@@ -7952,26 +7952,26 @@ def parse_args():
     p.add_argument('--no-motion-penalty-progress-thresh', type=float, default=0.002)
     p.add_argument('--no-motion-penalty-per-step', type=float, default=0.25)
     p.add_argument('--progress-local-window', type=int, default=120,
-                   help='局部最近点搜索窗口半宽（fine_track索引）')
+                   help='note(fine_tracknote)')
     p.add_argument('--progress-local-recover-dist', type=float, default=2.5,
-                   help='局部搜索距离过大时回退到全局最近点的阈值（sim）')
+                   help='note(sim)')
     p.add_argument('--progress-idle-freeze-speed', type=float, default=0.12,
-                   help='低速漂移抑制速度阈值（小于此速度时冻结小幅dfi）')
+                   help='note(notedfi)')
     p.add_argument('--progress-idle-freeze-dfi-abs', type=int, default=1,
-                   help='低速冻结时允许的|dfi|阈值（<=该值置0）')
+                   help='note|dfi|note(<=note0)')
     p.add_argument('--enable-progress-heading-filter', action='store_true', default=False,
-                   help='启用航向与赛道切线一致性过滤（实验项）')
+                   help='notetracknote(note)')
     p.add_argument('--progress-heading-dot-min', type=float, default=-0.20,
-                   help='航向过滤最小点积，低于该值拒绝本步候选点（实验项）')
+                   help='note, note(note)')
 
     # v11 unit/sign checks
     p.add_argument('--unit-calibrate', action='store_true', default=True)
     p.add_argument('--no-unit-calibrate', action='store_false', dest='unit_calibrate')
     p.add_argument('--unit-calib-steps', type=int, default=300)
     p.add_argument('--unit-calib-ratio-min', type=float, default=2.0,
-                   help='rmse_deg_hyp/rmse_rad_hyp 最低通过阈值')
+                   help='rmse_deg_hyp/rmse_rad_hyp note')
     p.add_argument('--unit-calib-strict', action='store_true', default=False,
-                   help='单位校验不通过时直接终止训练')
+                   help='notetraining')
     p.add_argument('--sign-check-min-steer', type=float, default=0.08)
     p.add_argument('--sign-check-min-speed', type=float, default=0.25)
     p.add_argument('--sign-check-max-lag', type=int, default=15)
@@ -7987,22 +7987,22 @@ def parse_args():
                    ))
     p.add_argument('--spawn-table-out', type=str,
                    default='track_profiles/generated_track_intrack_spawn_table.json',
-                   help='--mode export-spawn-table 时输出JSON路径')
+                   help='--mode export-spawn-table noteoutputJSONpath')
     p.add_argument('--spawn-table-csv', type=str,
                    default='track_profiles/generated_track_intrack_spawn_table.csv',
-                   help='--mode export-spawn-table 时输出CSV路径；留空可关闭')
+                   help='--mode export-spawn-table noteoutputCSVpath; note')
     p.add_argument('--spawn-table-step-idx', type=int, default=3,
-                   help='导出坐标表时每隔多少个fine点取样一次（越小越密）')
+                   help='notefinenote(note)')
     p.add_argument('--spawn-table-lane-fracs', type=str, default='0.12,0.25,0.38,0.50,0.62,0.75,0.88',
-                   help='导出坐标表时在赛道横截面上的采样比例(0=右边界,1=左边界)，逗号分隔')
+                   help='notetracknote(0=note,1=note), note')
     p.add_argument('--spawn-table-margin-ratio', type=float, default=0.08,
-                   help='导出坐标表时离边界保留的安全margin比例')
+                   help='notemarginnote')
     p.add_argument('--spawn-table-kappa-max', type=float, default=1.6,
-                   help='导出坐标表时允许的最大曲率；<=0表示不过滤')
+                   help='note; <=0note')
     p.add_argument('--spawn-table-y-tel', type=float, default=0.0625,
-                   help='导出坐标表时写入的telemetry y坐标')
+                   help='notetelemetry ynote')
     p.add_argument('--spawn-table-node-count', type=int, default=108,
-                   help='导出坐标表时用于fine_idx->node_idx映射的节点总数')
+                   help='notefine_idx->node_idxnote')
     p.add_argument('--fixed-success-progress', type=float, default=2.0)
     p.add_argument('--fixed-success-laps', type=int, default=2)
     p.add_argument('--success-no-hit-steps', type=int, default=200)
@@ -8022,11 +8022,11 @@ def parse_args():
     p.add_argument('--spawn-local-window-m', type=float, default=2.0)
     p.add_argument('--spawn-local-window-min-idx', type=int, default=20)
     p.add_argument('--spawn-anchor-window-m', type=float, default=4.5,
-                   help='fixed2下Ego在anchor附近采样的窗口长度（米）')
+                   help='fixed2noteEgonoteanchornote(note)')
     p.add_argument('--spawn-anchor-window-min-idx', type=int, default=48,
-                   help='fixed2下Ego anchor采样窗口最小fine索引半宽')
+                   help='fixed2noteEgo anchornotefinenote')
     p.add_argument('--spawn-safe-anchor-pool', type=int, default=72,
-                   help='fixed2下根据NPC约束预筛的Ego可用anchor池大小上限')
+                   help='fixed2noteNPCnoteEgonoteanchornote')
     p.add_argument('--spawn-kappa-max', type=float, default=1.6)
     p.add_argument('--spawn-inside-margin-ratio', type=float, default=0.10)
     p.add_argument('--spawn-inside-max-attempts', type=int, default=24)
@@ -8044,7 +8044,7 @@ def parse_args():
 
     # train (RecurrentPPO)
     p.add_argument('--disable-stage-profiles', action='store_true',
-                   help='关闭内置StageProfile/StageEvalGate，完全使用CLI与旧逻辑')
+                   help='noteStageProfile/StageEvalGate, noteCLInote')
     p.add_argument('--total-steps', type=int, default=1000000)
     p.add_argument('--lr', type=float, default=3e-4)
     p.add_argument('--n-steps', type=int, default=2048)
@@ -8061,37 +8061,37 @@ def parse_args():
     p.add_argument('--save-freq', type=int, default=20000)
     p.add_argument('--tb-log', type=str, default='./logs/v11_2_randomspawn_fixednpc_lstm/')
     p.add_argument('--ctrl-tb-log-every', type=int, default=1000,
-                   help='控制层诊断写入TensorBoard的步长窗口')
+                   help='controlnoteTensorBoardnote')
     p.add_argument('--episode-summary-jsonl', type=str, default='./logs/v11_2_episode_summary.jsonl',
-                   help='每回合一条摘要JSONL，留空可关闭')
+                   help='noteJSONL, note')
     p.add_argument('--episode-summary-csv', type=str, default='./logs/v11_2_episode_summary.csv',
-                   help='每回合一条摘要CSV，留空可关闭')
+                   help='noteCSV, note')
     p.add_argument('--run-meta-json', type=str, default='./logs/v11_2_run_meta.json',
-                   help='运行元数据快照（配置/版本/seed/git）JSON，留空可关闭')
+                   help='noterowsnotedatanote(configuration/note/seed/git)JSON, note')
     p.add_argument('--event-trace-jsonl', type=str, default='./logs/v11_2_event_trace.jsonl',
-                   help='事件触发trace JSONL（含前后窗口），留空可关闭')
+                   help='notetrace JSONL(notefirstnote), note')
     p.add_argument('--event-trace-window-steps', type=int, default=60,
-                   help='事件trace前后窗口步数')
+                   help='notetracefirstnote')
     p.add_argument('--event-trace-max-per-episode', type=int, default=6,
-                   help='每回合最多写入多少条事件trace')
+                   help='notetrace')
     p.add_argument('--event-dt-spike-thresh', type=float, default=0.08,
-                   help='|dt_raw-dt|超过该阈值触发dt_spike事件')
+                   help='|dt_raw-dt|notedt_spikenote')
     p.add_argument('--event-sat-spike-cooldown-steps', type=int, default=40,
-                   help='sat/dt spike事件最小触发间隔（步）')
+                   help='sat/dt spikenote(note)')
     p.add_argument('--event-generic-cooldown-steps', type=int, default=40,
-                   help='reward/progress/spawn 等通用事件最小触发间隔（步）')
+                   help='reward/progress/spawn note(note)')
     p.add_argument('--event-reward-spike-abs', type=float, default=8.0,
-                   help='|reward|超过该阈值触发reward_spike事件')
+                   help='|reward|notereward_spikenote')
     p.add_argument('--event-reward-gap-spike-abs', type=float, default=2.0,
-                   help='|reward_terms_gap|超过该阈值触发reward_spike事件')
+                   help='|reward_terms_gap|notereward_spikenote')
     p.add_argument('--event-progress-jump-fi', type=int, default=12,
-                   help='|progress_step_fi_raw|超过该阈值触发progress_anomaly事件')
+                   help='|progress_step_fi_raw|noteprogress_anomalynote')
     p.add_argument('--event-progress-clip-ratio-high', type=float, default=0.25,
-                   help='progress_clip_ratio超过该阈值触发progress_anomaly事件')
+                   help='progress_clip_rationoteprogress_anomalynote')
     p.add_argument('--event-spawn-near-dist', type=float, default=4.4,
-                   help='出生后 ego_npc_min_dist 低于该值触发spawn_near事件')
+                   help='note ego_npc_min_dist notespawn_nearnote')
     p.add_argument('--event-periodic-sample-steps', type=int, default=20000,
-                   help='每隔N步抽样触发一次periodic_sample事件，0表示关闭')
+                   help='noteNnoteperiodic_samplenote, 0note')
     p.add_argument('--train-chunk-steps', type=int, default=50000)
 
     # auto eval / promotion
@@ -8102,15 +8102,15 @@ def parse_args():
     p.add_argument('--eval-success-laps', type=int, default=2)
     p.add_argument('--eval-consecutive-success', type=int, default=2)
     p.add_argument('--eval-max-steps', type=int, default=1000,
-                   help='评估回合最大步数；默认不因跑圈成功提前结束，按该步数或终止条件结束')
+                   help='note; defaultnotesucceedednotefirstnote, note')
 
     # batch checkpoint eval
     p.add_argument('--eval-ckpt-glob', type=str, default='models/v11_2_randomspawn_fixednpc_lstm/*stage2*.zip',
-                   help='批量评估checkpoint的glob模式（用于挑最优）')
+                   help='notecheckpointnoteglobnote(note)')
     p.add_argument('--eval-ckpt-stage', type=int, default=None, choices=[1, 2, 3, 4, 5],
-                   help='按哪个阶段的环境/奖励配置评估checkpoint；默认跟随 --start-stage')
+                   help='notestagenote/rewardconfigurationnotecheckpoint; defaultnote --start-stage')
     p.add_argument('--eval-ckpt-limit', type=int, default=10,
-                   help='只评估最近N个匹配checkpoint（按step排序）; 0表示全评估')
+                   help='noteNnotecheckpoint(notestepnote); 0note')
 
     return p.parse_args()
 
@@ -8119,31 +8119,31 @@ def _enforce_v11_2_mode(args):
     mode = str(getattr(args, "v11_2_mode", "fixed2")).lower()
     changed = []
     if mode == "fixed2":
-        # fixed_npc_count 必须 >= 1
+        # fixed_npc_count note >= 1
         if int(getattr(args, "fixed_npc_count", 2)) < 1:
             changed.append(f"fixed_npc_count:{args.fixed_npc_count}->2")
             args.fixed_npc_count = 2
-        # NPC 控制器对象数量按“从起始阶段到终点的最大需求”确定，避免多余NPC闪现。
+        # NPC controlnote"notestagenote"note, noteNPCnote.
         max_needed = _max_npc_count_from_stage(int(getattr(args, "start_stage", 1)))
         desired_npc = int(max_needed)
-        if int(getattr(args, "num_npc", 0)) != desired_npc:
+        if int(getattr(args, "num_npc", 0))!= desired_npc:
             changed.append(f"num_npc:{args.num_npc}->{desired_npc}")
             args.num_npc = desired_npc
-        # 移除对start_stage的强制转换，允许用户灵活选择阶段（包括阶段1）
-        # 各阶段会通过STAGE_TRAIN_PROFILES自动调整npc_count
+        # notestart_stagenote, notestage(notestage1)
+        # notestagenoteSTAGE_TRAIN_PROFILESnotenpc_count
         if not bool(getattr(args, "random_start", True)):
             changed.append("random_start:False->True")
             args.random_start = True
-        # 移除对auto_promote的强制关闭，允许课程式自动晋级
+        # noteauto_promotenote, note
         if getattr(args, "eval_ckpt_stage", None) not in (None, 2):
             changed.append(f"eval_ckpt_stage:{args.eval_ckpt_stage}->2")
             args.eval_ckpt_stage = 2
-    elif mode != "curriculum":
+    elif mode!= "curriculum":
         changed.append(f"v11_2_mode:{mode}->fixed2")
         args.v11_2_mode = "fixed2"
 
     if changed:
-        print(f"🔒 V11.2 模式参数修正({mode}):", ", ".join(changed))
+        print(f"🔒 V11.2 note({mode}):", ", ".join(changed))
 
 
 def main():
@@ -8152,8 +8152,8 @@ def main():
     print("=" * 80)
     print("V11.2 generated_track random-spawn + fixed2 NPC + target-controller + LSTM")
     print("=" * 80)
-    print(f"模式: {args.mode} | v11_2_mode={args.v11_2_mode} | host={args.host}:{args.port}")
-    print("观测字段约束:", OBS_FIELD_CAPS['stable'])
+    print(f"note: {args.mode} | v11_2_mode={args.v11_2_mode} | host={args.host}:{args.port}")
+    print("note:", OBS_FIELD_CAPS['stable'])
 
     if args.mode == 'calibrate':
         calibrate_only(args)

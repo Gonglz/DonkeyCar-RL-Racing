@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
-from .green_vehicle_detect import GreenVehicleDetector
+from.green_vehicle_detect import GreenVehicleDetector
 
 _green_detector = GreenVehicleDetector()
 
@@ -112,9 +112,9 @@ def _denoise_shape(
 def detect_gt_road_support(img_bgr: np.ndarray) -> np.ndarray:
     """Estimate the drivable road neighborhood and exclude grass/off-road regions."""
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
-    h_ch = hsv[:, :, 0]
-    s = hsv[:, :, 1]
-    v = hsv[:, :, 2]
+    h_ch = hsv[:,:, 0]
+    s = hsv[:,:, 1]
+    v = hsv[:,:, 2]
 
     base = (s <= 70) & (v >= 35) & (v <= 235)
     greenish = (h_ch >= 30) & (h_ch <= 95) & (s >= 45)
@@ -200,7 +200,7 @@ def _gt_edge_support_mask(
     edge_thresh: float = 0.035,
     dilate_iter: int = 1,
 ) -> np.ndarray:
-    y = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2YCrCb)[:, :, 0].astype(np.float32) / 255.0
+    y = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2YCrCb)[:,:, 0].astype(np.float32) / 255.0
     if float(preblur_sigma) > 1e-6:
         y = cv2.GaussianBlur(y, (0, 0), sigmaX=float(preblur_sigma), sigmaY=float(preblur_sigma))
     gx = cv2.Sobel(y, cv2.CV_32F, 1, 0, ksize=3)
@@ -306,9 +306,9 @@ def _gt_line_confidence_maps(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Build GT color-confidence maps for white/yellow lines (0~1)."""
     hsv = cv2.cvtColor(raw_bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
-    h_ch = hsv[:, :, 0]
-    s_ch = hsv[:, :, 1]
-    v_ch = hsv[:, :, 2]
+    h_ch = hsv[:,:, 0]
+    s_ch = hsv[:,:, 1]
+    v_ch = hsv[:,:, 2]
 
     gray = cv2.cvtColor(raw_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
     local = cv2.GaussianBlur(gray, (0, 0), sigmaX=9.0, sigmaY=9.0)
@@ -381,7 +381,7 @@ def build_gt_observation_line_probs(
     edge = (edge_raw * edge_hard).astype(np.float32)
 
     # White confidence: multi-scale tophat response weights each detected pixel.
-    # Line width is unchanged — tophat only modulates intensity, no spatial expansion.
+    # Line width is unchanged - tophat only modulates intensity, no spatial expansion.
     gray = cv2.cvtColor(raw_bgr, cv2.COLOR_BGR2GRAY)
     th = np.zeros_like(gray, dtype=np.float32)
     for ks in [(11, 11), (17, 17), (25, 25)]:
@@ -392,10 +392,10 @@ def build_gt_observation_line_probs(
         white_mask.astype(np.float32) * (0.40 + 0.60 * th_norm), 0.0, 1.0
     ).astype(np.float32)
 
-    # Yellow confidence: saturation × brightness.
+    # Yellow confidence: saturation x brightness.
     hsv_conf = cv2.cvtColor(raw_bgr, cv2.COLOR_BGR2HSV)
-    s_n = hsv_conf[:, :, 1].astype(np.float32) / 255.0
-    v_n = hsv_conf[:, :, 2].astype(np.float32) / 255.0
+    s_n = hsv_conf[:,:, 1].astype(np.float32) / 255.0
+    v_n = hsv_conf[:,:, 2].astype(np.float32) / 255.0
     yellow_prob = np.clip(
         yellow_mask.astype(np.float32) * np.clip(s_n * v_n * 2.5, 0.0, 1.0), 0.0, 1.0
     ).astype(np.float32)
@@ -679,7 +679,7 @@ def _detect_horizontal_line_supplement(
         return candidate_mask.copy() & False
 
     drawn = np.zeros_like(cand_u8)
-    for line in lines[:, 0, :]:
+    for line in lines[:, 0,:]:
         x1, y1, x2, y2 = map(int, line)
         dx = x2 - x1
         dy = y2 - y1
@@ -729,8 +729,8 @@ def _detect_white_line_local_contrast(
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     h_img, w_img = img_bgr.shape[:2]
     row_y = np.arange(h_img, dtype=np.int32)[:, None]
-    v = hsv[:, :, 2].astype(np.float32)
-    s = hsv[:, :, 1]
+    v = hsv[:,:, 2].astype(np.float32)
+    s = hsv[:,:, 1]
 
     local_mean = cv2.GaussianBlur(v, (0, 0), sigmaX=12, sigmaY=12)
     contrast = v - local_mean
@@ -796,7 +796,7 @@ def detect_white_line(
     """Return binary mask of white edge lines."""
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     h_img, w_img = hsv.shape[:2]
-    h_ch, s_ch = hsv[:, :, 0], hsv[:, :, 1]
+    h_ch, s_ch = hsv[:,:, 0], hsv[:,:, 1]
 
     mask = cv2.inRange(hsv, (0, 0, 200), (180, 30, 255))
     mask = _apply_road_support(mask, road_support)
@@ -807,7 +807,7 @@ def detect_white_line(
         if np.any(support):
             merged = cv2.bitwise_and(merged, support)
 
-    # Exclude yellow-hued pixels — wider range + lower S to catch faded far-end yellow.
+    # Exclude yellow-hued pixels - wider range + lower S to catch faded far-end yellow.
     yellow_excl = cv2.inRange(hsv, np.array([8, 12, 50]), np.array([50, 255, 255]))
     yellow_excl = cv2.dilate(yellow_excl, np.ones((3, 3), np.uint8), iterations=1)
     merged = cv2.bitwise_and(merged, cv2.bitwise_not(yellow_excl))
@@ -879,10 +879,10 @@ def detect_yellow_line(
 
     far_zone = np.zeros((h_img, w_img), dtype=np.uint8)
     far_boundary = int(h_img * 0.45)
-    far_zone[:far_boundary, :] = 255
+    far_zone[:far_boundary,:] = 255
     mask = cv2.bitwise_or(mask_std, cv2.bitwise_and(mask_far, far_zone))
 
-    h_ch, s_ch, v_ch = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
+    h_ch, s_ch, v_ch = hsv[:,:, 0], hsv[:,:, 1], hsv[:,:, 2]
 
     # Exclude orange cones.
     orange = ((h_ch >= 0) & (h_ch <= 18) & (s_ch >= 120) & (v_ch >= 100)).astype(np.uint8) * 255
@@ -893,7 +893,7 @@ def detect_yellow_line(
 
     mask = cv2.bitwise_and(mask, road_tight)
     mask = cv2.bitwise_and(mask, cv2.bitwise_not(orange))
-    # Small noise removal only — no CLOSE to preserve natural line width.
+    # Small noise removal only - no CLOSE to preserve natural line width.
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
 
     # Perspective-aware CC filtering: far zone accepts smaller components.
@@ -906,7 +906,7 @@ def detect_yellow_line(
         x0 = int(stats[i, cv2.CC_STAT_LEFT])
         cy = int(stats[i, cv2.CC_STAT_TOP]) + hh // 2
         aspect = max(ww, hh) / float(max(1, min(ww, hh)))
-        # Reject greenish-yellow (H>42 ≈ grass edge): true yellow line H≈15-30
+        # Reject greenish-yellow (H>42 ~ grass edge): true yellow line H~15-30
         comp_px = labels == i
         mean_h_v = float(np.mean(h_ch[comp_px]))
         if mean_h_v > 42:
@@ -939,7 +939,7 @@ def detect_yellow_line(
     for i in range(1, n3):
         cy_i = int(stats3[i, cv2.CC_STAT_TOP]) + int(stats3[i, cv2.CC_STAT_HEIGHT]) // 2
         if cy_i <= near_boundary:
-            continue  # far-end — skip
+            continue  # far-end - skip
         comp_u8 = (labels3 == i).astype(np.uint8) * 255
         border = cv2.dilate(comp_u8, np.ones((3, 3), np.uint8)) - comp_u8
         border_px = np.count_nonzero(border)
@@ -976,7 +976,7 @@ _BG_HSV = np.array([125.0, 20.0, 120.0], dtype=np.float32)
 def render_road_surface(img_bgr: np.ndarray) -> np.ndarray:
     """Transform road/bg to NT cloth texture. Lines are NOT modified."""
     src_hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
-    src_v = src_hsv[:, :, 2]
+    src_v = src_hsv[:,:, 2]
     h_img, w_img = img_bgr.shape[:2]
 
     road_support = detect_gt_road_support(img_bgr)
@@ -997,19 +997,19 @@ def render_road_surface(img_bgr: np.ndarray) -> np.ndarray:
     road_ref = float(np.mean(shade[road_region]))
 
     out_hsv = src_hsv.copy()
-    out_hsv[:, :, 0][road_region] = float(_CLOTH_HSV[0])
-    out_hsv[:, :, 1][road_region] = np.clip(
+    out_hsv[:,:, 0][road_region] = float(_CLOTH_HSV[0])
+    out_hsv[:,:, 1][road_region] = np.clip(
         float(_CLOTH_HSV[1]) + 0.22 * 0.3 * hf[road_region], 0.0, 60.0)
-    out_hsv[:, :, 2][road_region] = np.clip(
+    out_hsv[:,:, 2][road_region] = np.clip(
         float(_CLOTH_HSV[2]) + 0.40 * (shade[road_region] - road_ref)
         + 0.22 * hf[road_region], 0.0, 255.0)
 
     if np.any(bg_region):
         bg_ref = float(np.mean(shade[bg_region]))
-        out_hsv[:, :, 0][bg_region] = float(_BG_HSV[0])
-        out_hsv[:, :, 1][bg_region] = np.clip(
+        out_hsv[:,:, 0][bg_region] = float(_BG_HSV[0])
+        out_hsv[:,:, 1][bg_region] = np.clip(
             float(_BG_HSV[1]) + 0.18 * 0.3 * hf[bg_region], 0.0, 60.0)
-        out_hsv[:, :, 2][bg_region] = np.clip(
+        out_hsv[:,:, 2][bg_region] = np.clip(
             float(_BG_HSV[2]) + 0.25 * (shade[bg_region] - bg_ref)
             + 0.18 * hf[bg_region], 0.0, 255.0)
 
@@ -1049,7 +1049,7 @@ def process_directory(
         yellow = detect_yellow_line(img, road_support=road_support, edge_enhance=True)
         result = recolor_lines(road_img, white, yellow)
 
-        # 保留绿车原始像素，不被道路渲染覆盖
+        # note, note
         green = _green_detector.detect(img)
         if green.detected:
             result[green.mask > 0] = img[green.mask > 0]

@@ -1,16 +1,16 @@
 """
 module/obstacle.py
 
-使用第二个 DonkeySim client 生成一辆额外的 donkey 车，作为动态/静态障碍车。
+note DonkeySim client generatenote donkey note, notedynamic/staticobstaclenote.
 
-当前 DonkeySim 底层已验证支持两个隐藏消息：
+current DonkeySim note:
 - `{"msg_type": "set_position", "pos_x", "pos_y", "pos_z", "Qx", "Qy", "Qz", "Qw"}`
 - `{"msg_type": "node_position", "index": "..."}`
 
-注意坐标系：
-- `track.py` / telemetry / `info["pos"]` 使用的是 Python 侧赛道坐标；
-- Unity 内部 world 坐标在网络层额外放大了 8 倍；
-- 因此从 Python 侧定点放置障碍车时，需要 `x/z * 8` 后再发给 `set_position`。
+note:
+- `track.py` / telemetry / `info["pos"]` note Python notetracknote;
+- Unity note world note 8 note;
+- note Python noteobstaclenote, note `x/z * 8` note `set_position`.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from .track import MODULE_TRACK_DATA_DIR, SceneGeometry, TrackGeometryManager
+from.track import MODULE_TRACK_DATA_DIR, SceneGeometry, TrackGeometryManager
 
 
 def _wrap_pi(x: float) -> float:
@@ -43,17 +43,17 @@ def _wrap_deg(x: float) -> float:
 
 
 def track_heading_deg_to_telemetry_yaw_deg(track_heading_deg: float) -> float:
-    """赛道切线方向(数学坐标系) -> Donkey telemetry yaw。"""
+    """tracknote(note) -> Donkey telemetry yaw."""
     return _wrap_deg(90.0 - float(track_heading_deg))
 
 
 def telemetry_yaw_deg_to_track_heading_deg(yaw_deg: float) -> float:
-    """Donkey telemetry yaw -> 赛道/几何模块使用的数学朝向角。"""
+    """Donkey telemetry yaw -> track/geometrynote."""
     return _wrap_deg(90.0 - float(yaw_deg))
 
 
 def _obstacle_episode_over_disabled(handler) -> None:
-    """障碍车 client 不参与 RL episode 终止，避免离屏 staging 触发 reset。"""
+    """obstaclenote client note RL episode note, note staging note reset."""
     return None
 
 
@@ -74,7 +74,7 @@ _UNITY_WORLD_SCALE = 8.0
 _DEFAULT_WORLD_Y = 0.5
 _DEFAULT_TRACK_PROFILE_DIR = MODULE_TRACK_DATA_DIR
 _FIXED_OBSTACLE_BODY_RGB: Tuple[int, int, int] = (255, 105, 180)
-_DEFAULT_OBSTACLE_BODY_RGBS: Tuple[Tuple[int, int, int], ...] = (
+_DEFAULT_OBSTACLE_BODY_RGBS: Tuple[Tuple[int, int, int],...] = (
     # Fixed from current real-camera sampling: pink separates best from
     # blue boundary, orange/yellow center line, and white road surface.
     _FIXED_OBSTACLE_BODY_RGB,
@@ -87,7 +87,7 @@ class ObstacleFleetPreset:
     env_id: str
     scene_key: str
     track_file: str
-    default_layout: Tuple[Tuple[float, float], ...]
+    default_layout: Tuple[Tuple[float, float],...]
     staging_x_start: float
     staging_z: float
     staging_x_step: float
@@ -299,7 +299,7 @@ class _PIDController:
 
 
 class DonkeyObstacleFleet:
-    """管理一组静态障碍车（目前仅提供 gt / ws 两种 preset）。"""
+    """notestaticobstaclenote(notefirstnote gt / ws note preset)."""
 
     def __init__(
         self,
@@ -334,12 +334,12 @@ class DonkeyObstacleFleet:
 
 
 def infer_scene_key(env_id: str) -> Optional[str]:
-    """根据 gym env_id 推断 scene_key。"""
+    """note gym env_id note scene_key."""
     return _ENV_TO_SCENE_KEY.get(str(env_id))
 
 
 def resolve_obstacle_fleet_preset(scene: str) -> ObstacleFleetPreset:
-    """仅支持 gt / ws 两类障碍车 preset。"""
+    """note gt / ws noteclassobstaclenote preset."""
     key = _OBSTACLE_FLEET_ALIASES.get(str(scene).strip().lower())
     if key is None or key not in _OBSTACLE_FLEET_PRESETS:
         raise KeyError(f"Unsupported obstacle fleet scene: {scene!r}. Expected one of: gt, ws")
@@ -362,7 +362,7 @@ def build_obstacle_track_geometry(scene: str, track_dir: Optional[str] = None) -
     )
 
 
-def default_obstacle_layout(scene: str) -> Tuple[Tuple[float, float], ...]:
+def default_obstacle_layout(scene: str) -> Tuple[Tuple[float, float],...]:
     return tuple(resolve_obstacle_fleet_preset(scene).default_layout)
 
 
@@ -422,7 +422,7 @@ def pose_from_info(
     scene_key: Optional[str] = None,
     prev_idx: Optional[int] = None,
 ) -> Optional[PoseState]:
-    """从 DonkeySim telemetry info 提取位姿；若提供赛道几何，则附带 track idx / progress。"""
+    """note DonkeySim telemetry info note; notetrackgeometry, note track idx / progress."""
     if not info:
         return None
 
@@ -468,7 +468,7 @@ def pose_from_info(
 
 
 def compute_relative_state(agent: Optional[PoseState], obstacle: Optional[PoseState]) -> Optional[RelativeState]:
-    """返回障碍车相对于 agent 的位姿差。"""
+    """noteobstaclenote agent note."""
     if agent is None or obstacle is None:
         return None
 
@@ -528,9 +528,9 @@ def sample_track_target(
     safety_margin: float = 0.05,
 ) -> TrackTarget:
     """
-    在赛道截面上采样一个目标点。
+    notetracknotegoalnote.
 
-    `lateral_ratio=0` 为右边界，`1` 为左边界，0.5 为中线附近。
+    `lateral_ratio=0` note, `1` note, 0.5 note.
     """
     if scene_key not in track_geometry.scenes:
         raise KeyError("Unknown scene_key for obstacle target: %s" % scene_key)
@@ -572,9 +572,9 @@ def sample_random_track_targets(
     max_attempts: int = 512,
 ) -> List[TrackTarget]:
     """
-    在整条赛道范围内随机采样多个障碍车目标点。
+    notetracknoteobstaclenotegoalnote.
 
-    `min_separation_world` 使用 Unity / sim world 坐标；默认 `3.0` 约等于一个车身长度。
+    `min_separation_world` note Unity / sim world note; default `3.0` note.
     """
     if int(count) <= 0:
         raise ValueError("count must be positive")
@@ -598,7 +598,7 @@ def sample_random_track_targets(
         if all(math.hypot(candidate.x - other.x, candidate.z - other.z) >= min_separation for other in targets):
             targets.append(candidate)
 
-    if len(targets) != int(count):
+    if len(targets)!= int(count):
         raise RuntimeError(
             "Failed to sample %d obstacle targets with min separation %.3f world units"
             % (int(count), float(min_separation_world))
@@ -608,12 +608,12 @@ def sample_random_track_targets(
 
 class DonkeyObstacleCar:
     """
-    额外的 DonkeySim client，用一辆可见/可撞的 donkey 车充当障碍车。
+    note DonkeySim client, note/note donkey noteobstaclenote.
 
-    推荐流程：
-    1. `spawn()` 连接到同一个 sim；
-    2. `set_track_target(...)` 规划赛道内目标位姿；
-    3. 每个 agent step 调用 `update(agent_info)` 获取双方位置快照。
+    noteworkflow:
+    1. `spawn()` note sim;
+    2. `set_track_target(...)` notetracknotegoalnote;
+    3. note agent step note `update(agent_info)` note.
     """
 
     def __init__(
@@ -682,7 +682,7 @@ class DonkeyObstacleCar:
                 "bio": str(bio),
                 "guid": str(guid or ("obstacle-" + uuid.uuid4().hex[:12])),
                 "max_cte": self.max_cte,
-                # 障碍车不需要高分辨率图像，缩小带宽占用。
+                # obstaclenote, note.
                 "cam_resolution": tuple(self.conf.get("cam_resolution", (32, 32, 3))),
             }
         )
@@ -740,7 +740,7 @@ class DonkeyObstacleCar:
         hidden_pose: Optional[Tuple[float, float, float]] = None,
         hold_brake: bool = True,
     ) -> None:
-        """连接到同一个 DonkeySim server，并创建障碍车 client。"""
+        """note DonkeySim server, noteobstaclenote client."""
         if self._thread is not None and self._thread.is_alive():
             return
 
@@ -780,7 +780,7 @@ class DonkeyObstacleCar:
         self._thread.start()
 
     def shutdown(self) -> None:
-        """停止障碍车 client。"""
+        """noteobstaclenote client."""
         self._stop_evt.set()
         if self._thread is not None:
             self._thread.join(timeout=2.0)
@@ -793,7 +793,7 @@ class DonkeyObstacleCar:
         self._env = None
 
     def reset(self) -> None:
-        """请求障碍车 reset 到该 client 的默认出生点。"""
+        """noteobstaclenote reset note client notedefaultnote."""
         self._reset_evt.set()
 
     def set_manual_action(self, steering: float = 0.0, throttle: float = 0.0) -> None:
@@ -846,7 +846,7 @@ class DonkeyObstacleCar:
         obstacle_radius: float = 0.25,
         safety_margin: float = 0.05,
     ) -> TrackTarget:
-        """沿赛道纵向在锚点附近前后抖动；位置由 `set_position` 直接更新。"""
+        """notetracknotefirstnote; note `set_position` note."""
         anchor = self._resolve_track_target(
             progress_ratio=progress_ratio,
             lateral_ratio=lateral_ratio,
@@ -892,7 +892,7 @@ class DonkeyObstacleCar:
         obstacle_radius: float = 0.25,
         safety_margin: float = 0.05,
     ) -> TrackTarget:
-        """以当前锚点为中心，沿车头方向小幅前后挪动，保持原朝向不变。"""
+        """notecurrentnote, notefirstnote, note."""
         anchor = self._resolve_track_target(
             progress_ratio=progress_ratio,
             lateral_ratio=lateral_ratio,
@@ -947,7 +947,7 @@ class DonkeyObstacleCar:
         throttle_steer_damp: float = 0.35,
         place_on_start: bool = True,
     ) -> TrackTarget:
-        """用 pure pursuit + speed PID 让障碍车沿指定车道持续绕圈。"""
+        """note pure pursuit + speed PID noteobstaclenote."""
         anchor = self._resolve_track_target(
             progress_ratio=progress_ratio,
             lateral_ratio=lateral_ratio,
@@ -1003,7 +1003,7 @@ class DonkeyObstacleCar:
         world_y: Optional[float] = None,
         hold_brake: bool = True,
     ) -> None:
-        """直接发送瞬移消息，不等待位姿回读。适合批量同步放置。"""
+        """note, note.note."""
         self._teleport_raw(
             x=float(x),
             z=float(z),
@@ -1024,7 +1024,7 @@ class DonkeyObstacleCar:
         hold_brake: bool = True,
         timeout_s: Optional[float] = None,
     ) -> TrackTarget:
-        """规划一个赛道内目标位姿；默认直接放置，失败时可回退到自动驾驶。"""
+        """notetracknotegoalnote; defaultnote, failednote."""
         if self.track_geometry is None or not self.scene_key:
             raise ValueError("track_geometry and scene_key are required for track targets")
 
@@ -1095,11 +1095,11 @@ class DonkeyObstacleCar:
         timeout_s: Optional[float] = None,
     ) -> Optional[PoseState]:
         """
-        按 Python 侧赛道坐标直接放置障碍车。
+        note Python notetracknoteobstaclenote.
 
-        说明：
-        - `x/z` 使用与 telemetry / track.py 一致的坐标；
-        - 发送给 Unity 前会自动乘 `unity_world_scale`（默认 8）。
+        description:
+        - `x/z` note telemetry / track.py note;
+        - note Unity firstnote `unity_world_scale`(default 8).
         """
         handler = self._handler()
         if handler is None:
@@ -1120,7 +1120,7 @@ class DonkeyObstacleCar:
         )
 
     def query_node_position(self, index: int, timeout_s: Optional[float] = None) -> Dict[str, Any]:
-        """查询 Unity car path 节点坐标，同时返回 world 坐标和 telemetry 坐标。"""
+        """note Unity car path note, note world note telemetry note."""
         handler = self._handler()
         if handler is None:
             raise RuntimeError("Obstacle client is not spawned")
@@ -1293,11 +1293,11 @@ class DonkeyObstacleCar:
 
     def update(self, agent_info: Optional[Dict[str, Any]] = None) -> ObstacleSnapshot:
         """
-        刷新 agent 位姿缓存并返回最新快照。
+        note agent note.
 
-        说明：
-        - 障碍车的真实推进在后台线程中持续进行；
-        - 本方法本身不阻塞 sim，只做信息同步与快照计算。
+        description:
+        - obstaclenoterows;
+        - note sim, notecompute.
         """
         return self.get_snapshot(agent_info=agent_info)
 
@@ -1479,7 +1479,7 @@ class DonkeyObstacleCar:
         if planar_distance <= self.stop_distance:
             return np.array([0.0, 0.0], dtype=np.float32)
 
-        # 靠近目标时直接指向目标点，便于收敛到非中心线位置。
+        # notegoalnotegoalnote, note.
         if planar_distance <= self.approach_distance:
             target_heading = math.atan2(dz, dx)
             heading_to_target = _wrap_pi(target_heading - pose_yaw_rad)
@@ -1673,16 +1673,16 @@ def spawn_preset_obstacle_fleet(
     initial_place: bool = True,
 ) -> DonkeyObstacleFleet:
     """
-    生成一组静态障碍车。
+    generatenotestaticobstaclenote.
 
-    目前仅支持：
+    notefirstnote:
     - `scene="gt"` / `generated_track`
     - `scene="ws"` / `waveshare`
 
-    默认行为：
-    - 在赛道范围内随机生成 2 台障碍车
-    - 两台初始位置最少相隔 `3.0` 个 sim/world 坐标单位
-    - 若显式传入 `layout`，则使用固定布局并忽略随机采样参数
+    defaultrowsnote:
+    - notetracknotegenerate 2 noteobstaclenote
+    - note `3.0` note sim/world note
+    - note `layout`, note
     """
     preset = resolve_obstacle_fleet_preset(scene)
     track_geometry = build_obstacle_track_geometry(preset.name, track_dir=track_dir)

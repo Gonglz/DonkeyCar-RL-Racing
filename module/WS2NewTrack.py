@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import cv2
 import numpy as np
 
-from .green_vehicle_detect import GreenVehicleDetector
+from.green_vehicle_detect import GreenVehicleDetector
 
 _green_detector = GreenVehicleDetector()
 
@@ -86,9 +86,9 @@ def _k(kh: int, kw: Optional[int] = None) -> np.ndarray:
 
 
 def _ws_green_text_mask(hsv: np.ndarray) -> np.ndarray:
-    h_ch = hsv[:, :, 0]
-    s_ch = hsv[:, :, 1]
-    v_ch = hsv[:, :, 2]
+    h_ch = hsv[:,:, 0]
+    s_ch = hsv[:,:, 1]
+    v_ch = hsv[:,:, 2]
     return (h_ch >= 38) & (h_ch <= 95) & (s_ch >= 70) & (v_ch >= 45)
 
 
@@ -122,7 +122,7 @@ def semantic_masks(hsv: np.ndarray) -> Dict[str, np.ndarray]:
 
 
 def road_support_mask(hsv: np.ndarray) -> np.ndarray:
-    s, v, h = hsv[:, :, 1], hsv[:, :, 2], hsv[:, :, 0]
+    s, v, h = hsv[:,:, 1], hsv[:,:, 2], hsv[:,:, 0]
     base = (s <= 105) & (v >= 35) & ~((h >= 35) & (h <= 95) & (s >= 80))
     base = cv2.morphologyEx(base.astype(np.uint8), cv2.MORPH_OPEN, _k(3))
     return cv2.dilate(base, _k(5), iterations=1) > 0
@@ -137,7 +137,7 @@ def overlay_semantics(img_bgr: np.ndarray) -> np.ndarray:
         m = masks[cls]
         if not np.any(m):
             continue
-        c = np.zeros_like(out); c[:, :] = colors[cls]
+        c = np.zeros_like(out); c[:,:] = colors[cls]
         out[m] = cv2.addWeighted(out, 0.55, c, 0.45, 0.0)[m]
     return out
 
@@ -162,7 +162,7 @@ def compute_stats(images: List[np.ndarray]) -> Dict[str, object]:
             if cnt > 0:
                 proto_sum[cls] += hsv[m].astype(np.float64).sum(axis=0)
                 proto_cnt[cls] += cnt
-        hch, sch, vch = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
+        hch, sch, vch = hsv[:,:, 0], hsv[:,:, 1], hsv[:,:, 2]
         warm = ((hch <= 30) | (hch >= 150)) & (sch >= 40) & (vch >= 55)
         if np.any(masks["white"]):
             wd = cv2.distanceTransform(masks["white"].astype(np.uint8) * 255, cv2.DIST_L2, 3)
@@ -295,7 +295,7 @@ def _extract_white_dashes_tophat(
         road = _u8(road_mask)
         road = cv2.dilate(cv2.morphologyEx(road, cv2.MORPH_CLOSE, _k(5)), _k(5), iterations=1)
     else:
-        h_ch, s_ch, v_ch = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
+        h_ch, s_ch, v_ch = hsv[:,:, 0], hsv[:,:, 1], hsv[:,:, 2]
         gray_road = ((s_ch <= 40) & (v_ch >= 150) & (v_ch <= 220)).astype(np.uint8)
         white_line = ((s_ch <= 35) & (v_ch >= 210)).astype(np.uint8)
         yellow_line = ((h_ch >= 10) & (h_ch <= 45) & (s_ch >= 50) & (v_ch >= 130)).astype(np.uint8)
@@ -308,7 +308,7 @@ def _extract_white_dashes_tophat(
         seed_rows = max(2, int(h_img * 0.15))
         n_cc, lbl_cc, st_cc, _ = cv2.connectedComponentsWithStats(road_cand, connectivity=8)
         if n_cc > 1:
-            bottom_labels = lbl_cc[h_img - seed_rows:, :]
+            bottom_labels = lbl_cc[h_img - seed_rows:,:]
             seed_labels = set(np.unique(bottom_labels)) - {0}
             road = np.zeros_like(road_cand)
             for lbl in seed_labels:
@@ -346,10 +346,10 @@ def _extract_white_dashes_tophat(
     mask = _check_dark_neighborhood(mask, gray)
 
     # Tophat-aware brightness verification with position awareness
-    v_ch = hsv[:, :, 2]
-    s_ch = hsv[:, :, 1]
+    v_ch = hsv[:,:, 2]
+    s_ch = hsv[:,:, 1]
     upper_y = int(h_img * 0.35)
-    very_top_y = int(h_img * 0.28)   # wall / map-edge zone — only very obvious white passes
+    very_top_y = int(h_img * 0.28)   # wall / map-edge zone - only very obvious white passes
     side_band = int(w_img * 0.18)    # left/right side columns: wall/shelf noise zone
     n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
     out = np.zeros_like(mask)
@@ -365,7 +365,7 @@ def _extract_white_dashes_tophat(
         mean_v = float(np.mean(v_ch[comp]))
         mean_s = float(np.mean(s_ch[comp]))
         mean_tophat = float(np.mean(tophat[comp]))
-        # Top 28%: shelves / furniture / wall edges — reject unless very large & very bright
+        # Top 28%: shelves / furniture / wall edges - reject unless very large & very bright
         if cy < very_top_y and (area < 40 or mean_tophat < 38 or mean_s > 25):
             continue
         # Upper 40% + side bands: furniture/wall corner noise
@@ -701,7 +701,7 @@ def _blend_to_proto(hsv: np.ndarray, mask: np.ndarray, proto: np.ndarray,
                     ah: float, a_s: float, av: float) -> None:
     if not np.any(mask):
         return
-    h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
+    h, s, v = hsv[:,:, 0], hsv[:,:, 1], hsv[:,:, 2]
     th, ts, tv = float(proto[0]), float(proto[1]), float(proto[2])
     h_old = h[mask]
     d = th - h_old
@@ -719,7 +719,7 @@ def _apply_newtrack_blend(src_hsv: np.ndarray, line_mask: np.ndarray, center_mas
     _blend_to_proto(hsv, line_mask, _resolve_tgt_blue(tgt_stats), *line_a)
     _blend_to_proto(hsv, center_mask, _resolve_tgt_center(tgt_stats), *center_a)
     if np.any(center_mask):
-        hsv[:, :, 2][center_mask] = np.clip(hsv[:, :, 2][center_mask] + v_boost, 0, 255)
+        hsv[:,:, 2][center_mask] = np.clip(hsv[:,:, 2][center_mask] + v_boost, 0, 255)
     return cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
 
 
@@ -743,7 +743,7 @@ def extract_ws_yellow_mask(
     if not np.any(yellow_raw):
         empty = yellow_raw.copy()
         if return_confidence:
-            return empty, empty, yellow_on_road, np.zeros_like(src_hsv[:, :, 0], dtype=np.float32)
+            return empty, empty, yellow_on_road, np.zeros_like(src_hsv[:,:, 0], dtype=np.float32)
         return empty, empty, yellow_on_road
 
     h, w = yellow_on_road.shape
@@ -803,9 +803,9 @@ def extract_ws_yellow_mask(
         return yellow_full, yellow_edge, yellow_on_road
 
     # Confidence map: hue/sat/value evidence inside extracted yellow geometry.
-    h_ch = src_hsv[:, :, 0].astype(np.float32)
-    s_ch = src_hsv[:, :, 1].astype(np.float32)
-    v_ch = src_hsv[:, :, 2].astype(np.float32)
+    h_ch = src_hsv[:,:, 0].astype(np.float32)
+    s_ch = src_hsv[:,:, 1].astype(np.float32)
+    v_ch = src_hsv[:,:, 2].astype(np.float32)
     hue_center = 24.0
     hue_delta = np.minimum(np.abs(h_ch - hue_center), 180.0 - np.abs(h_ch - hue_center))
     hue_conf = np.clip(1.0 - hue_delta / 18.0, 0.0, 1.0)
@@ -846,7 +846,7 @@ def extract_ws_white_case10_line(
     from HSV so legacy callers still run the same extractor.
     """
     road_u8 = (
-        ((hsv[:, :, 1] < 45) & (hsv[:, :, 2] >= 65)).astype(np.uint8) * 255
+        ((hsv[:,:, 1] < 45) & (hsv[:,:, 2] >= 65)).astype(np.uint8) * 255
         if road_mask is None
         else _u8(road_mask)
     )
@@ -871,9 +871,9 @@ def extract_ws_white_case10_line(
         white_clean, band_width=9, min_pixels=1, max_width_ratio=0.18, split_gap=5,
     )
     white_soft = (
-        ((hsv[:, :, 2] >= 182) & (hsv[:, :, 1] <= 55))
-        | ((hsv[:, :, 2] >= 168) & (hsv[:, :, 1] <= 72))
-        | ((hsv[:, :, 2] >= 160) & (hsv[:, :, 1] <= 80))
+        ((hsv[:,:, 2] >= 182) & (hsv[:,:, 1] <= 55))
+        | ((hsv[:,:, 2] >= 168) & (hsv[:,:, 1] <= 72))
+        | ((hsv[:,:, 2] >= 160) & (hsv[:,:, 1] <= 80))
     )
     base = _expand_white_seed_to_center_blocks(
         white_clean, white_soft, seed, road, yellow_mask=yellow_mask,
@@ -883,7 +883,7 @@ def extract_ws_white_case10_line(
     )
     center_mask = _filter_centerline_components(center & road, seed)
 
-    # Fill gaps between dashes → connect into solid white line.
+    # Fill gaps between dashes -> connect into solid white line.
     # Tall narrow CLOSE bridges the inter-dash gaps without merging left/right lines.
     if np.any(center_mask):
         _h = center_mask.shape[0]
@@ -900,8 +900,8 @@ def extract_ws_white_case10_line(
     # Confidence map used for WS white channel visualization/probability:
     # keep tophat confidence as primary evidence, then softly propagate to
     # connected centerline pixels recovered by morphology.
-    v_ch = hsv[:, :, 2].astype(np.float32)
-    s_ch = hsv[:, :, 1].astype(np.float32)
+    v_ch = hsv[:,:, 2].astype(np.float32)
+    s_ch = hsv[:,:, 1].astype(np.float32)
     white_evidence = (
         np.clip((v_ch - 148.0) / 107.0, 0.0, 1.0)
         * np.clip((88.0 - s_ch) / 88.0, 0.0, 1.0)
@@ -1155,7 +1155,7 @@ def build_ws_observation_line_probs(
     )
     edge = (edge_raw * edge_hard).astype(np.float32)
 
-    # ── WS detection → confidence (no dilation, no blur) ────────────
+    # ── WS detection -> confidence (no dilation, no blur) ────────────
     hsv_ws = cv2.cvtColor(raw_bgr, cv2.COLOR_BGR2HSV)
     road_ws = road_support_mask(hsv_ws) > 0
 
@@ -1193,7 +1193,7 @@ _WS_BG_HSV = np.array([125.0, 20.0, 120.0], dtype=np.float32)
 def _render_ws_road_surface(img_bgr: np.ndarray) -> np.ndarray:
     """Transform WS road surface to NT cloth texture. Lines are NOT modified."""
     src_hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
-    src_v = src_hsv[:, :, 2]
+    src_v = src_hsv[:,:, 2]
     hsv_u8 = src_hsv.astype(np.uint8)
 
     road = road_support_mask(hsv_u8)
@@ -1212,19 +1212,19 @@ def _render_ws_road_surface(img_bgr: np.ndarray) -> np.ndarray:
     road_ref = float(np.mean(shade[road_region]))
 
     out_hsv = src_hsv.copy()
-    out_hsv[:, :, 0][road_region] = float(_WS_CLOTH_HSV[0])
-    out_hsv[:, :, 1][road_region] = np.clip(
+    out_hsv[:,:, 0][road_region] = float(_WS_CLOTH_HSV[0])
+    out_hsv[:,:, 1][road_region] = np.clip(
         float(_WS_CLOTH_HSV[1]) + 0.22 * 0.3 * hf[road_region], 0.0, 60.0)
-    out_hsv[:, :, 2][road_region] = np.clip(
+    out_hsv[:,:, 2][road_region] = np.clip(
         float(_WS_CLOTH_HSV[2]) + 0.40 * (shade[road_region] - road_ref)
         + 0.22 * hf[road_region], 0.0, 255.0)
 
     if np.any(bg_region):
         bg_ref = float(np.mean(shade[bg_region]))
-        out_hsv[:, :, 0][bg_region] = float(_WS_BG_HSV[0])
-        out_hsv[:, :, 1][bg_region] = np.clip(
+        out_hsv[:,:, 0][bg_region] = float(_WS_BG_HSV[0])
+        out_hsv[:,:, 1][bg_region] = np.clip(
             float(_WS_BG_HSV[1]) + 0.18 * 0.3 * hf[bg_region], 0.0, 60.0)
-        out_hsv[:, :, 2][bg_region] = np.clip(
+        out_hsv[:,:, 2][bg_region] = np.clip(
             float(_WS_BG_HSV[2]) + 0.25 * (shade[bg_region] - bg_ref)
             + 0.18 * hf[bg_region], 0.0, 255.0)
 
@@ -1253,7 +1253,7 @@ def transform_ws_to_newtrack(
         line_a=(preset["blue_alpha_h"], preset["blue_alpha_s"], preset["blue_alpha_v"]),
         center_a=_WS_CENTER_BLEND, v_boost=_WS_CENTER_V_BOOST)
 
-    # 保留绿车原始像素，不被道路渲染覆盖
+    # note, note
     green = _green_detector.detect(img_bgr)
     if green.detected:
         result[green.mask > 0] = img_bgr[green.mask > 0]

@@ -6,15 +6,15 @@ from collections import deque
 
 import numpy as np
 
-from .utils import _safe_float
-from .v14_stage_profiles import (
+from.utils import _safe_float
+from.v14_stage_profiles import (
     STAGES_V14,
     STAGE_EVAL_GATES_V14,
     apply_stage_train_profile_v14,
 )
 
 class CurriculumManagerV14:
-    """V14 课程管理器: 4阶段升级 + 策略蒸馏触发 + 混合采样控制。"""
+    """V14 note: 4stagenote + note + notecontrol."""
 
     def __init__(self, curriculum_stage_ref, distillation_manager=None,
                  eval_freq_steps=25000, eval_episodes=3,
@@ -30,12 +30,12 @@ class CurriculumManagerV14:
         self.last_eval_at = 0
         self.stage_enter_step = 0
         self.consecutive_eval_success = 0
-        # 避让成功率跟踪 (滚动窗口)
+        # notesucceedednote (note)
         self._avoidance_results = deque(maxlen=20)
         self._lap_times = deque(maxlen=20)
 
     def set_stage(self, stage_id, global_step, wrapper=None, model=None):
-        """切换到指定阶段，触发策略蒸馏快照。"""
+        """notestage, note."""
         stage = STAGES_V14.get(int(stage_id), STAGES_V14[1])
         old_stage = int(self.ref.get('stage', 0))
         target_laps = int(max(1, _safe_float(
@@ -43,11 +43,11 @@ class CurriculumManagerV14:
             self.ref.get("success_laps_target", 10)
         )))
 
-        # 策略蒸馏: 切换前快照当前策略
+        # note: notefirstnotecurrentnote
         if model is not None and self.distillation is not None and old_stage > 0:
             self.distillation.snapshot_policy(model, old_stage)
 
-        # 更新 curriculum_stage_ref
+        # note curriculum_stage_ref
         self.ref['stage'] = stage.sid
         self.ref['reward_mode'] = stage.reward_mode
         self.ref['npc_count'] = stage.npc_count
@@ -61,20 +61,20 @@ class CurriculumManagerV14:
         self.consecutive_eval_success = 0
         self.stage_enter_step = int(global_step)
 
-        # 应用阶段训练参数
+        # notestagetrainingnote
         apply_stage_train_profile_v14(
             stage.sid, self.ref, args=self.args, wrapper=wrapper, model=model
         )
 
-        # NPC速度范围同步到wrapper
-        if wrapper is not None and stage.npc_speed_range != (0.0, 0.0):
+        # NPCnotewrapper
+        if wrapper is not None and stage.npc_speed_range!= (0.0, 0.0):
             self.ref['npc_speed_min'] = stage.npc_speed_range[0]
             self.ref['npc_speed_max'] = stage.npc_speed_range[1]
         if wrapper is not None:
             wrapper.success_laps_target = int(target_laps)
 
         gate = STAGE_EVAL_GATES_V14.get(stage.sid)
-        print(f"\n🎓 V14 切换阶段 -> {stage.sid}: {stage.name}")
+        print(f"\n🎓 V14 notestage -> {stage.sid}: {stage.name}")
         print(f"   reward_mode={stage.reward_mode} | npc={stage.npc_count} | "
               f"npc_mode={stage.npc_mode} | p_npc_free={stage.p_npc_free} | "
               f"success_laps_target={int(target_laps)}")
@@ -83,7 +83,7 @@ class CurriculumManagerV14:
                   f"eval_every={gate.eval_every_steps}, passes={gate.consecutive_passes_required}")
 
     def maybe_eval_and_promote(self, model, wrapper, global_step):
-        """评估当前阶段，满足条件则晋级。"""
+        """notecurrentstage, note."""
         stage_id = int(self.ref.get('stage', 1))
         stage = STAGES_V14.get(stage_id, STAGES_V14[1])
         gate = STAGE_EVAL_GATES_V14.get(stage_id)
@@ -97,12 +97,12 @@ class CurriculumManagerV14:
             return None
         if global_step - self.stage_enter_step < min_stage_steps:
             self.last_eval_at = global_step
-            print(f"⏳ V14 阶段{stage_id} 未达最小步数 {min_stage_steps}, 跳过评估")
+            print(f"⏳ V14 stage{stage_id} note {min_stage_steps}, note")
             return None
 
         self.last_eval_at = global_step
 
-        # 执行评估
+        # noterowsnote
         result = self._evaluate(model, wrapper, gate)
 
         ok = bool(result.get('gate_passed', False))
@@ -122,14 +122,14 @@ class CurriculumManagerV14:
             self.set_stage(stage_id + 1, global_step, wrapper=wrapper, model=model)
             result['promoted_to'] = stage_id + 1
 
-        # KL系数衰减
+        # KLnote
         if self.distillation is not None:
             self.distillation.decay_kl_coef()
 
         return result
 
     def _evaluate(self, model, wrapper, gate):
-        """在训练间隙用同一环境做评估。"""
+        """notetrainingnote."""
         n_episodes = int(gate.eval_episodes)
         max_steps = int(self.eval_max_steps) if self.eval_max_steps > 0 else int(wrapper.max_episode_steps)
         max_steps = min(int(wrapper.max_episode_steps), max_steps)
@@ -156,7 +156,7 @@ class CurriculumManagerV14:
                 laps = max(laps, int(_safe_float(info.get('lap_count', 0), 0)))
                 max_progress = max(max_progress, float(_safe_float(
                     info.get('episode_progress_laps_est', 0.0), 0.0)))
-                if info.get('hit', 'none') != 'none':
+                if info.get('hit', 'none')!= 'none':
                     collisions = True
                     avoidance_ok = False
                 term = info.get('termination_reason', '')
@@ -172,7 +172,7 @@ class CurriculumManagerV14:
             })
             self._avoidance_results.append(avoidance_ok)
 
-        # 汇总
+        # note
         result = {
             'episodes': episodes,
             'avg_progress': float(np.mean([e['progress'] for e in episodes])),

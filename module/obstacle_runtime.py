@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import gym
 import numpy as np
 
-from .obstacle import (
+from.obstacle import (
     DonkeyObstacleFleet,
     ObstacleSnapshot,
     PoseState,
@@ -30,7 +30,7 @@ from .obstacle import (
     telemetry_to_unity_world,
     yaw_deg_to_unity_quaternion,
 )
-from .track import SceneGeometry, TrackGeometryManager
+from.track import SceneGeometry, TrackGeometryManager
 
 
 def _wrap_progress(progress_ratio: float) -> float:
@@ -53,26 +53,26 @@ def _extract_viewer(base_env):
 @dataclass
 class ObstacleRuntimeConfig:
     enabled: bool = True
-    active_scene_keys: Tuple[str, ...] = ("waveshare", "generated_track")
+    active_scene_keys: Tuple[str,...] = ("waveshare", "generated_track")
     obstacle_count: int = 2
     obstacle_free_prob: float = 0.15
-    obstacle_modes: Tuple[str, ...] = ("static", "jitter")
+    obstacle_modes: Tuple[str,...] = ("static", "jitter")
     ws_obstacle_free_prob: Optional[float] = None
     min_obstacle_separation_world: float = 3.0
     spawn_ahead_min_m: float = 3.5
     spawn_ahead_max_m: float = 14.0
     min_agent_planar_dist_m: float = 1.5
     min_agent_arc_dist_m: float = 3.5
-    lateral_choices: Tuple[float, ...] = (0.35, 0.50, 0.65)
+    lateral_choices: Tuple[float,...] = (0.35, 0.50, 0.65)
     fixed_progress_ratio: Optional[float] = None
     obstacle_progress_min: Optional[float] = None
     obstacle_progress_max: Optional[float] = None
     fixed_lateral_ratio: Optional[float] = None
     gt_obstacle_start_exclusion_half_width_m: Optional[float] = None
-    ws_obstacle_modes: Optional[Tuple[str, ...]] = None
+    ws_obstacle_modes: Optional[Tuple[str,...]] = None
     ws_obstacle_fixed_progress_ratio: Optional[float] = None
-    ws_obstacle_progress_min: Optional[float] = None  # WS障碍progress最小值
-    ws_obstacle_progress_max: Optional[float] = None  # WS障碍progress最大值
+    ws_obstacle_progress_min: Optional[float] = None  # WSobstacleprogressnote
+    ws_obstacle_progress_max: Optional[float] = None  # WSobstacleprogressnote
     ws_obstacle_fixed_lateral_ratio: Optional[float] = None
     randomize_non_lane_pid_yaw: bool = True
     jitter_amplitude_m: float = 0.10
@@ -135,7 +135,7 @@ class ObstacleRuntimeManager:
         self._active_this_episode = False
 
     def attach_scene(self, base_env, env_id: str, scene_key: str, logging_key: str) -> None:
-        scene_changed = bool(self._scene_key) and str(scene_key) != self._scene_key
+        scene_changed = bool(self._scene_key) and str(scene_key)!= self._scene_key
         if scene_changed:
             self.close()
         self._base_env = base_env
@@ -268,8 +268,8 @@ class ObstacleRuntimeManager:
             initial_place=False,
         )
         self._fleet_scene_key = self._scene_key
-        # 新 client 连入 DonkeySim 时会先在默认起点短暂出现一帧；
-        # 这里立刻送去 staging，避免在正式 episode 放置前留在起点闪烁。
+        # note client note DonkeySim notedefaultnote;
+        # note staging, note episode notefirstnote.
         self._park_fleet()
 
     def _park_fleet(self) -> None:
@@ -378,7 +378,7 @@ class ObstacleRuntimeManager:
             target = targets[idx]
             mode = active_modes[idx].strip().lower()
             yaw_override = None
-            if mode != "lane_pid" and self.config.randomize_non_lane_pid_yaw:
+            if mode!= "lane_pid" and self.config.randomize_non_lane_pid_yaw:
                 yaw_override = self._sample_random_obstacle_yaw_deg()
             if mode == "static":
                 car.place_track_target(
@@ -430,7 +430,7 @@ class ObstacleRuntimeManager:
         self,
         active_count: int,
         active_modes: Sequence[str],
-    ) -> Tuple[str, ...]:
+    ) -> Tuple[str,...]:
         cleaned_modes = tuple(
             str(mode).strip().lower()
             for mode in active_modes
@@ -593,18 +593,18 @@ class ObstacleRuntimeManager:
         obstacle_radius = float(getattr(preset, "obstacle_radius", 0.20))
         safety_margin = float(getattr(preset, "safety_margin", 0.05))
 
-        # 采样阶段要保证“整台车”的 footprint 更保守地留在赛道内，
-        # 不能只保证目标中心点没有越界。
+        # notestagenote"note"note footprint notetracknote,
+        # notegoalnote.
         if self._scene_key == "waveshare":
-            # WS 赛道太窄，若按整车 footprint 夹紧会把目标重新压回中线附近；
-            # 这里显式允许障碍贴边放置，接受少量车身越界。
+            # WS tracknote, note footprint notegoalnote;
+            # noteobstaclenote, note.
             obstacle_radius = 0.0
             safety_margin = 0.0
         else:
             safety_margin = max(safety_margin, 0.10)
 
         active_modes = tuple(self._active_obstacle_modes_for_scene())
-        if self.config.randomize_non_lane_pid_yaw and any(mode != "lane_pid" for mode in active_modes):
+        if self.config.randomize_non_lane_pid_yaw and any(mode!= "lane_pid" for mode in active_modes):
             safety_margin += 0.05
 
         return obstacle_radius, float(safety_margin)
@@ -612,10 +612,10 @@ class ObstacleRuntimeManager:
     def _sample_random_obstacle_yaw_deg(self) -> float:
         return float(self.rng.uniform(0.0, 360.0))
 
-    def _lane_choices_for_scene(self) -> Tuple[float, ...]:
+    def _lane_choices_for_scene(self) -> Tuple[float,...]:
         if self._scene_key == "waveshare":
-            # WS 障碍固定只在左右两条边线出生；sample_track_target 会再按
-            # 障碍半径和安全边距夹紧到“最靠边且合法”的两条线。
+            # WS obstaclenote; sample_track_target note
+            # obstaclenote"note"note.
             return (0.0, 1.0)
         if self._fleet is not None:
             preset = self._fleet.preset
@@ -636,19 +636,19 @@ class ObstacleRuntimeManager:
 
     def _scene_fixed_progress_ratio(self) -> Optional[float]:
         if self._scene_key == "waveshare":
-            # 如果设置了范围，从范围内随机选择
+            # note, note
             if (self.config.ws_obstacle_progress_min is not None and
                 self.config.ws_obstacle_progress_max is not None):
                 min_p = float(self.config.ws_obstacle_progress_min)
                 max_p = float(self.config.ws_obstacle_progress_max)
                 return float(self.rng.uniform(min_p, max_p))
-            # 否则使用固定值
+            # note
             if self.config.ws_obstacle_fixed_progress_ratio is not None:
                 return float(self.config.ws_obstacle_fixed_progress_ratio)
         return self.config.fixed_progress_ratio
 
     def _gt_progress_ratio_bounds(self) -> Optional[Tuple[float, float]]:
-        if self._scene_key != "generated_track":
+        if self._scene_key!= "generated_track":
             return None
         min_p = self.config.obstacle_progress_min
         max_p = self.config.obstacle_progress_max
@@ -665,7 +665,7 @@ class ObstacleRuntimeManager:
             return float(self.config.ws_obstacle_fixed_lateral_ratio)
         return self.config.fixed_lateral_ratio
 
-    def _active_obstacle_modes_for_scene(self) -> Tuple[str, ...]:
+    def _active_obstacle_modes_for_scene(self) -> Tuple[str,...]:
         if self._scene_key == "waveshare":
             if self.config.ws_obstacle_modes:
                 return tuple(self.config.ws_obstacle_modes)
@@ -679,7 +679,7 @@ class ObstacleRuntimeManager:
         return _wrap_progress(agent_progress + delta_s / max(float(g.loop_len), 1e-6))
 
     def _gt_start_exclusion_half_width_ratio(self, g: SceneGeometry) -> Optional[float]:
-        if self._scene_key != "generated_track":
+        if self._scene_key!= "generated_track":
             return None
         half_width_m = self.config.gt_obstacle_start_exclusion_half_width_m
         if half_width_m is None:

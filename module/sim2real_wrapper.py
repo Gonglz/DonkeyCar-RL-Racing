@@ -1,24 +1,21 @@
 """
 module/sim2real_wrapper.py
 
-Sim2Real 动力学对齐 Wrapper — 训练时使用
+Sim2Real note Wrapper - trainingnote----
+notetrainingstagenote Sim note, note PPO note.
 
-作用
-----
-在训练阶段将 Sim 动力学对齐到真实车，使 PPO 学到的策略能更直接部署。
-
-插入位置（MultiSceneEnvV16._create_env 中）：
+note(MultiSceneEnvV16._create_env note):
     base_env (gym DonkeyEnv)
          ↓
     ScenarioObstacleWrapper
          ↓
-    Sim2RealActionWrapper   ← 本模块，缩放 steer / throttle
+    Sim2RealActionWrapper   <- note, note steer / throttle
          ↓
-    CanonicalSemanticWrapper / DonkeyRewardWrapper / ActionSafetyWrapper / ActionAdapterWrapper ...
+    CanonicalSemanticWrapper / DonkeyRewardWrapper / ActionSafetyWrapper / ActionAdapterWrapper...
 
-参数来源
+note
 --------
-由 mysim/tools/calibrate_sim2real.py 从 wm_real + wm_sim 自动计算后写入 JSON：
+note mysim/tools/calibrate_sim2real.py note wm_real + wm_sim notecomputenote JSON:
 
     {
       "throttle_gain_ratio": 0.115,
@@ -29,7 +26,7 @@ Sim2Real 动力学对齐 Wrapper — 训练时使用
       "calibrated_at": "2026-04-19"
     }
 
-标定文件位置
+notefilenote
 -----------
 mysim/models/world_model/dynamics_alignment_wm.json
 """
@@ -48,23 +45,23 @@ import numpy as np
 
 class Sim2RealActionWrapper(gym.ActionWrapper):
     """
-    动力学对齐 gym.ActionWrapper。
+    note gym.ActionWrapper.
 
-    对发给 DonkeySim 的 [steer, throttle] 做缩放 + 可选一阶滞后，
-    使 Sim 车的速度和转向响应更接近真实车。
+    note DonkeySim note [steer, throttle] note + note,
+    note Sim note.
 
     Parameters
     ----------
-    env : gym.Env
-        被包裹的环境。
-    throttle_gain : float
-        油门缩放比例。< 1.0 压制 sim 速度；标定值约 0.115。
-    steer_gain : float
-        转向缩放比例。< 1.0 减弱 sim 转向响应；标定值约 0.715。
-    steer_tau_s : float
-        额外转向一阶滞后时间常数（秒）。0.0 = 关闭。
-    throttle_tau_s : float
-        额外油门一阶滞后时间常数（秒）。0.0 = 关闭。
+    env: gym.Env
+        note.
+    throttle_gain: float
+        note.< 1.0 note sim note; note 0.115.
+    steer_gain: float
+        note.< 1.0 note sim note; note 0.715.
+    steer_tau_s: float
+        note(note).0.0 = note.
+    throttle_tau_s: float
+        note(note).0.0 = note.
     """
 
     def __init__(
@@ -95,7 +92,7 @@ class Sim2RealActionWrapper(gym.ActionWrapper):
 
     @classmethod
     def from_json(cls, env: gym.Env, json_path: Union[str, Path]) -> "Sim2RealActionWrapper":
-        """从标定 JSON 文件加载参数。"""
+        """note JSON filenote."""
         path = Path(json_path)
         if not path.exists():
             raise FileNotFoundError(f"Sim2Real calibration JSON not found: {path}")
@@ -117,11 +114,11 @@ class Sim2RealActionWrapper(gym.ActionWrapper):
         steer    = float(action[0])
         throttle = float(action[1])
 
-        # 缩放
+        # note
         steer    *= self.steer_gain
         throttle *= self.throttle_gain
 
-        # 可选一阶滞后
+        # note
         now = time.monotonic()
         dt  = 0.05 if self._last_t is None else max(now - self._last_t, 1e-3)
         self._last_t = now

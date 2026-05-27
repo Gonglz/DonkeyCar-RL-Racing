@@ -1,6 +1,6 @@
 """
 module/utils.py
-通用工具函数、常量，供 V12 所有子模块共享。
+notefunction, note, note V12 note.
 """
 
 import os
@@ -17,10 +17,10 @@ import torch
 
 
 # ============================================================
-# 配置加载
+# configurationnote
 # ============================================================
 def load_config(myconfig: Optional[str] = None):
-    """从 Python 文件加载大写变量CONFIG对象（若 donkeycar 可用则复用，否则自建）。"""
+    """note Python filenoteCONFIGnote(note donkeycar note, note)."""
     try:
         import donkeycar as dk
         try:
@@ -56,7 +56,7 @@ def load_config(myconfig: Optional[str] = None):
 
 
 # ============================================================
-# 场景域映射（9 maps）
+# note(9 maps)
 # ============================================================
 ENV_DOMAIN_MAP: Dict[str, str] = {
     "donkey-waveshare-v0": "ws",
@@ -73,18 +73,18 @@ ENV_DOMAIN_MAP: Dict[str, str] = {
 
 
 def _get_domain_for_env(env_id: str) -> str:
-    """根据 env_id 返回域标识（ws/gt，默认 ws）。"""
+    """note env_id note(ws/gt, default ws)."""
     return ENV_DOMAIN_MAP.get(env_id, "ws")
 
 
 # ============================================================
-# Monitor 记录的 episode 末尾 info 字段
+# Monitor note episode note info note
 # ============================================================
-MONITOR_INFO_KEYS: Tuple[str, ...] = (
+MONITOR_INFO_KEYS: Tuple[str,...] = (
     "domain",
-    "scene_key",           # V12: 场景标识符（用于按场景统计，替代 domain）
-    "logging_key",         # V12: 日志记录用的缩短场景名称（防止 TensorBoard 键过长）
-    "termination_reason",  # 终止原因（normal/collision/stuck/persistent_offtrack）
+    "scene_key",           # V12: note(note, note domain)
+    "logging_key",         # V12: note(note TensorBoard note)
+    "termination_reason",  # note(normal/collision/stuck/persistent_offtrack)
     "mask_coverage",
     "ep_r_survival",
     "ep_r_speed",
@@ -107,13 +107,13 @@ MONITOR_INFO_KEYS: Tuple[str, ...] = (
     "ep_r_mismatch",
     "ep_r_sat",
     "ep_r_total",
-    # 终止原因 one-hot
+    # note one-hot
     "ep_term_collision",
     "ep_term_stuck",
     "ep_term_offtrack",
     "ep_term_env_done",
     "ep_term_normal",
-    # episode 级几何/惩罚诊断
+    # episode notegeometry/note
     "ep_cte_abs_p50",
     "ep_cte_abs_p90",
     "ep_cte_abs_p99",
@@ -128,10 +128,10 @@ MONITOR_INFO_KEYS: Tuple[str, ...] = (
 
 
 # ============================================================
-# 随机种子
+# note
 # ============================================================
 def _seed_everything(seed: Optional[int]) -> None:
-    """统一 Python / NumPy / PyTorch 随机性。"""
+    """unified Python / NumPy / PyTorch note."""
     if seed is None:
         return
     seed = int(seed)
@@ -151,14 +151,14 @@ def _seed_everything(seed: Optional[int]) -> None:
 
 
 def _safe_seed_env(env, seed: Optional[int], label: str = "env") -> None:
-    """best-effort 给 VecEnv/Gym env 设置 seed，失败不阻塞训练。"""
+    """best-effort note VecEnv/Gym env note seed, failednotetraining."""
     if seed is None:
         return
     try:
         if hasattr(env, "seed"):
             env.seed(int(seed))
     except Exception as e:
-        print(f"⚠️  {label}.seed({seed}) 失败: {type(e).__name__}: {e}")
+        print(f"⚠️  {label}.seed({seed}) failed: {type(e).__name__}: {e}")
     try:
         if hasattr(env, "action_space") and hasattr(env.action_space, "seed"):
             env.action_space.seed(int(seed))
@@ -172,7 +172,7 @@ def _safe_seed_env(env, seed: Optional[int], label: str = "env") -> None:
 
 
 # ============================================================
-# RecurrentPPO LSTM 评估
+# RecurrentPPO LSTM note
 # ============================================================
 def _evaluate_recurrent_policy_on_vec_env(
     model,
@@ -181,8 +181,8 @@ def _evaluate_recurrent_policy_on_vec_env(
     deterministic: bool = True,
 ) -> Tuple[float, float]:
     """
-    显式传递 LSTM state / episode_start 的评估循环。
-    兼容 sb3_contrib.RecurrentPPO。
+    note LSTM state / episode_start note.
+    note sb3_contrib.RecurrentPPO.
     """
     n_envs = int(getattr(vec_env, "num_envs", 1))
     obs = vec_env.reset()
@@ -219,10 +219,10 @@ def _evaluate_recurrent_policy_on_vec_env(
 
 
 # ============================================================
-# Checkpoint 查找
+# Checkpoint note
 # ============================================================
 def _find_latest_checkpoint(save_dir: str, name_prefix: str = "v12") -> Optional[str]:
-    """查找 `{name_prefix}_N_steps.zip` 中步数最大的文件。"""
+    """note `{name_prefix}_N_steps.zip` notefile."""
     if not os.path.isdir(save_dir):
         return None
     pat = re.compile(rf"^{re.escape(name_prefix)}_(\d+)_steps\.zip$")
@@ -243,7 +243,7 @@ def _find_latest_checkpoint(save_dir: str, name_prefix: str = "v12") -> Optional
 
 
 # ============================================================
-# Float 工具
+# Float note
 # ============================================================
 def _wrap_pi(x: float) -> float:
     while x > math.pi:
@@ -281,6 +281,6 @@ def _write_json(path: str, payload: Any) -> None:
         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
         with open(abs_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
-        print(f"🧾 JSON写入: {abs_path}")
+        print(f"🧾 JSONnote: {abs_path}")
     except Exception as e:
-        print(f"⚠️ 写入JSON失败({path}): {e}")
+        print(f"⚠️ noteJSONfailed({path}): {e}")

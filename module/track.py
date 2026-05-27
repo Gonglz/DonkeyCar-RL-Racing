@@ -1,7 +1,7 @@
 """
 module/track.py
-赛道几何管理：SceneGeometry 数据类 + TrackGeometryManager 查询器。
-从 ppo_waveshare_v12 提取，支持 9 地图非对称 CTE 边界 + 角点采样。
+trackgeometrynote: SceneGeometry dataclass + TrackGeometryManager note.
+note ppo_waveshare_v12 note, note 9 note CTE note + note.
 """
 
 import json
@@ -22,10 +22,10 @@ def _clip_float(x: float, lo: float, hi: float) -> float:
     return float(min(max(float(x), float(lo)), float(hi)))
 
 
-# 三条已标定赛道的真实出界 CTE 阈值（仅针对已知的 3 个场景硬编码）
-# 来源：manual_width_probe.summary 中的 sim 偏移值 × coord_scale=8
-# 符号约定：lat_err > 0 = 赛道左侧（cte_left* 为正），lat_err < 0 = 赛道右侧（cte_right* 为负）
-# 模拟器参考中线偏离赛道几何中心，故 left/right 幅值不对称
+# notetracknote CTE note(note 3 note)
+# note: manual_width_probe.summary note sim note x coord_scale=8
+# note: lat_err > 0 = tracknote(cte_left* note), lat_err < 0 = tracknote(cte_right* note)
+# notetrackgeometrynote, note left/right note
 _SCENE_CTE_TABLE: Dict[str, Dict[str, float]] = {
     "generated_track": {
         "cte_left":      +6.60,   # 0.825 * 8
@@ -50,28 +50,28 @@ _SCENE_CTE_TABLE: Dict[str, Dict[str, float]] = {
 
 @dataclass
 class SceneGeometry:
-    """单条赛道的离线几何信息。"""
+    """notetracknotegeometrynote."""
     scene_key: str
     center: np.ndarray        # (N, 2) x-z
     left: np.ndarray          # (N, 2)
     right: np.ndarray         # (N, 2)
-    tangent: np.ndarray       # (N, 2) 单位切向量
-    seg_len: np.ndarray       # (N,)   每段长度
-    cum_len: np.ndarray       # (N,)   累积弧长
-    loop_len: float           # 整圈弧长
-    width: np.ndarray         # (N,)   局部赛道宽度
+    tangent: np.ndarray       # (N, 2) note
+    seg_len: np.ndarray       # (N,)   note
+    cum_len: np.ndarray       # (N,)   note
+    loop_len: float           # note
+    width: np.ndarray         # (N,)   notetracknote
     width_median: float
-    cte_left: float           # 左侧在界最大 CTE（正值，lat_err > 0 方向）
-    cte_right: float          # 右侧在界最大 CTE（负值，lat_err < 0 方向）
-    cte_left_out: float       # 左侧首次确认出界 CTE（正值，>= cte_left）
-    cte_right_out: float      # 右侧首次确认出界 CTE（负值，<= cte_right）
-    cte_half_width: float     # (cte_left - cte_right) / 2 —— CTE 奖励归一化因子（正值）
-    coord_scale: float        # sim 坐标缩放系数（lat_err * coord_scale ≈ -sim_cte，与 CTE 表同单位）
-    corner_nodes: List[int]   # Top-20% 高曲率节点索引（角点优先采样用）
+    cte_left: float           # note CTE(note, lat_err > 0 note)
+    cte_right: float          # note CTE(note, lat_err < 0 note)
+    cte_left_out: float       # note CTE(note, >= cte_left)
+    cte_right_out: float      # note CTE(note, <= cte_right)
+    cte_half_width: float     # (cte_left - cte_right) / 2 -- CTE rewardnote(note)
+    coord_scale: float        # sim note(lat_err * coord_scale ~ -sim_cte, note CTE note)
+    corner_nodes: List[int]   # Top-20% note(note)
 
 
 class TrackGeometryManager:
-    """加载多赛道 JSON 并提供实时局部几何查询（x-z 平面）。"""
+    """notetrack JSON notegeometrynote(x-z note)."""
 
     def __init__(
         self,
@@ -82,10 +82,10 @@ class TrackGeometryManager:
     ):
         """
         Args:
-            track_dir:    赛道 JSON 目录（.../track/）。
-            env_ids:      需要加载的 gym env_id 列表。
-            scene_specs:  SCENE_SPECS 字典（来自 v12 的顶层配置）。
-            lookahead_points: 前视节点数，用于计算 kappa_lookahead。
+            track_dir:    track JSON directory(.../track/).
+            env_ids:      note gym env_id note.
+            scene_specs:  SCENE_SPECS note(note v12 noteconfiguration).
+            lookahead_points: firstnote, notecompute kappa_lookahead.
         """
         self.track_dir = track_dir
         self.lookahead_points = int(max(2, lookahead_points))
@@ -117,9 +117,9 @@ class TrackGeometryManager:
         left   = np.asarray(outline.get("left_boundary_xz", []), dtype=np.float64)
         right  = np.asarray(outline.get("right_boundary_xz", []), dtype=np.float64)
 
-        if center.ndim != 2 or center.shape[1] != 2:
+        if center.ndim!= 2 or center.shape[1]!= 2:
             raise ValueError(f"Invalid centerline in {path}")
-        if left.shape != center.shape or right.shape != center.shape:
+        if left.shape!= center.shape or right.shape!= center.shape:
             raise ValueError(f"Boundary shape mismatch in {path}")
         if center.shape[0] <= 100:
             raise ValueError(f"Too few points in {path}: {center.shape[0]}")
@@ -138,17 +138,17 @@ class TrackGeometryManager:
         width = np.maximum(width, 1e-4)
         width_median = float(np.median(width))
 
-        # 读取左右 CTE 出界边界
-        # 优先使用硬编码标定表（3 个已知场景）；其余场景回退到 JSON probe summary
+        # readnote CTE note
+        # note(3 note); note JSON probe summary
         if scene_key in _SCENE_CTE_TABLE:
             tb = _SCENE_CTE_TABLE[scene_key]
-            cte_left      = tb["cte_left"]       # 正值
-            cte_right     = tb["cte_right"]      # 负值
-            cte_left_out  = tb["cte_left_out"]   # 正值，>= cte_left
-            cte_right_out = tb["cte_right_out"]  # 负值，<= cte_right
-            coord_scale   = 8.0                  # 已标定场景均使用 coord_scale=8
+            cte_left      = tb["cte_left"]       # note
+            cte_right     = tb["cte_right"]      # note
+            cte_left_out  = tb["cte_left_out"]   # note, >= cte_left
+            cte_right_out = tb["cte_right_out"]  # note, <= cte_right
+            coord_scale   = 8.0                  # note coord_scale=8
         else:
-            # 回退：从 JSON probe summary 动态计算；right 取反使其为负
+            # note: note JSON probe summary dynamiccompute; right note
             coord_scale = float(data.get("coord_scale", 1.0))
             probe   = data.get("manual_width_probe", {})
             summary = probe.get("summary", {})
@@ -159,7 +159,7 @@ class TrackGeometryManager:
             cte_right_out = -float(summary.get("right_out_first_sim",
                                                 abs(cte_right) / coord_scale * 1.1)) * coord_scale
 
-        # 计算曲率，找出 Top-20% 高曲率角点
+        # computenote, note Top-20% note
         curvature = self._compute_curvature(center)
         n_nodes = len(center)
         n_corners = max(4, int(np.ceil(n_nodes * 0.2)))
@@ -189,7 +189,7 @@ class TrackGeometryManager:
         )
 
     def _compute_curvature(self, center: np.ndarray) -> np.ndarray:
-        """每个节点处的曲率（相邻向量叉积绝对值）。"""
+        """note(note)."""
         n = len(center)
         curvature = np.zeros(n, dtype=np.float64)
         for i in range(n):
@@ -250,7 +250,7 @@ class TrackGeometryManager:
         local_window: int = 180,
     ) -> Dict[str, float]:
         """
-        查询车辆在赛道上的局部几何信息。
+        notetracknotegeometrynote.
 
         Returns:
             dict with keys: idx, lat_err_norm, heading_err_sin, heading_err_cos,

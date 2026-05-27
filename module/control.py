@@ -1,17 +1,17 @@
 """
 module/control.py
 
-油门/转向控制链模块（V12/V13）。
+note/notecontrolnote(V12/V13).
 
-该文件是控制相关逻辑的唯一主入口，包含：
+notefilenotecontrolnoteentry point, note:
 - HighLevelControlWrapper
 - ActionSafetyWrapper
 - ThrottleControlWrapper
-- CurvatureAwareThrottleWrapper（兼容保留，不建议在当前简化策略链中启用）
+- CurvatureAwareThrottleWrapper(note, notecurrentnote)
 
-注意：
-- 当前训练默认更简化：重点保留转向执行保护，不在主链里启用“曲率油门收紧”。
-- 为兼容旧调用，ActionSafetyWrapper 仍保留若干旧参数，但默认不使用自适应策略。
+note:
+- currenttrainingdefaultnote: noterowsnote, note"note".
+- note, ActionSafetyWrapper note, notedefaultnote.
 """
 
 from __future__ import annotations
@@ -21,20 +21,20 @@ from typing import Any, Dict, Optional
 import gym
 import numpy as np
 
-from .utils import _clip_float
+from.utils import _clip_float
 
 
 class HighLevelControlWrapper(gym.ActionWrapper):
     """
-    高层速度控制器。
+    notecontrolnote.
 
-    输入动作（策略输出）：
+    inputnote(noteoutput):
       action = [target_steer, target_speed_norm]
 
-    输出动作（低层执行）：
+    outputnote(noterows):
       low_level = [steer_cmd, throttle_cmd]
 
-    速度控制律（PI + 前馈）：
+    notecontrolnote(PI + firstnote):
       v_tgt = target_speed_norm * speed_vmax
       v_err = v_tgt - v_meas
       i_term = clip(i_term + v_err * dt, -integral_limit, +integral_limit)
@@ -89,7 +89,7 @@ class HighLevelControlWrapper(gym.ActionWrapper):
             "target_steer": 0.0,
         }
 
-        print("✅ V12 HighLevelControlWrapper")
+        print("PASS V12 HighLevelControlWrapper")
         print(
             f"   speed_vmax={self.speed_vmax:.2f}, kp={self.speed_kp:.3f}, "
             f"ki={self.speed_ki:.3f}, kff={self.speed_kff:.3f}, dt={self.control_dt:.3f}"
@@ -97,7 +97,7 @@ class HighLevelControlWrapper(gym.ActionWrapper):
         print(f"   allow_reverse={self.allow_reverse}, max_throttle={self.max_throttle:.2f}")
 
     def consume_info(self, info: Dict[str, Any]) -> None:
-        """每步结束后更新速度测量值，供下一步 PI 使用。"""
+        """note, note PI note."""
         v = info.get("speed", 0.0)
         try:
             self.last_speed_mps = float(v)
@@ -128,7 +128,7 @@ class HighLevelControlWrapper(gym.ActionWrapper):
             + self.speed_ki * self.i_term
         )
 
-        # 不允许倒车时：明显超速则不允许继续正油门。
+        # note: note.
         if (not self.allow_reverse) and (v_err < -self.soft_brake_deadband):
             thr = min(thr, 0.0)
 
@@ -164,15 +164,15 @@ class HighLevelControlWrapper(gym.ActionWrapper):
 
 class ActionSafetyWrapper(gym.ActionWrapper):
     """
-    转向执行保护（简化版）。
+    noterowsnote(note).
 
-    当前策略：
-    - 固定转向速率限制（delta_max）
-    - 可选一阶低通滤波（LPF）
-    - 不启用曲率/意图自适应放宽（为降低复杂度）
+    currentnote:
+    - note(delta_max)
+    - note(LPF)
+    - note/note(note)
 
-    兼容性：
-    - 为保持历史脚本不报错，保留 adaptive/hairpin 相关参数，但不参与决策。
+    note:
+    - note, note adaptive/hairpin note, note.
     """
 
     def __init__(
@@ -195,7 +195,7 @@ class ActionSafetyWrapper(gym.ActionWrapper):
         self.beta = float(np.clip(beta, 0.0, 1.0))
         self.last_kappa_abs = 0.0
 
-        # 兼容旧参数（仅保留字段，不参与决策）
+        # note(note, note)
         self.adaptive_delta_max = bool(adaptive_delta_max)
         self.curve_delta_boost = float(max(0.0, curve_delta_boost))
         self.curve_kappa_ref = float(max(1e-6, curve_kappa_ref))
@@ -232,7 +232,7 @@ class ActionSafetyWrapper(gym.ActionWrapper):
         }
 
     def consume_info(self, info: Dict[str, Any]) -> None:
-        # 仅用于日志兼容
+        # note
         if not isinstance(info, dict):
             return
         kappa = info.get("geo/kappa", info.get("kappa_lookahead", 0.0))
@@ -245,7 +245,7 @@ class ActionSafetyWrapper(gym.ActionWrapper):
         steer_raw = float(action[0])
         throttle = float(action[1])
 
-        # 固定速率上限，不做自适应放宽。
+        # note, note.
         effective_delta_max = float(self.delta_max)
         delta = steer_raw - self.steer_prev_limited
         rate_limit_hit = abs(delta) > effective_delta_max
@@ -296,7 +296,7 @@ class ActionSafetyWrapper(gym.ActionWrapper):
 
 
 class ThrottleControlWrapper(gym.ActionWrapper):
-    """全局油门边界裁剪。"""
+    """note."""
 
     def __init__(self, env, max_throttle: float = 0.3, min_throttle: float = 0.0):
         super().__init__(env)
@@ -316,10 +316,10 @@ class ThrottleControlWrapper(gym.ActionWrapper):
 
 class CurvatureAwareThrottleWrapper(gym.Wrapper):
     """
-    曲率感知油门上限（兼容保留）。
+    note(note).
 
-    当前简化训练链默认不启用该 wrapper。
-    如需启用，可在构建链路中显式插入。
+    currentnotetrainingnotedefaultnote wrapper.
+    note, note.
     """
 
     def __init__(

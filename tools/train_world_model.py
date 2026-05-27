@@ -1,19 +1,17 @@
 """
 tools/train_world_model.py
 
-自车局部动力学世界模型 — 离线训练脚本
+notemodel - notetrainingnotetrainingnote(--mode):
+  real   - note catalog data, training wm_real
+  sim    - note sim CSV data, training wm_sim
+  mixed  - note, notedata 3x note, training wm_mixed
 
-支持三种训练模式（--mode）：
-  real   — 只用真实车 catalog 数据，训练 wm_real
-  sim    — 只用 sim CSV 数据，训练 wm_sim
-  mixed  — 两者混合，真实数据 3× 损失加权，训练 wm_mixed
+trainingnote: notetraining(real / sim), note cross-domain note
+sim2real gap, note gap note.
 
-训练策略：先分域训练（real / sim），再做 cross-domain 评估量化
-sim2real gap，最后根据 gap 大小决定是否混合。
-
-用法示例
+note
 --------
-# 真实数据训 wm_real（先跑 5D sanity check，再用 8D 正式版）
+# notedatanote wm_real(note 5D sanity check, note 8D note)
 python3 tools/train_world_model.py \\
     --mode real \\
     --catalog-dirs data \\
@@ -21,7 +19,7 @@ python3 tools/train_world_model.py \\
     --output-dir models/world_model \\
     --epochs 150
 
-# sim 数据训 wm_sim
+# sim datanote wm_sim
 python3 tools/train_world_model.py \\
     --mode sim \\
     --sim-dirs dynamics_data/sim_transitions \\
@@ -29,7 +27,7 @@ python3 tools/train_world_model.py \\
     --output-dir models/world_model \\
     --epochs 150
 
-# 混合训练 wm_mixed（real 数据 3× 权重）
+# notetraining wm_mixed(real data 3x note)
 python3 tools/train_world_model.py \\
     --mode mixed \\
     --catalog-dirs data \\
@@ -56,7 +54,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Subset
 
-# ─── 路径设置 ────────────────────────────────────────────────────
+# ─── pathnote ────────────────────────────────────────────────────
 _SCRIPT_DIR = Path(__file__).parent
 _REPO_DIR   = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_REPO_DIR))
@@ -70,7 +68,7 @@ from module.world_model_dataset import (
 )
 
 
-# ─── 损失权重（v_long 最重要，accel_x 最嘈杂）────────────────────
+# ─── note(v_long note, accel_x note)────────────────────
 DIM_WEIGHTS = torch.tensor([3.0, 2.0, 0.5], dtype=torch.float32)
 DIM_NAMES   = ["v_long", "yaw_rate", "accel_x"]
 
@@ -83,20 +81,20 @@ def weighted_mse(
     real_weight: float = 1.0,
 ) -> torch.Tensor:
     """
-    Per-dim 加权 MSE。
-    domain_mask: (B,) float，1=真实数据，0=sim 数据，用于真实数据加权。
+    Per-dim note MSE.
+    domain_mask: (B,) float, 1=notedata, 0=sim data, notedatanote.
     """
     err = (pred - target) ** 2                         # (B, 3)
     loss = (err * weights.to(pred.device)).sum(dim=-1)  # (B,)
 
-    if domain_mask is not None and real_weight != 1.0:
+    if domain_mask is not None and real_weight!= 1.0:
         sample_weights = 1.0 + (real_weight - 1.0) * domain_mask.to(pred.device)
         loss = loss * sample_weights
 
     return loss.mean()
 
 
-# ─── 单 epoch 训练 ───────────────────────────────────────────────
+# ─── note epoch training ───────────────────────────────────────────────
 
 def train_epoch(model, loader, optimizer, device, real_weight=1.0, is_combined=False):
     model.train()
@@ -110,7 +108,7 @@ def train_epoch(model, loader, optimizer, device, real_weight=1.0, is_combined=F
             is_real  = None
 
         x, delta = x.to(device), delta.to(device)
-        pred_delta, _ = model(x, x[:, :PHYS_DIM])
+        pred_delta, _ = model(x, x[:,:PHYS_DIM])
 
         loss = weighted_mse(
             pred_delta, delta, DIM_WEIGHTS,
@@ -124,7 +122,7 @@ def train_epoch(model, loader, optimizer, device, real_weight=1.0, is_combined=F
     return total_loss / max(len(loader), 1)
 
 
-# ─── 评估 ───────────────────────────────────────────────────────
+# ─── note ───────────────────────────────────────────────────────
 
 @torch.no_grad()
 def evaluate(model, loader, device, is_combined=False):
@@ -140,7 +138,7 @@ def evaluate(model, loader, device, is_combined=False):
             x, delta = batch
 
         x, delta = x.to(device), delta.to(device)
-        pred_delta, _ = model(x, x[:, :PHYS_DIM])
+        pred_delta, _ = model(x, x[:,:PHYS_DIM])
 
         total_loss += weighted_mse(pred_delta, delta, DIM_WEIGHTS).item()
         per_dim_se += ((pred_delta.cpu() - delta.cpu()) ** 2).mean(dim=0)
@@ -150,22 +148,22 @@ def evaluate(model, loader, device, is_combined=False):
     return total_loss / n_batches, per_dim_se / n_batches
 
 
-# ─── 主函数 ─────────────────────────────────────────────────────
+# ─── notefunction ─────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(description="Train world model")
     parser.add_argument("--mode", choices=["real", "sim", "mixed"], required=True)
     parser.add_argument("--catalog-dirs", nargs="+", default=[],
-                        help="真实车 catalog 目录（--mode real/mixed 时需要）")
+                        help="note catalog directory(--mode real/mixed note)")
     parser.add_argument("--sim-dirs", nargs="+", default=[],
-                        help="Sim CSV 目录（--mode sim/mixed 时需要）")
+                        help="Sim CSV directory(--mode sim/mixed note)")
     parser.add_argument("--input-dim", type=int, choices=[5, 8], default=8)
     parser.add_argument("--hidden-dim", type=int, default=128)
     parser.add_argument("--epochs", type=int, default=150)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--real-weight", type=float, default=3.0,
-                        help="混合训练时真实数据损失权重倍数")
+                        help="notetrainingnotedatanote")
     parser.add_argument("--output-dir", type=str, default="models/world_model")
     parser.add_argument("--num-workers", type=int, default=2)
     args = parser.parse_args()
@@ -176,7 +174,7 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # ─ 构建数据集 ─
+    # ─ notedataset ─
     real_ds = sim_ds = None
 
     if args.mode in ("real", "mixed"):
@@ -195,7 +193,7 @@ def main():
         )
         print(f"Sim data: {len(sim_ds):,} samples from {args.sim_dirs}")
 
-    # ─ 选择基础数据集（分割用）─
+    # ─ notedataset(note)─
     is_combined = (args.mode == "mixed")
 
     if is_combined:
@@ -225,14 +223,14 @@ def main():
     val_loader   = make_loader(val_set,   shuffle=False)
     test_loader  = make_loader(test_set,  shuffle=False)
 
-    # ─ 模型 ─
+    # ─ model ─
     model = NeuralPhysicsDynamics(
         input_dim=args.input_dim, hidden_dim=args.hidden_dim, dropout=0.05
     ).to(device)
     n_params = sum(p.numel() for p in model.parameters())
     print(f"Model parameters: {n_params:,}")
 
-    # ─ 优化器 + 调度器 ─
+    # ─ note + note ─
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=args.lr, weight_decay=1e-4
     )
@@ -245,7 +243,7 @@ def main():
         anneal_strategy="cos",
     )
 
-    # ─ 训练循环 ─
+    # ─ trainingnote ─
     best_val_loss = float("inf")
     history       = []
     ckpt_name     = f"wm_{args.mode}.pth"
@@ -302,25 +300,25 @@ def main():
                 },
             )
 
-    # ─ 最终 test 评估 ─
+    # ─ note test note ─
     best_model = NeuralPhysicsDynamics.load_checkpoint(ckpt_path, device=str(device))
     test_loss, test_per_dim = evaluate(best_model, test_loader, device, is_combined)
 
     print(f"\n{'='*60}")
     print(f"Test loss: {test_loss:.5f}")
-    print("Per-dim test RMSE (归一化空间):")
+    print("Per-dim test RMSE (note):")
     for name, val in zip(DIM_NAMES, test_per_dim):
         rmse = math.sqrt(float(val))
-        ok   = "✓" if rmse < (0.05 if name != "accel_x" else 0.10) else "✗"
+        ok   = "PASS" if rmse < (0.05 if name!= "accel_x" else 0.10) else "✗"
         print(f"  {name:12s}: RMSE = {rmse:.5f}  {ok}")
 
-    print(f"\nBest checkpoint saved → {ckpt_path}")
+    print(f"\nBest checkpoint saved -> {ckpt_path}")
 
-    # ─ 保存训练历史 ─
+    # ─ savetrainingnote ─
     hist_path = os.path.join(args.output_dir, f"history_{args.mode}.json")
     with open(hist_path, "w", encoding="utf-8") as f:
         json.dump(history, f, indent=2)
-    print(f"Training history → {hist_path}")
+    print(f"Training history -> {hist_path}")
 
 
 if __name__ == "__main__":

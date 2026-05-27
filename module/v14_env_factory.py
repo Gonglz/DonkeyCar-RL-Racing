@@ -8,16 +8,16 @@ import gym
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 
-from .v14_dep_sim_core import TrackNodeCache, NPCController
-from .v14_wrapper import GeneratedTrackV14Wrapper
-from .v14_paths import default_generated_track_profile
+from.v14_dep_sim_core import TrackNodeCache, NPCController
+from.v14_wrapper import GeneratedTrackV14Wrapper
+from.v14_paths import default_generated_track_profile
 
 def _query_generated_track_cache_from_env(env, scene_name="generated_track", total_nodes=108):
-    """从已创建env中查询赛道节点并构建fine track缓存。"""
+    """noteenvnotetracknotefine tracknote."""
     track_cache = TrackNodeCache()
     handler = getattr(getattr(env, "viewer", None), "handler", None)
     if handler is None:
-        raise RuntimeError("无法获取 DonkeySim handler，不能查询赛道节点")
+        raise RuntimeError("note DonkeySim handler, notetracknote")
     track_cache.query_nodes(handler, scene_name, total_nodes=int(total_nodes))
     if not track_cache.fine_track.get(scene_name):
         track_cache._build_fine_track(scene_name)
@@ -26,7 +26,7 @@ def _query_generated_track_cache_from_env(env, scene_name="generated_track", tot
 
 def create_v14_env_and_npcs(args, curriculum_stage_ref, dist_scale_default,
                              lazy_connect_npcs=False):
-    """创建V14训练环境 + NPC控制器。"""
+    """noteV14trainingnote + NPCcontrolnote."""
     import gym_donkeycar  # noqa
 
     conf = {
@@ -50,7 +50,7 @@ def create_v14_env_and_npcs(args, curriculum_stage_ref, dist_scale_default,
     env._max_episode_steps = int(args.max_episode_steps)
     time.sleep(1.5)
 
-    # 创建 track cache
+    # note track cache
     track_cache = TrackNodeCache()
     try:
         track_cache = _query_generated_track_cache_from_env(
@@ -59,7 +59,7 @@ def create_v14_env_and_npcs(args, curriculum_stage_ref, dist_scale_default,
     except Exception as e:
         print(f"⚠️ track cache query failed: {e}")
 
-    # NPC 控制器
+    # NPC controlnote
     num_npc = int(getattr(args, 'num_npc', 2))
     npc_colors = [
         (255, 100, 100), (100, 255, 100), (255, 255, 100),
@@ -85,7 +85,7 @@ def create_v14_env_and_npcs(args, curriculum_stage_ref, dist_scale_default,
                 print(f"⚠️ NPC {i} connect failed: {e}")
         npcs.append(npc)
 
-    # Wrapper 链
+    # Wrapper note
     wrapper = GeneratedTrackV14Wrapper(
         env,
         npc_controllers=npcs,
@@ -146,13 +146,13 @@ def create_v14_env_and_npcs(args, curriculum_stage_ref, dist_scale_default,
         v14_stage34_npc_contact_reset_cooldown_steps=int(
             getattr(args, 'v14_stage34_npc_contact_reset_cooldown_steps', 60)
         ),
-        # V11_1 控制层参数
+        # V11_1 controlnote
         v_ref_min=float(getattr(args, 'v_ref_min', 0.05)),
         v_ref_max=float(getattr(args, 'v_ref_max', 2.0)),
         kappa_ref_max=float(getattr(args, 'kappa_ref_max', 2.1)),
         startup_force_throttle_steps=int(getattr(args, 'startup_force_throttle_steps', 60)),
         startup_force_throttle=float(getattr(args, 'startup_force_throttle', 0.28)),
-        # V10 参数
+        # V10 note
         spawn_jitter_s_sim=float(getattr(args, 'spawn_jitter_s_sim', 0.30)),
         spawn_jitter_d_sim=float(getattr(args, 'spawn_jitter_d_sim', 0.25)),
         spawn_yaw_jitter_deg=float(getattr(args, 'spawn_yaw_jitter_deg', 6.0)),

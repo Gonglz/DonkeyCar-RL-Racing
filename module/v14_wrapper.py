@@ -10,35 +10,35 @@ from typing import Optional
 
 import numpy as np
 
-from .v14_dep_generatedtrack_base import (
+from.v14_dep_generatedtrack_base import (
     ManualWidthSpawnSampler,
     GeneratedTrackV11_1Wrapper,
 )
 
-from .v14_racing_line import RacingLineComputer
-from .v14_distillation import PolicyDistillationManager
-from .v14_stage_profiles import STAGE_TRAIN_PROFILES_V14
-from .v14_wrapper_spawn import V14SpawnResetMixin
-from .v14_wrapper_npc import V14NpcRuntimeMixin
-from .v14_wrapper_reward import V14RewardMixin
-from .v14_paths import default_generated_track_profile
+from.v14_racing_line import RacingLineComputer
+from.v14_distillation import PolicyDistillationManager
+from.v14_stage_profiles import STAGE_TRAIN_PROFILES_V14
+from.v14_wrapper_spawn import V14SpawnResetMixin
+from.v14_wrapper_npc import V14NpcRuntimeMixin
+from.v14_wrapper_reward import V14RewardMixin
+from.v14_paths import default_generated_track_profile
 
 
 class GeneratedTrackV14Wrapper(V14RewardMixin, V14NpcRuntimeMixin, V14SpawnResetMixin, GeneratedTrackV11_1Wrapper):
     """
-    V14 Wrapper: 继承V11_1的控制层，新增:
-    - 赛车线奖励 (Stage 1)
-    - 主动避障奖励 (Stage 2)
-    - 动态避让奖励 (Stage 3)
-    - 混沌+防遗忘 (Stage 4)
-    - 混合采样逻辑
+    V14 Wrapper: noteV11_1notecontrolnote, note:
+    - notereward (Stage 1)
+    - notereward (Stage 2)
+    - dynamicnotereward (Stage 3)
+    - note+note (Stage 4)
+    - note
 
-    MRO 固定顺序:
+    MRO note:
     V14RewardMixin -> V14NpcRuntimeMixin -> V14SpawnResetMixin -> GeneratedTrackV11_1Wrapper
     """
 
     def __init__(self, *args, **kwargs):
-        # V14 特有参数
+        # V14 note
         self.manual_width_profile = str(
             kwargs.pop("manual_width_profile",
                        default_generated_track_profile())
@@ -142,7 +142,7 @@ class GeneratedTrackV14Wrapper(V14RewardMixin, V14NpcRuntimeMixin, V14SpawnReset
 
         super().__init__(*args, **kwargs)
 
-        # 赛车线计算器
+        # notecomputenote
         self.manual_spawn_v14 = ManualWidthSpawnSampler(self.manual_width_profile, self.scene_name)
         self.racing_line = RacingLineComputer(
             self.manual_spawn_v14,
@@ -151,12 +151,12 @@ class GeneratedTrackV14Wrapper(V14RewardMixin, V14NpcRuntimeMixin, V14SpawnReset
             max_offset_ratio=self.racing_line_max_offset_ratio,
         )
         if self.racing_line.loaded:
-            print(f"   ✅ V14 RacingLine loaded: {self.manual_spawn_v14.fine_track.shape[0]} points")
+            print(f"   PASS V14 RacingLine loaded: {self.manual_spawn_v14.fine_track.shape[0]} points")
         else:
             print(f"   ⚠️ V14 RacingLine not loaded")
 
-        # 主动避障跟踪状态
-        self._npc_lateral_dist_history = deque(maxlen=10)  # 兼容字段（弃用）
+        # note
+        self._npc_lateral_dist_history = deque(maxlen=10)  # note(note)
         self._npc_lateral_dist_histories = {}
         self._episode_npc_free = False
         self._episode_overtake_count = 0
@@ -172,17 +172,17 @@ class GeneratedTrackV14Wrapper(V14RewardMixin, V14NpcRuntimeMixin, V14SpawnReset
         self._v14_stage34_contact_reset_cooldown_left = 0
         self._v14_force_collision_spawn_refresh = False
 
-        # 策略蒸馏引用 (由外部设置)
+        # note (note)
         self.distillation_manager: Optional[PolicyDistillationManager] = None
-        self.distillation_model_ref = None  # 当前model引用
+        self.distillation_model_ref = None  # currentmodelnote
 
     def set_distillation(self, manager: PolicyDistillationManager, model):
-        """设置策略蒸馏管理器和model引用。"""
+        """notemodelnote."""
         self.distillation_manager = manager
         self.distillation_model_ref = model
 
     def _half_width_cte_at_fine(self, fi):
-        """兼容V11基类：返回窄侧半宽（CTE单位）。"""
+        """noteV11noteclass: note(CTEnote)."""
         manual = getattr(self, 'manual_spawn', None)
         if manual is not None and getattr(manual, 'loaded', False):
             try:
@@ -192,7 +192,7 @@ class GeneratedTrackV14Wrapper(V14RewardMixin, V14NpcRuntimeMixin, V14SpawnReset
         return float(max(1e-3, getattr(self, 'current_max_cte', 10.0)))
 
     def _half_width_avg_cte_at_fine(self, fi):
-        """兼容V11基类：返回平均半宽（CTE单位）。"""
+        """noteV11noteclass: note(CTEnote)."""
         manual = getattr(self, 'manual_spawn', None)
         if manual is not None and getattr(manual, 'loaded', False):
             try:
@@ -202,7 +202,7 @@ class GeneratedTrackV14Wrapper(V14RewardMixin, V14NpcRuntimeMixin, V14SpawnReset
         return float(max(1e-3, getattr(self, 'current_max_cte', 10.0)))
 
     def _half_width_wide_cte_at_fine(self, fi):
-        """兼容V11基类：返回宽侧半宽（CTE单位）。"""
+        """noteV11noteclass: note(CTEnote)."""
         manual = getattr(self, 'manual_spawn', None)
         if manual is not None and getattr(manual, 'loaded', False):
             try:
@@ -213,12 +213,12 @@ class GeneratedTrackV14Wrapper(V14RewardMixin, V14NpcRuntimeMixin, V14SpawnReset
 
     def reset(self):
         """Reset with mixed sampling support for Stage 4."""
-        # 混合采样: Stage 4 以 p_npc_free 概率运行无NPC episode
+        # note: Stage 4 note p_npc_free noterowsnoteNPC episode
         stage_id = int(self.curriculum_stage_ref.get('stage', 1))
         p_free = float(self.curriculum_stage_ref.get('p_npc_free', self.p_npc_free))
         if stage_id == 4 and p_free > 0 and random.random() < p_free:
             self._episode_npc_free = True
-            # 临时将npc_count设为0
+            # notenpc_countnote0
             self._saved_npc_count = int(self.curriculum_stage_ref.get('npc_count', 0))
             self.curriculum_stage_ref['npc_count'] = 0
         else:
@@ -226,11 +226,11 @@ class GeneratedTrackV14Wrapper(V14RewardMixin, V14NpcRuntimeMixin, V14SpawnReset
 
         obs = super().reset()
 
-        # 恢复npc_count
+        # notenpc_count
         if self._episode_npc_free and hasattr(self, '_saved_npc_count'):
             self.curriculum_stage_ref['npc_count'] = self._saved_npc_count
 
-        # 重置V14状态
+        # noteV14note
         self._npc_lateral_dist_history.clear()
         self._npc_lateral_dist_histories = {}
         self._episode_overtake_count = 0
@@ -252,7 +252,7 @@ class GeneratedTrackV14Wrapper(V14RewardMixin, V14NpcRuntimeMixin, V14SpawnReset
         if base_cte is None:
             base_cte = float(getattr(self, "current_max_cte", 8.0))
 
-        # Stage3/4 的出界done收紧到 Stage1/2 口径（不比早期阶段更宽松）
+        # Stage3/4 notedonenote Stage1/2 note(notestagenote)
         if int(stage_id) >= 3:
             stage12_cte = []
             for sid in (1, 2):
@@ -267,7 +267,7 @@ class GeneratedTrackV14Wrapper(V14RewardMixin, V14NpcRuntimeMixin, V14SpawnReset
 
         cte_relax = float(self.v14_cte_done_relax)
         if int(stage_id) >= 3:
-            cte_relax = min(0.0, cte_relax)  # 收紧模式下不允许放宽
+            cte_relax = min(0.0, cte_relax)  # note
         self.current_max_cte = float(max(0.5, float(base_cte) + cte_relax))
 
         return obs

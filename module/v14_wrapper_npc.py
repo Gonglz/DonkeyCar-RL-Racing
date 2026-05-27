@@ -7,13 +7,13 @@ import random
 
 import numpy as np
 
-from .v14_dep_sim_core import SimExtendedAPI
-from .utils import _safe_float
+from.v14_dep_sim_core import SimExtendedAPI
+from.utils import _safe_float
 
 
 class V14NpcRuntimeMixin:
     def _maybe_reset_stuck_npcs(self, info=None):
-        """V14自写: NPC卡住不动时，触发NPC重置。"""
+        """V14note: NPCnote, noteNPCnote."""
         if not self._npc_stuck_reset_enabled():
             return False
         if not self._v14_npc_reset_enabled():
@@ -87,7 +87,7 @@ class V14NpcRuntimeMixin:
             ) + int(bool(ok))
         if ok:
             self.npc_layout_last_reset_reason = "v14_npc_stuck"
-            print(f"🚨 V14 NPC卡住重置: ids={stuck_ids} cooldown={self._npc_stuck_reset_cooldown_left}")
+            print(f"🚨 V14 NPCnote: ids={stuck_ids} cooldown={self._npc_stuck_reset_cooldown_left}")
         return bool(ok)
     def _maybe_handle_npc_npc_contact_reset(self, info=None):
         if isinstance(info, dict):
@@ -252,7 +252,7 @@ class V14NpcRuntimeMixin:
         if not bool(self.v14_npc_wobble_in_place):
             return
         mode = self._normalize_npc_mode(self.curriculum_stage_ref.get("npc_mode", "offtrack"))
-        if mode != "wobble":
+        if mode!= "wobble":
             return
         active_npcs = self._active_npcs()
         if not active_npcs:
@@ -260,7 +260,7 @@ class V14NpcRuntimeMixin:
         self._v14_wobble_tick += 1
         tick = int(self._v14_wobble_tick)
         update_every = max(1, int(self.v14_npc_wobble_update_every_steps))
-        if (tick % update_every) != 0:
+        if (tick % update_every)!= 0:
             return
         period = max(12, int(self.v14_npc_wobble_period_steps))
         radius = max(0.02, float(self.v14_npc_wobble_radius_sim))
@@ -308,12 +308,12 @@ class V14NpcRuntimeMixin:
                 continue
     def _compute_learner_npc_lateral_dist(self, info, npc_feat):
         """
-        计算learner与NPC的真实横向距离（垂直于赛道切线方向的投影距离）。
+        computelearnernoteNPCnote(notetracknote).
 
-        用赛道切线向量将learner-NPC位移分解为:
-        - longitudinal: 沿赛道方向的距离（前后）
-        - lateral: 垂直于赛道方向的距离（左右）
-        返回: (lateral_dist, longitudinal_dist)
+        notetracknotelearner-NPCnote:
+        - longitudinal: notetracknote(firstnote)
+        - lateral: notetracknote(note)
+        note: (lateral_dist, longitudinal_dist)
         """
         lx, _, lz = self._extract_pos(info)
         npc = npc_feat.get('npc')
@@ -321,7 +321,7 @@ class V14NpcRuntimeMixin:
             return 0.0, 0.0
         nx, _, nz = npc.get_telemetry_position()
 
-        # 赛道切线方向（在learner位置处）
+        # tracknote(notelearnernote)
         learner_fi = npc_feat.get('learner_fine_idx', getattr(self, 'learner_fine_idx', 0))
         if self.manual_spawn_v14.loaded:
             tx, tz = self.manual_spawn_v14.tangent(learner_fi)
@@ -341,13 +341,13 @@ class V14NpcRuntimeMixin:
         else:
             tx, tz = 0.0, 1.0
 
-        # learner→NPC 位移向量
+        # learner->NPC note
         dx = nx - lx
         dz = nz - lz
 
-        # 投影: longitudinal = dot(delta, tangent), lateral = cross(tangent, delta)
+        # note: longitudinal = dot(delta, tangent), lateral = cross(tangent, delta)
         longitudinal = dx * tx + dz * tz
-        lateral = abs(dx * (-tz) + dz * tx)  # 法向分量的绝对值
+        lateral = abs(dx * (-tz) + dz * tx)  # note
 
         return lateral, longitudinal
     def _avg_fine_gap_sim(self):
@@ -359,12 +359,12 @@ class V14NpcRuntimeMixin:
             return int(max(1, default_idx))
     def _place_npc_on_learner_path(self, npc, learner_fi, ahead_range=None, learner_pos=None):
         """
-        将NPC放置在learner前方路径上（赛车线位置）。
+        noteNPCnotelearnerfirstnotepathnote(note).
 
         Args:
             npc: NPCController
-            learner_fi: learner当前的fine_track索引
-            ahead_range: (min_idx, max_idx) 前方fine_track索引偏移范围
+            learner_fi: learnercurrentnotefine_tracknote
+            ahead_range: (min_idx, max_idx) firstnotefine_tracknote
         """
         if not self.manual_spawn_v14.loaded:
             return False
@@ -473,8 +473,8 @@ class V14NpcRuntimeMixin:
         return False
     def _maybe_reposition_npcs_on_path(self, info):
         """
-        Stage 2/4: 检查NPC是否在learner前方路径上。
-        如果NPC已被agent超过或距离过远，则重新放置到前方路径上。
+        Stage 2/4: noteNPCnotelearnerfirstnotepathnote.
+        noteNPCnoteagentnote, notefirstnotepathnote.
         """
         stage_id = int(self.curriculum_stage_ref.get('stage', 1))
         if stage_id not in (2, 4) or self._episode_npc_free:
@@ -503,7 +503,7 @@ class V14NpcRuntimeMixin:
                 if cur_step - last_step < min_step_gap:
                     continue
 
-            # NPC在agent后方(被超过) 或 距离过远 → 重新放置到前方
+            # NPCnoteagentnote(note) note-> notefirstnote
             d_reposition = float(self.dist_scale.get('follow_safe_max_sim', 4.0)) * max(2.0, float(self.v14_reposition_far_factor))
             if progress_diff > overpass_gap_idx or dist > d_reposition:
                 ok = self._place_npc_on_learner_path(

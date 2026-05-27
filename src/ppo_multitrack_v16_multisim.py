@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
 """
-DonkeyCar PPO V16 — Multi-Simulator Parallel Training
+DonkeyCar PPO V16 - Multi-Simulator Parallel Training
 ======================================================
-与 ppo_multitrack_v16.py 功能完全相同，额外支持 --ports 参数，
-同时连接多个模拟器实例（SubprocVecEnv），理论提速 N_envs 倍。
+note ppo_multitrack_v16.py note, note --ports note,
+note(SubprocVecEnv), note N_envs note.
 
-不修改任何原有文件，所有逻辑通过 import 复用 ppo_multitrack_v16。
+notefile, note import note ppo_multitrack_v16.
 
-用法示例:
-  # 先启动3个模拟器
+note:
+  # note3note
   bash ~/bin/start_donkey_vnc_multi.sh
 
-  # 使用3个模拟器训练（端口9093/9095/9097）
+  # note3notetraining(note9093/9095/9097)
   python src/ppo_multitrack_v16_multisim.py \
       --ports 9093 9095 9097 \
       --auto-curriculum \
       --steps 2000000
 
-  # 仍然支持单端口模式（等价于原脚本）
+  # note(note)
   python src/ppo_multitrack_v16_multisim.py --port 9091 --steps 2000000
 
-  # 若未显式指定 --auto-curriculum / --curriculum-phase，
-  # 则使用默认平坦配置直接训练（obstacle_count=2, obstacle_free_prob=0.15）
+  # note --auto-curriculum / --curriculum-phase,
+  # notedefaultnoteconfigurationnotetraining(obstacle_count=2, obstacle_free_prob=0.15)
 """
 
 from __future__ import annotations
@@ -35,14 +35,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# ── sys.path 与原脚本保持一致 ──────────────────────────────────────────────────
+# ── sys.path note ──────────────────────────────────────────────────
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _repo_root = str(REPO_ROOT)
 while _repo_root in sys.path:
     sys.path.remove(_repo_root)
 sys.path.insert(0, _repo_root)
 
-# ── 第三方 ────────────────────────────────────────────────────────────────────
+# ── note ────────────────────────────────────────────────────────────────────
 import numpy as np
 import torch
 from stable_baselines3.common.callbacks import BaseCallback
@@ -53,11 +53,11 @@ try:
 except Exception:
     RecurrentPPO = None
 
-# ── 从原模块直接 import（不修改原文件）──────────────────────────────────────────
-# 定义在 ppo_multitrack_v16.py 里的常量与帮助函数
+# ── note import(notefile)──────────────────────────────────────────
+# note ppo_multitrack_v16.py notefunction
 import ppo_multitrack_v16 as _v16
 from ppo_multitrack_v16 import (
-    # 常量
+    # note
     SCENE_SPECS,
     DEFAULT_ENV_IDS,
     DEFAULT_TRACK_DIR,
@@ -67,17 +67,17 @@ from ppo_multitrack_v16 import (
     CURRICULUM_PHASES,
     CURRICULUM_PHASE_ALIASES,
     AUTO_CURRICULUM_STAGES,
-    # 帮助函数（定义在 v16 文件中）
+    # notefunction(note v16 filenote)
     _apply_curriculum_phase,
     _resolve_track_dir,
     run_preflight_tests,
     _install_sim_wait_timeout_patch,
     _probe_sim_tcp,
-    # Callback 类（v16 中定义或 re-export）
+    # Callback class(v16 note re-export)
     CurriculumWindowAdvanceCallback,
 )
 
-# 从各自原始模块 import
+# note import
 import gym
 import gym_donkeycar  # noqa: F401
 from module.actor import FiLMFeatureExtractor
@@ -101,26 +101,26 @@ from module.utils import (
     load_config,
 )
 
-# ── WS 障碍位置修正（直接修改原模块全局变量）─────────────────────────────────
-# WS 是环形赛道（loop_len≈8.3m），progress∈[0,1) 首尾相连。
-# 原始 WS_FINISH_OBSTACLE_PROGRESS_RATIO_V16 = 0.08：
-#   min_arc = min(0.08, 0.92) × 8.3 = 0.664m  → 障碍在起点前 0.664m，即时碰撞
+# ── WS obstaclenote(note)─────────────────────────────────
+# WS notetrack(loop_len~8.3m), progress∈[0,1) note.
+# note WS_FINISH_OBSTACLE_PROGRESS_RATIO_V16 = 0.08:
+#   min_arc = min(0.08, 0.92) x 8.3 = 0.664m  -> obstaclenotefirst 0.664m, note
 #
-# 正确做法：progress=0.5（圆弧对面），min_arc = 0.5×8.3 = 4.15m > 3.0m ✓
-# 车需要跑半圈（4.15m）才能遇到障碍，validity check 通过，fallback 不触发。
+# note: progress=0.5(note), min_arc = 0.5x8.3 = 4.15m > 3.0m PASS
+# note(4.15m)noteobstacle, validity check note, fallback note.
 #
-# 关键：_apply_curriculum_phase() 定义在 ppo_multitrack_v16.py 里，
-# 读的是该模块自己的 CURRICULUM_PHASES 全局变量。
-# 在本模块 deepcopy 只改了本地副本，不影响 v16 模块内部的 _apply_curriculum_phase。
-# 必须直接修改 _v16.CURRICULUM_PHASES 才能生效。
+# note: _apply_curriculum_phase() note ppo_multitrack_v16.py note,
+# note CURRICULUM_PHASES note.
+# note deepcopy note, note v16 note _apply_curriculum_phase.
+# note _v16.CURRICULUM_PHASES note.
 _v16.CURRICULUM_PHASES["warmup"]["ws_obstacle_fixed_progress_ratio"] = 0.5
-# warmup 阶段原 obstacle_min_agent_arc_dist_m=5.5m > WS 半圈=4.15m → fallback 必然触发
-# 改为 3.0m；配合 progress=0.5 时 min_arc=4.15m > 3.0m，validity 必然通过
+# warmup stagenote obstacle_min_agent_arc_dist_m=5.5m > WS note=4.15m -> fallback note
+# note 3.0m; note progress=0.5 note min_arc=4.15m > 3.0m, validity note
 _v16.CURRICULUM_PHASES["warmup"]["obstacle_min_agent_arc_dist_m"] = 3.0
-# warmup 阶段禁用 WS 障碍：
-#   1. WS 是环形小赛道（8.3m），障碍 TCP 操作（place_pose 1.5s 超时）拖慢 SubprocVecEnv 的所有 env
-#   2. teleport_pose 失败时悄悄 pass → 障碍车残留在赛道 → "撞到锥桶不动" 视觉问题
-#   3. warmup 课程本就是练习基础驾驶，WS 障碍属于后期阶段
+# warmup stagenote WS obstacle:
+#   1. WS notetrack(8.3m), obstacle TCP note(place_pose 1.5s note)note SubprocVecEnv note env
+#   2. teleport_pose failednote pass -> obstaclenotetrack -> "note" note
+#   3. warmup note, WS obstaclenotestage
 _v16.CURRICULUM_PHASES["warmup"]["ws_obstacle_free_prob"] = 1.0
 
 
@@ -129,7 +129,7 @@ _v16.CURRICULUM_PHASES["warmup"]["ws_obstacle_free_prob"] = 1.0
 # ══════════════════════════════════════════════════════════════════════════════
 
 def train_v16_multisim(
-    # ── 与 train_v16 完全相同的参数列表 ──────────────────────────────────────
+    # ── note train_v16 note ──────────────────────────────────────
     env_ids: Optional[List[str]] = None,
     scene_weights: Optional[List[float]] = None,
     track_dir: str = DEFAULT_TRACK_DIR,
@@ -277,12 +277,12 @@ def train_v16_multisim(
     extra_callbacks: Optional[List[BaseCallback]] = None,
     extra_run_metadata: Optional[Dict[str, Any]] = None,
     config_filename: str = "v16_config.json",
-    # ── 新增：多端口支持 ───────────────────────────────────────────────────────
+    # ── note: note ───────────────────────────────────────────────────────
     ports: Optional[List[int]] = None,
 ):
     """
-    与 train_v16() 完全相同，额外支持 ports 参数。
-    当 ports 包含多个端口时，使用 SubprocVecEnv 并行连接多个模拟器实例。
+    note train_v16() note, note ports note.
+    note ports note, note SubprocVecEnv noterowsnote.
     """
     if RecurrentPPO is None:
         raise ImportError("sb3_contrib not available, please install sb3-contrib==1.8.0")
@@ -352,7 +352,7 @@ def train_v16_multisim(
         scene_weights = [1.0 / len(env_ids)] * len(env_ids)
     else:
         total_w = float(sum(scene_weights))
-        if len(scene_weights) != len(env_ids) or total_w <= 0:
+        if len(scene_weights)!= len(env_ids) or total_w <= 0:
             raise ValueError("scene_weights length/sum invalid")
         scene_weights = [float(w) / total_w for w in scene_weights]
 
@@ -362,7 +362,7 @@ def train_v16_multisim(
     snapshot_dir = os.path.join(save_dir, "scene_start_snapshots")
     os.makedirs(snapshot_dir, exist_ok=True)
 
-    # ── 解析端口列表（新增逻辑）────────────────────────────────────────────────
+    # ── parsenote(note)────────────────────────────────────────────────
     _launch_sim = bool(sim_path and sim_path not in ("", "remote", "none"))
     sim_host = "127.0.0.1"
     sim_port = int(port)
@@ -406,16 +406,16 @@ def train_v16_multisim(
             resend_scene_names_s=float(sim_wait_resend_scene_names_s),
         )
 
-    # ── TCP 探测（探测所有端口）──────────────────────────────────────────────
+    # ── TCP note(note)──────────────────────────────────────────────
     if not _launch_sim:
         for p in _ports:
             ok, err = _probe_sim_tcp(sim_host, p, timeout_s=1.0)
             if ok:
-                print(f"✅ sim tcp reachable: {sim_host}:{p}")
+                print(f"PASS sim tcp reachable: {sim_host}:{p}")
             else:
                 print(f"⚠️  sim tcp not reachable: {sim_host}:{p} ({err})")
 
-    # ── conf 基础（以第一个端口为基础；各 env 的 conf 在工厂函数中覆盖端口）──
+    # ── conf note(note; note env note conf notefunctionnote)──
     cfg = load_config(myconfig=DEFAULT_MYCONFIG)
     if cfg is not None and hasattr(cfg, "GYM_CONF"):
         conf = cfg.GYM_CONF.copy()
@@ -482,7 +482,7 @@ def train_v16_multisim(
         def step(self, action):
             return self.reset(), 0.0, False, {}
 
-    # n_envs 份 DummyEnv，确保 model 初始化时 n_envs 与后续 SubprocVecEnv 一致
+    # n_envs note DummyEnv, note model note n_envs note SubprocVecEnv note
     dummy_vec_env = DummyVecEnv([lambda: DummyEnv()] * n_envs)
     _safe_seed_env(dummy_vec_env, seed, label="dummy_v16_env")
 
@@ -538,20 +538,20 @@ def train_v16_multisim(
     model_start_timesteps = int(getattr(model, "num_timesteps", 0))
     dummy_vec_env.close()
 
-    # ── env 工厂函数（核心改动：每个 env 使用独立端口）────────────────────────
-    _repo_root_str = str(REPO_ROOT)  # 捕获进 closure，spawn 子进程重建 sys.path 用
+    # ── env notefunction(note: note env note)────────────────────────
+    _repo_root_str = str(REPO_ROOT)  # note closure, spawn note sys.path note
 
     def make_env_factory(env_port: int):
-        """为指定端口创建 env 工厂闭包。conf 浅拷贝后覆盖 port。"""
+        """note env note.conf note port."""
         env_conf = dict(conf)
         env_conf["port"] = env_port
 
         def _make():
-            # spawn 模式下子进程 sys.path 不继承父进程动态修改，手动补充
+            # spawn note sys.path notedynamicnote, note
             import sys as _sys
             if _repo_root_str not in _sys.path:
                 _sys.path.insert(0, _repo_root_str)
-            import gym_donkeycar  # noqa: F401 — 确保 gym 注册
+            import gym_donkeycar  # noqa: F401 - note gym note
             from module.multi_scene_env import MultiSceneEnvV16 as _MSE
             return _MSE(
                 env_ids=env_ids,
@@ -672,7 +672,7 @@ def train_v16_multisim(
 
     env_fns = [make_env_factory(p) for p in _ports]
 
-    # ── VecEnv 创建（核心改动）────────────────────────────────────────────────
+    # ── VecEnv note(note)────────────────────────────────────────────────
     if n_envs > 1:
         vec_env_start_method = str(vec_env_start_method or "spawn").strip().lower()
         if vec_env_start_method not in {"fork", "forkserver", "spawn"}:
@@ -884,7 +884,7 @@ def train_v16_multisim(
         json.dump(config, f, indent=2, ensure_ascii=False)
 
     print("\n" + "=" * 76)
-    print("✅ V16 Multi-Sim training finished")
+    print("PASS V16 Multi-Sim training finished")
     print("=" * 76)
     print(f"elapsed: {elapsed / 3600.0:.2f} h")
     print(f"model: {final_model_path}.zip")
@@ -907,7 +907,7 @@ def train_v16_multisim(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Auto-curriculum wrapper（与 train_v16_auto_curriculum 等价，调用 multisim 版本）
+# Auto-curriculum wrapper(note train_v16_auto_curriculum note, note multisim note)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def train_v16_multisim_auto_curriculum(
@@ -993,7 +993,7 @@ def train_v16_multisim_auto_curriculum(
         if stage_idx > 0:
             stage_train_kwargs["run_preflight_checks"] = False
 
-        # 调用 multisim 版本而非原 train_v16
+        # note multisim note train_v16
         stage_result = train_v16_multisim(
             total_timesteps=stage_budget_timesteps,
             save_dir=save_dir,
@@ -1056,7 +1056,7 @@ def train_v16_multisim_auto_curriculum(
         json.dump(auto_summary, f, indent=2, ensure_ascii=False)
 
     print("\n" + "=" * 76)
-    print("✅ V16 Multi-Sim auto curriculum finished")
+    print("PASS V16 Multi-Sim auto curriculum finished")
     print("=" * 76)
     print(f"summary: {auto_summary_path}")
     print(f"trained: {total_trained_timesteps}/{total_requested_timesteps}")
@@ -1066,7 +1066,7 @@ def train_v16_multisim_auto_curriculum(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CLI 入口
+# CLI entry point
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
@@ -1081,10 +1081,10 @@ def main() -> None:
     parser.add_argument("--steps", type=int, default=2_000_000)
     parser.add_argument("--save-dir", type=str, default="models/v16_multi_scene_obstacle")
     parser.add_argument("--port", type=int, default=9091,
-                        help="单端口模式端口号（未指定 --ports 时使用）")
+                        help="note(note --ports note)")
     parser.add_argument(
         "--ports", nargs="+", type=int, default=None,
-        help="多模拟器端口列表，例如 --ports 9093 9095 9097。指定后忽略 --port。"
+        help="note, note --ports 9093 9095 9097.note --port."
     )
     parser.add_argument(
         "--curriculum-phase",
@@ -1163,10 +1163,10 @@ def main() -> None:
         )
         print(
             "   If you want the staged curriculum, use: "
-            "python src/ppo_multitrack_v16_multisim.py --ports ... --auto-curriculum --steps ..."
+            "python src/ppo_multitrack_v16_multisim.py --ports... --auto-curriculum --steps..."
         )
 
-    # 多端口优先；未指定 --ports 则退化为单端口
+    # note; note --ports note
     resolved_ports = args.ports if args.ports else None
 
     common_kwargs = dict(

@@ -1,36 +1,30 @@
 #!/usr/bin/env python3
 """
-四车分组竞速训练脚本
+notetrainingnote
 ============================================================
-目标:
-  - 在同一个DonkeySim实例中放入四辆车
-  - 分成两组：A组(蓝车)和B组(红车)
-  - 每组两辆车共享同一个模型
-  - 组内合作 + 组间竞争
+goal:
+  - noteDonkeySimnote
+  - note: Anote(note)noteBnote(note)
+  - notemodel
+  - note + note:
+  - Anote (note): Blue1, Blue2 - noteBlueTeammodel
+  - Bnote (note): Red1, Red2 - noteRedTeammodel
 
-分组策略:
-  - A组 (蓝车): Blue1, Blue2 - 共享BlueTeam模型
-  - B组 (红车): Red1, Red2 - 共享RedTeam模型
+rewardnote:
+  - notereward: CTEnote, notereward, note
+  - note: note
+  - note: note
 
-奖励机制:
-  - 基础奖励: CTE惩罚、存活奖励、碰撞惩罚
-  - 组内合作: 帮助队友完成圈速
-  - 组间竞争: 比拼组平均完圈时间
+trainingstage:
+  - first2wnote: note(note)
+  - note2wnote: note(notereward)
 
-训练阶段:
-  - 前2w步: 学习跑圈（基础奖惩）
-  - 后2w步: 分组竞赛（组间竞争奖励）
-
-实现方式:
-  - 两个训练进程（每组一个进程）
-  - 每个进程管理两辆车
-  - 进程间通过共享状态通信组间信息
-
-使用前提:
-  - DonkeySim 已经在 9091 端口启动
-  - 仿真器支持多车显示
-
-运行示例:
+implementnote:
+  - notetrainingnote(note)
+  - note
+  - notefirstnote:
+  - DonkeySim note 9091 note
+  - noterowsnote:
   python train_quad_team_racing.py --steps 40000 --scene waveshare
 
 ============================================================
@@ -58,7 +52,7 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 from multiprocessing import Process, Manager
 
-# ===== 速度单位统一工具 =====
+# ===== noteunifiednote =====
 
 class _SpeedUnits:
     def __init__(self, speed_max_mps=3.0):
@@ -67,7 +61,7 @@ class _SpeedUnits:
     def norm(self, v_mps: float) -> float:
         return float(np.clip(v_mps / max(1e-6, self.speed_max), 0.0, 1.0))
 
-# ===== V6 多模态组件 =====
+# ===== V6 note =====
 
 class YellowLaneEnhancer:
     def __init__(self):
@@ -90,9 +84,9 @@ class RealLidarProcessor:
             try:
                 from lidar.ld19 import LD19
                 self.lidar_hardware = LD19(port=port)
-                print(f"✅ LD19硬件LiDAR已连接 ({port})")
+                print(f"PASS LD19noteLiDARnote ({port})")
             except Exception as e:
-                print(f"⚠️ 硬件LiDAR初始化失败: {e}")
+                print(f"⚠️ noteLiDARnotefailed: {e}")
                 self.lidar_hardware = None
 
     def process(self, raw_data=None):
@@ -100,7 +94,7 @@ class RealLidarProcessor:
             lidar_raw = self.lidar_hardware.get_sector_distances(self.num_sectors)
         elif raw_data is not None and len(raw_data) > 0:
             lidar_raw = np.array(raw_data, dtype=np.float32)
-            if len(lidar_raw) != self.num_sectors:
+            if len(lidar_raw)!= self.num_sectors:
                 lidar_raw = np.zeros(self.num_sectors, dtype=np.float32)
         else:
             lidar_raw = np.zeros(self.num_sectors, dtype=np.float32)
@@ -177,7 +171,7 @@ class V6MultiModalWrapper(gym.Wrapper):
             'lidar': gym.spaces.Box(low=0.0, high=1.0, shape=(36,), dtype=np.float32)
         })
 
-        print(f"✅ V6多模态环境初始化完成")
+        print(f"PASS V6note")
 
     def reset(self, **kwargs):
         obs = self.env.reset(**kwargs)
@@ -218,8 +212,8 @@ class V6MultiModalWrapper(gym.Wrapper):
         motion_normalized = motion_resized.astype(np.float32) / 255.0
 
         image_6ch = np.concatenate([
-            rgb, yellow_mask[np.newaxis, :, :],
-            edges[np.newaxis, :, :], motion_normalized[np.newaxis, :, :]
+            rgb, yellow_mask[np.newaxis,:,:],
+            edges[np.newaxis,:,:], motion_normalized[np.newaxis,:,:]
         ], axis=0)
         image_chw = (image_6ch * 255).astype(np.uint8)
 
@@ -266,16 +260,16 @@ class MultiModalCNN(BaseFeaturesExtractor):
         combined = torch.cat([image_features, lidar_features], dim=1)
         return self.fusion(combined)
 
-# ===== 组队奖励包装器 =====
+# ===== noterewardnote =====
 
 class TeamRewardWrapper(gym.Wrapper):
     """
-    组队奖励包装器：组内合作 + 组间竞争
+    noterewardnote: note + note
 
-    奖励逻辑:
-    - 基础奖励: CTE惩罚、存活奖励、碰撞惩罚
-    - 组内合作: 队友完成圈时给予小额奖励
-    - 组间竞争: 基于组平均完圈时间的竞争奖励
+    rewardnote:
+    - notereward: CTEnote, notereward, note
+    - note: notereward
+    - note: notereward
     """
 
     def __init__(self, env, team_name, car_id, shared_state, team_coop_coeff=0.1, team_compete_coeff=1.0):
@@ -286,13 +280,13 @@ class TeamRewardWrapper(gym.Wrapper):
         self.team_coop_coeff = team_coop_coeff
         self.team_compete_coeff = team_compete_coeff
 
-        # 基础奖励参数
+        # noterewardnote
         self.survival_reward_per_step = 0.5
         self.cte_penalty_threshold = 3.0
         self.cte_penalty = -0.2
         self.collision_penalty = -50.0
 
-        # 组队状态跟踪
+        # note
         self.last_lap_count = 0
         self.my_lap_times = []
         self.teammate_lap_times = []
@@ -300,22 +294,22 @@ class TeamRewardWrapper(gym.Wrapper):
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
 
-        # 基础奖励
+        # notereward
         shaped_reward = self.survival_reward_per_step
 
-        # CTE惩罚
+        # CTEnote
         cte = abs(info.get('cte', 0.0))
         if cte > self.cte_penalty_threshold:
             shaped_reward += self.cte_penalty
 
-        # 碰撞惩罚
+        # note
         hit = info.get('hit', None)
-        collision = bool(info.get('collision', False)) or (hit is not None and hit != "" and hit != "none")
+        collision = bool(info.get('collision', False)) or (hit is not None and hit!= "" and hit!= "none")
         if collision:
             shaped_reward += self.collision_penalty
             info['collision_penalty'] = True
 
-        # 完圈奖励和组队逻辑
+        # noterewardnote
         lap_count = int(info.get('lap_count', info.get('lap', 0)))
         last_lap_time = float(info.get('last_lap_time', 0.0))
 
@@ -324,33 +318,33 @@ class TeamRewardWrapper(gym.Wrapper):
         if lap_count > self.last_lap_count and last_lap_time > 0.0:
             self.my_lap_times.append(last_lap_time)
 
-            # 更新共享状态
+            # note
             team_key = f"{self.team_name}_car{self.car_id}_lap_time"
             self.shared_state[team_key] = last_lap_time
             self.shared_state[f"{self.team_name}_car{self.car_id}_lap_count"] = lap_count
 
-            # 组内合作奖励：队友完成圈时给予奖励
+            # notereward: notereward
             teammate_id = 2 if self.car_id == 1 else 1
             teammate_key = f"{self.team_name}_car{teammate_id}_lap_time"
             if teammate_key in self.shared_state:
                 teammate_time = self.shared_state[teammate_key]
-                # 如果队友时间比我好，给予合作奖励
+                # note, notereward
                 if teammate_time < last_lap_time:
                     team_reward += self.team_coop_coeff
                     info['team_coop_reward'] = self.team_coop_coeff
 
-            # 组间竞争奖励（竞赛阶段）
+            # notereward(notestage)
             if self.shared_state.get('phase', 'learning') == 'competition':
                 opponent_team = 'red' if self.team_name == 'blue' else 'blue'
 
-                # 计算本组平均时间
+                # computenoteaverage time
                 my_team_times = []
                 for cid in [1, 2]:
                     tkey = f"{self.team_name}_car{cid}_lap_time"
                     if tkey in self.shared_state:
                         my_team_times.append(self.shared_state[tkey])
 
-                # 计算对方组平均时间
+                # computenoteaverage time
                 opponent_team_times = []
                 for cid in [1, 2]:
                     tkey = f"{opponent_team}_car{cid}_lap_time"
@@ -361,12 +355,12 @@ class TeamRewardWrapper(gym.Wrapper):
                     my_avg_time = np.mean(my_team_times)
                     opponent_avg_time = np.mean(opponent_team_times)
 
-                    # 如果本组平均时间更好，给予竞争奖励
+                    # noteaverage timenote, notereward
                     if my_avg_time < opponent_avg_time:
                         compete_reward = self.team_compete_coeff * (opponent_avg_time - my_avg_time) / opponent_avg_time
                         team_reward += compete_reward
                         info['team_compete_reward'] = compete_reward
-                    # 如果对方组更好，给予惩罚
+                    # note, note
                     else:
                         compete_penalty = -self.team_compete_coeff * (my_avg_time - opponent_avg_time) / my_avg_time
                         team_reward += compete_penalty
@@ -379,7 +373,7 @@ class TeamRewardWrapper(gym.Wrapper):
 
         return obs, shaped_reward + team_reward, done, info
 
-# ===== 静止检测包装器 =====
+# ===== notedetectionnote =====
 
 class StagnationResetWrapper(gym.Wrapper):
     def __init__(self, env, max_stagnant_steps: int = 25, speed_threshold: float = 0.05):
@@ -415,7 +409,7 @@ class StagnationResetWrapper(gym.Wrapper):
 
         return obs, reward, done, info
 
-# ===== 回调 =====
+# ===== note =====
 
 class TeamSaveCallback(BaseCallback):
     def __init__(self, save_freq: int, save_dir: str, team_name: str, verbose: int = 1):
@@ -431,7 +425,7 @@ class TeamSaveCallback(BaseCallback):
             ckpt_path = os.path.join(self.save_dir, "checkpoints", f"ckpt_{self.num_timesteps}.zip")
             self.model.save(ckpt_path)
             if self.verbose:
-                print(f"[{self.team_name}] 💾 保存检查点: {ckpt_path}")
+                print(f"[{self.team_name}] saved savenote: {ckpt_path}")
         return True
 
 class TeamPhaseCallback(BaseCallback):
@@ -446,7 +440,7 @@ class TeamPhaseCallback(BaseCallback):
         if self.n_calls >= self.phase_change_step and self.current_phase == 'learning':
             self.current_phase = 'competition'
             if self.verbose:
-                print(f"🔄 {self.team_name} 训练阶段切换：启用分组竞赛模式（步数: {self.n_calls}）")
+                print(f"🔄 {self.team_name} trainingstagenote: note(note: {self.n_calls})")
             if self.shared_state:
                 self.shared_state['phase'] = 'competition'
         elif self.n_calls < self.phase_change_step:
@@ -454,18 +448,18 @@ class TeamPhaseCallback(BaseCallback):
                 self.shared_state['phase'] = 'learning'
         return True
 
-# ===== 环境构建 =====
+# ===== note =====
 
 def build_team_env(team_name: str, car_id: int, port: int, scene: str, max_cte: float,
                    shared_state: dict, use_lidar: bool = False, lidar_port: str = '/dev/ttyUSB0',
                    action_noise_std: float = 0.15):
 
-    # 颜色配置：蓝组 vs 红组
+    # noteconfiguration: note vs note
     if team_name == 'blue':
-        body_rgb = (0, 0, 255) if car_id == 1 else (0, 100, 255)  # 亮蓝 vs 深蓝
+        body_rgb = (0, 0, 255) if car_id == 1 else (0, 100, 255)  # note vs note
         racer_name = f"Blue{car_id}"
     else:  # red team
-        body_rgb = (255, 0, 0) if car_id == 1 else (255, 100, 100)  # 亮红 vs 深红
+        body_rgb = (255, 0, 0) if car_id == 1 else (255, 100, 100)  # note vs note
         racer_name = f"Red{car_id}"
 
     conf = {
@@ -496,18 +490,18 @@ def build_team_env(team_name: str, car_id: int, port: int, scene: str, max_cte: 
     }
 
     env = gym.make(
-        "donkey-waveshare-v0" if scene == "waveshare" 
+        "donkey-waveshare-v0" if scene == "waveshare"
         else "donkey-circuit-launch-track-v0" if scene == "circuit_launch"
-        else "donkey-generated-track-v0", 
+        else "donkey-generated-track-v0",
         conf=conf
     )
     env = MotionDetectionWrapper(env, motion_threshold=30)
     env = V6MultiModalWrapper(env, use_lidar=use_lidar, lidar_port=lidar_port, action_noise_std=action_noise_std)
 
-    # 组队奖励包装器
+    # noterewardnote
     env = TeamRewardWrapper(env, team_name, car_id, shared_state)
 
-    # 静止检测包装器
+    # notedetectionnote
     env = StagnationResetWrapper(env, max_stagnant_steps=25, speed_threshold=0.05)
 
     env = Monitor(env, filename=None, allow_early_resets=True)
@@ -521,33 +515,33 @@ def create_policy_kwargs():
         net_arch=[dict(pi=[256, 128], vf=[256, 128])]
     )
 
-# ===== 组队训练逻辑 =====
+# ===== notetrainingnote =====
 
 def train_team(team_name: str, total_steps: int, save_dir: str, port: int, scene: str,
                max_cte: float, lr: float, save_freq: int, shared_state: dict,
                use_lidar: bool = False, lidar_port: str = '/dev/ttyUSB0',
                action_noise_std: float = 0.15):
-    """训练一整个队伍（两辆车共享模型）"""
+    """trainingnote(notemodel)"""
     try:
-        print(f"\n{'='*60}\n🚗🚗 启动 {team_name.upper()} 队伍训练\n{'='*60}")
+        print(f"\n{'='*60}\n🚗🚗 note {team_name.upper()} notetraining\n{'='*60}")
 
-        # 为队伍创建两辆车的环境
+        # note
         env1 = build_team_env(team_name, 1, port, scene, max_cte, shared_state,
                              use_lidar, lidar_port, action_noise_std)
         env2 = build_team_env(team_name, 2, port, scene, max_cte, shared_state,
                              use_lidar, lidar_port, action_noise_std)
 
-        # 创建向量环境，让两辆车并行训练
+        # note, noterowstraining
         env = DummyVecEnv([lambda: env1, lambda: env2])
 
         policy_kwargs = create_policy_kwargs()
 
         model = PPO(
             policy="MultiInputPolicy",
-            env=env,  # 使用两辆车的向量环境
+            env=env,  # note
             learning_rate=lr,
-            n_steps=2048,  # 每辆车2048步，两辆车共4096步
-            batch_size=128,  # 调整batch_size以适应更多数据
+            n_steps=2048,  # note2048note, note4096note
+            batch_size=128,  # notebatch_sizenotedata
             n_epochs=10,
             gamma=0.99,
             gae_lambda=0.95,
@@ -565,20 +559,20 @@ def train_team(team_name: str, total_steps: int, save_dir: str, port: int, scene
             TeamPhaseCallback(phase_change_step=500000, shared_state=shared_state, team_name=team_name.upper(), verbose=1)
         ]
 
-        print(f"🔥 {team_name.upper()} 队伍开始训练（两辆车并行）...")
+        print(f"🔥 {team_name.upper()} notetraining(noterows)...")
 
-        # 训练模型（两辆车同时收集经验）
+        # trainingmodel(note)
         model.learn(total_timesteps=total_steps, callback=callbacks, progress_bar=True)
 
-        # 保存最终模型
+        # savenotemodel
         final_path = os.path.join(save_dir, "final_model.zip")
         model.save(final_path)
-        print(f"✅ {team_name.upper()} 队伍完成训练，模型保存到: {final_path}")
+        print(f"PASS {team_name.upper()} notetraining, modelsavenote: {final_path}")
 
         env.close()
 
     except Exception as e:
-        print(f"❌ {team_name.upper()} 队伍训练失败: {e}")
+        print(f"FAIL {team_name.upper()} notetrainingfailed: {e}")
         traceback.print_exc()
 
 def launch_quad_team_training(
@@ -601,17 +595,17 @@ def launch_quad_team_training(
     os.makedirs(blue_dir, exist_ok=True)
     os.makedirs(red_dir, exist_ok=True)
 
-    print(f"\n📁 模型根目录: {root_dir}")
+    print(f"\n📁 modelnotedirectory: {root_dir}")
     print(f"  ↳ Blue Team: {blue_dir}")
     print(f"  ↳ Red Team: {red_dir}")
-    print(f"  ↳ 训练阶段: 前50w步学跑圈，后50w步分组竞赛")
-    print(f"  ↳ 每组2辆车共享模型")
+    print(f"  ↳ trainingstage: first50wnote, note50wnote")
+    print(f"  ↳ note2notemodel")
 
     manager = Manager()
     shared_state = manager.dict()
     shared_state['phase'] = 'learning'
 
-    # 创建两个队伍的训练进程
+    # notetrainingnote
     p_blue = Process(
         target=train_team,
         args=('blue', steps, blue_dir, port, scene, max_cte, lr_blue, save_freq,
@@ -625,52 +619,52 @@ def launch_quad_team_training(
         daemon=False,
     )
 
-    print("\n🚦 启动四车分组训练...")
-    p_red.start()   # 红队先启动
-    time.sleep(10)  # 等待红队初始化
-    p_blue.start()  # 蓝队后启动
+    print("\n🚦 notetraining...")
+    p_red.start()   # note
+    time.sleep(10)  # note
+    p_blue.start()  # note
 
-    print("\n⏳ 等待训练完成...")
+    print("\n⏳ notetrainingnote...")
     try:
         p_blue.join()
         p_red.join()
     except KeyboardInterrupt:
-        print("\n⚠️ 中断训练...")
+        print("\n⚠️ notetraining...")
         for p in (p_blue, p_red):
             if p.is_alive():
                 p.terminate()
 
-    print("\n✅ 四车分组训练结束")
+    print("\nPASS notetrainingnote")
 
 # ===== CLI =====
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="四车分组竞速训练")
-    parser.add_argument("--steps", type=int, default=1000000, help="每个队伍训练步数")
-    parser.add_argument("--port", type=int, default=9091, help="DonkeySim端口")
-    parser.add_argument("--scene", type=str, default="waveshare", choices=["generated_track", "waveshare", "circuit_launch"], help="地图/场景")
-    parser.add_argument("--save-root", type=str, default="models/quad_team_racing", help="保存根目录前缀")
-    parser.add_argument("--lr-blue", type=float, default=3e-4, help="蓝队学习率")
-    parser.add_argument("--lr-red", type=float, default=3e-4, help="红队学习率")
-    parser.add_argument("--max-cte", type=float, default=8.0, help="最大横向误差终止阈值")
-    parser.add_argument("--save-freq", type=int, default=10000, help="检查点保存频率")
-    parser.add_argument("--use-lidar", action="store_true", help="启用硬件LiDAR")
-    parser.add_argument("--lidar-port", type=str, default='/dev/ttyUSB0', help="硬件LiDAR端口")
-    parser.add_argument("--action-noise", type=float, default=0.15, help="动作扰动标准差")
+    parser = argparse.ArgumentParser(description="notetraining")
+    parser.add_argument("--steps", type=int, default=1000000, help="notetrainingnote")
+    parser.add_argument("--port", type=int, default=9091, help="DonkeySimnote")
+    parser.add_argument("--scene", type=str, default="waveshare", choices=["generated_track", "waveshare", "circuit_launch"], help="note/note")
+    parser.add_argument("--save-root", type=str, default="models/quad_team_racing", help="savenotedirectoryfirstnote")
+    parser.add_argument("--lr-blue", type=float, default=3e-4, help="note")
+    parser.add_argument("--lr-red", type=float, default=3e-4, help="note")
+    parser.add_argument("--max-cte", type=float, default=8.0, help="note")
+    parser.add_argument("--save-freq", type=int, default=10000, help="notesavenote")
+    parser.add_argument("--use-lidar", action="store_true", help="noteLiDAR")
+    parser.add_argument("--lidar-port", type=str, default='/dev/ttyUSB0', help="noteLiDARnote")
+    parser.add_argument("--action-noise", type=float, default=0.15, help="note")
     return parser.parse_args()
 
 def main():
     args = parse_args()
     print("\n" + "="*70)
-    print("🚗🚗🚗🚗 四车分组竞速训练 - 组内合作 + 组间竞争")
+    print("🚗🚗🚗🚗 notetraining - note + note")
     print("="*70)
-    print("⚠️ 请先确保 DonkeySim 已在独立终端启动")
-    print(f"\n📊 训练配置:")
-    print(f"   前50w步: 学习跑圈（基础奖惩 + 组内合作）")
-    print(f"   后50w步: 分组竞赛（组间竞争奖励）")
-    print(f"   Blue Team: Blue1 + Blue2 (共享模型)")
-    print(f"   Red Team: Red1 + Red2 (共享模型)")
-    print(f"   奖励机制: 基础奖励 + 组内合作 + 组间竞争")
+    print("⚠️ note DonkeySim note")
+    print(f"\nmetrics trainingconfiguration:")
+    print(f"   first50wnote: note(note + note)")
+    print(f"   note50wnote: note(notereward)")
+    print(f"   Blue Team: Blue1 + Blue2 (notemodel)")
+    print(f"   Red Team: Red1 + Red2 (notemodel)")
+    print(f"   rewardnote: notereward + note + note")
     print("="*70 + "\n")
 
     launch_quad_team_training(

@@ -1,35 +1,35 @@
 """
 module/world_model_dataset.py
 
-局部动力学世界模型数据管道 — V1
+notemodeldatanote - V1
 
-支持两类数据源
+noteclassdatanote
 --------------
-1. CatalogTransitionDataset  —  真实车 DonkeyCar catalog（JSONL）
-2. SimTransitionDataset      —  Sim 采集 CSV（由 collect_sim_transitions.py 生成）
-3. CombinedTransitionDataset —  两者合并，支持 domain_weight（真实数据加权）
+1. CatalogTransitionDataset  -  note DonkeyCar catalog(JSONL)
+2. SimTransitionDataset      -  Sim note CSV(note collect_sim_transitions.py generate)
+3. CombinedTransitionDataset -  note, note domain_weight(notedatanote)
 
-数据格式（每条样本）
+datanote(note)
 --------------------
-  x     : float32 tensor, shape (input_dim,)   — 8D 正式版 or 5D baseline
-  delta  : float32 tensor, shape (3,)           — 目标残差 [Δv, Δω, Δa]
+  x: float32 tensor, shape (input_dim,)   - 8D note or 5D baseline
+  delta: float32 tensor, shape (3,)           - goalnote [Δv, Δω, Δa]
 
-输入向量约定（8D）
+inputnote(8D)
 -------------------
-  [v_long_t, yaw_rate_t, accel_x_t,      # 当前物理状态（归一化）
-   steer_exec_t, throttle_t,              # 当前执行指令
-   prev_steer_exec, prev_throttle,        # 上一步执行指令（滞后）
+  [v_long_t, yaw_rate_t, accel_x_t,      # currentnote(note)
+   steer_exec_t, throttle_t,              # currentnoterowsnote
+   prev_steer_exec, prev_throttle,        # noterowsnote(note)
    dt_norm]                              # dt_ms / 50.0
 
-归一化常数（与 obv.py:_build_state_v13 一致）
+note(note obv.py:_build_state_v13 note)
 ---------------------------------------------
   V_MAX    = 2.2   m/s
   GYRO_MAX = 4.0   rad/s   (yaw_rate = clip(-gyro_z / GYRO_MAX, -2, 2))
   ACCEL_MAX= 9.8   m/s²
   DT_REF   = 50.0  ms
-  DT_MAX   = 200   ms（超过则视为 session 中断，跳过）
+  DT_MAX   = 200   ms(note session note, note)
 
-注意：真实车 catalog 使用 -rp2040/gyro_z 作为 yaw_rate（取反！）
+note: note catalog note -rp2040/gyro_z note yaw_rate(note!)
 """
 
 from __future__ import annotations
@@ -44,12 +44,12 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-# ─── 归一化常数 ──────────────────────────────────────────────────
+# ─── note ──────────────────────────────────────────────────
 V_MAX     = 2.2
 GYRO_MAX  = 4.0
 ACCEL_MAX = 9.8
-DT_REF    = 50.0   # ms，标准步长
-DT_MAX_MS = 200    # ms，超过则跳过（session 中断 / 暂停）
+DT_REF    = 50.0   # ms, note
+DT_MAX_MS = 200    # ms, note(session note / note)
 
 
 def _norm_v(v: float) -> float:
@@ -57,7 +57,7 @@ def _norm_v(v: float) -> float:
 
 
 def _norm_yaw(gyro_z_raw: float) -> float:
-    """真实车 yaw_rate = -gyro_z（取反，与 _build_state_v13 一致）。"""
+    """note yaw_rate = -gyro_z(note, note _build_state_v13 note)."""
     return float(np.clip(-gyro_z_raw / GYRO_MAX, -2.0, 2.0))
 
 
@@ -73,29 +73,28 @@ def _safe_float(val, default: float = 0.0) -> float:
         return default
 
 
-# ─── Catalog 数据集（真实车）────────────────────────────────────
+# ─── Catalog dataset(note)────────────────────────────────────
 
 class CatalogTransitionDataset(Dataset):
     """
-    从 DonkeyCar JSONL catalog 目录加载 (x_8d, delta_3d) 训练对。
+    note DonkeyCar JSONL catalog directorynote (x_8d, delta_3d) trainingnote.
 
-    目录下须包含 catalog_*.catalog 文件（JSONL，每行一条记录）。
-    多个目录可一次传入，合并处理。
+    directorynote catalog_*.catalog file(JSONL, noterowsnote).
+    notedirectorynote, note.
 
-    数据录制说明
+    datanotedescription
     ------------
-    catalog 为人工驾驶录制（user mode），user/angle 直接是发给
-    硬件的方向盘指令，不经过 ActionAdapter 或 ActionSafetyWrapper，
-    因此直接用作 steer_exec，无近似误差。
+    catalog note(user mode), user/angle note, note ActionAdapter note ActionSafetyWrapper,
+    note steer_exec, note.
 
     Parameters
     ----------
-    catalog_dirs : list of str
-        包含 catalog_*.catalog 文件的目录路径列表。
-    input_dim : int
-        5（baseline）或 8（正式版）。
-    augment_noise : float
-        训练时在输入向量上叠加的高斯噪声标准差。0 = 关闭。
+    catalog_dirs: list of str
+        note catalog_*.catalog filenotedirectorypathnote.
+    input_dim: int
+        5(baseline)note 8(note).
+    augment_noise: float
+        trainingnoteinputnote.0 = note.
     """
 
     def __init__(
@@ -132,7 +131,7 @@ class CatalogTransitionDataset(Dataset):
                         except json.JSONDecodeError:
                             continue
 
-        # 按时间戳排序
+        # note
         records.sort(key=lambda r: r.get("_timestamp_ms", 0))
         self._build_pairs(records)
 
@@ -144,13 +143,13 @@ class CatalogTransitionDataset(Dataset):
             session = rec.get("_session_id", "")
             ts_ms   = _safe_float(rec.get("_timestamp_ms", 0))
 
-            # session 边界：重置
-            if session != prev_session:
+            # session note: note
+            if session!= prev_session:
                 prev_rec     = rec
                 prev_session = session
                 continue
 
-            # 时间跳变检查
+            # note
             dt_ms = ts_ms - _safe_float(prev_rec.get("_timestamp_ms", 0))
             if dt_ms <= 0 or dt_ms > DT_MAX_MS:
                 prev_rec = rec
@@ -165,17 +164,17 @@ class CatalogTransitionDataset(Dataset):
     def _make_sample(
         self, r_t: dict, r_t1: dict, dt_ms: float
     ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        """从相邻两帧构建 (x, delta)。"""
-        # ─ 当前帧物理状态 ─
+        """note (x, delta)."""
+        # ─ currentnote ─
         v_t   = _norm_v(_safe_float(r_t.get("rp2040/speed_odom")))
         yaw_t = _norm_yaw(_safe_float(r_t.get("rp2040/gyro_z")))
         a_t   = _norm_accel(_safe_float(r_t.get("rp2040/accel_x")))
 
-        # ─ 当前帧执行指令 ─
+        # ─ currentnoterowsnote ─
         steer_t   = float(np.clip(_safe_float(r_t.get("user/angle")),   -1.0, 1.0))
         thr_t     = float(np.clip(_safe_float(r_t.get("user/throttle")),  0.0, 0.3))
 
-        # ─ 下一帧物理状态 ─
+        # ─ note ─
         v_t1   = _norm_v(_safe_float(r_t1.get("rp2040/speed_odom")))
         yaw_t1 = _norm_yaw(_safe_float(r_t1.get("rp2040/gyro_z")))
         a_t1   = _norm_accel(_safe_float(r_t1.get("rp2040/accel_x")))
@@ -185,10 +184,10 @@ class CatalogTransitionDataset(Dataset):
         if self.input_dim == 5:
             x = np.array([v_t, yaw_t, a_t, steer_t, thr_t], dtype=np.float32)
         else:
-            # 前一帧指令（来自 r_t 的前一帧已被处理，这里近似用 r_t 本身的值
-            # 作为 prev；真正的 prev 在 _build_pairs 中可追踪，但需要 3 帧窗口）
-            # 简化：prev_steer ≈ steer_t（第一步 prev = current，误差小）
-            # 若需精确，使用 _build_pairs_3frame 版本
+            # firstnote(note r_t notefirstnote, note r_t note
+            # note prev; note prev note _build_pairs note, note 3 note)
+            # note: prev_steer ~ steer_t(note prev = current, note)
+            # note, note _build_pairs_3frame note
             dt_norm = dt_ms / DT_REF
             x = np.array(
                 [v_t, yaw_t, a_t, steer_t, thr_t, steer_t, thr_t, dt_norm],
@@ -207,7 +206,7 @@ class CatalogTransitionDataset(Dataset):
             x += np.random.normal(0, self.augment_noise, x.shape).astype(np.float32)
         return torch.from_numpy(x), torch.from_numpy(delta)
 
-    # training_mode 由外部设置（Dataset 本身不区分 train/val）
+    # training_mode note(Dataset note train/val)
     @property
     def training_mode(self) -> bool:
         return getattr(self, "_training_mode", True)
@@ -223,8 +222,8 @@ class CatalogTransitionDataset(Dataset):
 
 class CatalogTransitionDatasetV2(CatalogTransitionDataset):
     """
-    精确 8D 版：用 3 帧窗口正确获取 prev_steer_exec / prev_throttle。
-    继承 V1 接口，仅覆盖 _build_pairs。
+    note 8D note: note 3 note prev_steer_exec / prev_throttle.
+    note V1 note, note _build_pairs.
     """
 
     def _build_pairs(self, records: list) -> None:
@@ -236,13 +235,13 @@ class CatalogTransitionDatasetV2(CatalogTransitionDataset):
             session = rec.get("_session_id", "")
             ts_ms   = _safe_float(rec.get("_timestamp_ms", 0))
 
-            if session != prev_session:
+            if session!= prev_session:
                 prev_prev_rec = None
                 prev_rec      = rec
                 prev_session  = session
                 continue
 
-            # 检查相邻帧时间跳变
+            # note
             dt_ms = ts_ms - _safe_float(prev_rec.get("_timestamp_ms", 0))
             if dt_ms <= 0 or dt_ms > DT_MAX_MS:
                 prev_prev_rec = None
@@ -264,7 +263,7 @@ class CatalogTransitionDatasetV2(CatalogTransitionDataset):
     def _make_sample_v2(
         self, r_tm1: dict, r_t: dict, r_t1: dict, dt_ms: float
     ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        """精确 3 帧窗口：r_tm1=t-1, r_t=t, r_t1=t+1。"""
+        """note 3 note: r_tm1=t-1, r_t=t, r_t1=t+1."""
         v_t   = _norm_v(_safe_float(r_t.get("rp2040/speed_odom")))
         yaw_t = _norm_yaw(_safe_float(r_t.get("rp2040/gyro_z")))
         a_t   = _norm_accel(_safe_float(r_t.get("rp2040/accel_x")))
@@ -287,26 +286,26 @@ class CatalogTransitionDatasetV2(CatalogTransitionDataset):
         return x, delta
 
 
-# ─── Sim CSV 数据集 ──────────────────────────────────────────────
+# ─── Sim CSV dataset ──────────────────────────────────────────────
 
 class SimTransitionDataset(Dataset):
     """
-    从 collect_sim_transitions.py 生成的 CSV 文件加载转移数据。
+    note collect_sim_transitions.py generatenote CSV filenotedata.
 
-    CSV 列名（顺序无关，按名称读取）：
+    CSV note(note, noteread):
       v_t, yaw_t, accel_t, steer_exec_t, throttle_t,
       prev_steer_exec, prev_throttle, dt_ms,
       v_t1, yaw_t1, accel_t1,
-      policy_type, episode_id      ← 可选，不参与训练
+      policy_type, episode_id      <- note, notetraining
 
     Parameters
     ----------
-    csv_dirs : list of str
-        包含 *.csv 文件的目录列表。
-    input_dim : int
-        5 或 8。
-    augment_noise : float
-        训练时输入噪声标准差。
+    csv_dirs: list of str
+        note *.csv filenotedirectorynote.
+    input_dim: int
+        5 note 8.
+    augment_noise: float
+        trainingnoteinputnote.
     """
 
     def __init__(
@@ -381,19 +380,19 @@ class SimTransitionDataset(Dataset):
         return self
 
 
-# ─── 合并数据集 ──────────────────────────────────────────────────
+# ─── notedataset ──────────────────────────────────────────────────
 
 class CombinedTransitionDataset(Dataset):
     """
-    合并 catalog（真实）和 sim 数据集。
+    note catalog(note)note sim dataset.
 
-    domain_weight 控制真实数据在损失中的权重倍数（返回额外标志位 is_real）。
-    实际加权在 train_world_model.py 的损失函数中实现。
+    domain_weight controlnotedatanote(note is_real).
+    note train_world_model.py notefunctionnoteimplement.
 
     Parameters
     ----------
-    real_dataset : CatalogTransitionDataset or None
-    sim_dataset  : SimTransitionDataset or None
+    real_dataset: CatalogTransitionDataset or None
+    sim_dataset: SimTransitionDataset or None
     """
 
     def __init__(
@@ -435,7 +434,7 @@ class CombinedTransitionDataset(Dataset):
         return self
 
 
-# ─── 工具：时序分割 ──────────────────────────────────────────────
+# ─── note: note ──────────────────────────────────────────────
 
 def chronological_split(
     dataset: Dataset,
@@ -443,11 +442,11 @@ def chronological_split(
     val_ratio: float = 0.1,
 ):
     """
-    按时间顺序（非随机）分割数据集，避免时序泄露。
+    note(note)notedataset, note.
 
     Returns
     -------
-    train_set, val_set, test_set : Subset
+    train_set, val_set, test_set: Subset
     """
     from torch.utils.data import Subset
 

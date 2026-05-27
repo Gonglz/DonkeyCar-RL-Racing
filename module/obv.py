@@ -1,37 +1,37 @@
 """
 module/obv.py
-V13 观测空间：6 通道语义图像 + 5 维纯传感器状态。
+V13 note: 6 note + 5 note.
 
-观测结构
+note
 --------
 image: (6, obs_size, obs_size) float32 [0, 1]
-  ch0  raw_Y               原图 Y 亮度通道
-  ch1  edge_line_prob      车边线软概率（跨域 canonical 语义）
-  ch2  guide_line_prob     中线/引导线软概率（跨域 canonical 语义，渐进 dropout）
-  ch3  sobel_edge          Sobel 边缘图（raw_Y）
-  ch4  vehicle_prob        动态目标软概率（GreenVehicleDetector）
-  ch5  motion_residual     |Y_t - Y_{t-1}|，reset 后置零
+  ch0  raw_Y               note Y note
+  ch1  edge_line_prob      note(note canonical note)
+  ch2  guide_line_prob     note/note(note canonical note, note dropout)
+  ch3  sobel_edge          Sobel note(raw_Y)
+  ch4  vehicle_prob        dynamicgoalnote(GreenVehicleDetector)
+  ch5  motion_residual     |Y_t - Y_{t-1}|, reset note
 
 state: (5,) float32
   v_long_norm      clip(speed / v_max, 0, 2)
-  yaw_rate_norm    clip(gyro_y / 8.0, -2, 2)   ← Unity Y-up: yaw=gyro[1], /8 dampened
-  accel_x_norm     clip(accel_x / 9.8, -2, 2)   ← 纵向加速度（上线前需 sanity check）
+  yaw_rate_norm    clip(gyro_y / 8.0, -2, 2)   <- Unity Y-up: yaw=gyro[1], /8 dampened
+  accel_x_norm     clip(accel_x / 9.8, -2, 2)   <- note(notefirstnote sanity check)
   prev_steer       ∈ [-1, 1]
   prev_throttle    ∈ [-1, 1]
 
-设计原则
+note
 --------
-- ch1/ch2 直接由 original 提取线概率；对 WS 会做一次通道对齐，
-  使 ch1 始终表示车边线、ch2 始终表示中线/引导线
-- 软概率（Gaussian blur）而非硬二值，通道 dropout 提升鲁棒性
-- motion_residual 替代帧堆叠；配合 RecurrentPPO LSTM 处理长时依赖
-- 状态向量完全来自传感器 info，无 TrackGeometryManager 依赖
+- ch1/ch2 note original note; note WS note,
+  note ch1 note, ch2 note/note
+- note(Gaussian blur)note, note dropout note
+- motion_residual note; note RecurrentPPO LSTM note
+- note info, note TrackGeometryManager note
 
-RGB/BGR 约定
+RGB/BGR note
 ------------
-- DonkeyEnv 输出 RGB
-- GreenVehicleDetector 与线提取器期望 BGR
-- cv2.resize 参数顺序：(width, height)，即 (W, H)
+- DonkeyEnv output RGB
+- GreenVehicleDetector note BGR
+- cv2.resize note: (width, height), note (W, H)
 """
 
 from typing import Any, Dict, Optional, Tuple
@@ -41,8 +41,8 @@ import gym
 import numpy as np
 
 
-# 兼容保留：历史代码会从 obv import _CANONICAL_TGT_STATS。
-# 当前 V13 观测已不依赖 canonical 路径。
+# note: note obv import _CANONICAL_TGT_STATS.
+# current V13 note canonical path.
 _CANONICAL_TGT_STATS: Dict[str, Any] = {
     "prototypes_hsv": {
         "blue": [112.0, 125.0, 94.0],
@@ -58,15 +58,15 @@ _CANONICAL_TGT_STATS: Dict[str, Any] = {
 # ============================================================
 class CanonicalSemanticWrapper(gym.ObservationWrapper):
     """
-    V13 专用：6 通道观测 = original 辅助流 + original 语义流。
+    V13 note: 6 note = original note + original note.
 
-    通道布局 (6, obs_size, obs_size) float32 [0,1]:
-      ch0  raw_Y               原图 Y 亮度通道
-      ch1  edge_line_prob      车边线软概率（跨域 canonical 语义）
-      ch2  guide_line_prob     中线/引导线软概率（跨域 canonical 语义，渐进 dropout）
-      ch3  sobel_edge          Sobel 边缘图（raw_Y）
-      ch4  vehicle_prob        动态目标软概率（GreenVehicleDetector）
-      ch5  motion_residual     |Y_t - Y_{t-1}|，reset 后清零
+    note (6, obs_size, obs_size) float32 [0,1]:
+      ch0  raw_Y               note Y note
+      ch1  edge_line_prob      note(note canonical note)
+      ch2  guide_line_prob     note/note(note canonical note, note dropout)
+      ch3  sobel_edge          Sobel note(raw_Y)
+      ch4  vehicle_prob        dynamicgoalnote(GreenVehicleDetector)
+      ch5  motion_residual     |Y_t - Y_{t-1}|, reset note
     """
 
     def __init__(
@@ -183,7 +183,7 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
         self._prev_y: Optional[np.ndarray] = None
         self._prev_ws_white_prob: Optional[np.ndarray] = None
 
-        from .green_vehicle_detect import GreenVehicleDetector
+        from.green_vehicle_detect import GreenVehicleDetector
         self._green_det = GreenVehicleDetector()
 
         self.observation_space = gym.spaces.Box(
@@ -192,7 +192,7 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
             dtype=np.float32,
         )
         print(
-            f"✅ CanonicalSemanticWrapper [{domain}]: "
+            f"PASS CanonicalSemanticWrapper [{domain}]: "
             f"(6,{obs_size},{obs_size}) float32, "
             f"dropout_max={dropout_max_prob:.2f} ramp={dropout_ramp_steps}, "
             f"edge_blur={self.edge_preblur_sigma:.2f}, "
@@ -210,10 +210,10 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
         )
 
     # ------------------------------------------------------------------
-    # Dropout 渐进 schedule
+    # Dropout note schedule
     # ------------------------------------------------------------------
     def _get_yellow_dropout(self) -> float:
-        """渐进式 dropout 概率：step < start → 0；线性增至 dropout_max_prob。"""
+        """note dropout note: step < start -> 0; note dropout_max_prob."""
         if self._step < self.dropout_start_step:
             return 0.0
         ramp = float(self._step - self.dropout_start_step) / self.dropout_ramp_steps
@@ -231,7 +231,7 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
     def _extract_raw_lane_masks(self, img_bgr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Extract white/yellow line masks directly from original frame."""
         if self._domain == "gt":
-            from .GT2NewTrack import detect_gt_road_support, detect_white_line, detect_yellow_line
+            from.GT2NewTrack import detect_gt_road_support, detect_white_line, detect_yellow_line
 
             road = detect_gt_road_support(img_bgr)
             white = (detect_white_line(img_bgr, road_support=road, edge_enhance=True) > 0).astype(np.float32)
@@ -239,7 +239,7 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
             return white, yellow
 
         if self._domain == "rrl":
-            from .RRL2NewTrack import detect_rrl_white_lines
+            from.RRL2NewTrack import detect_rrl_white_lines
 
             hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
             white = (detect_rrl_white_lines(img_bgr) > 0).astype(np.float32)
@@ -252,25 +252,25 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
         return self._extract_generic_lane_masks(img_bgr)
 
     # ------------------------------------------------------------------
-    # 主观测构建
+    # note
     # ------------------------------------------------------------------
     def observation(self, obs: np.ndarray) -> np.ndarray:
         """
-        输入: DonkeyEnv 原始 RGB 帧 (H, W, C) uint8
-        输出: (6, obs_size, obs_size) float32 [0, 1]
+        input: DonkeyEnv note RGB note (H, W, C) uint8
+        output: (6, obs_size, obs_size) float32 [0, 1]
         """
         self._step += 1
         img = np.asarray(obs, dtype=np.uint8)
         if img.ndim == 3 and img.shape[2] > 3:
-            img = img[:, :, :3]
+            img = img[:,:,:3]
 
-        # DonkeyEnv 输出 RGB；cv2.resize 参数为 (width, height)
+        # DonkeyEnv output RGB; cv2.resize note (width, height)
         raw_rgb = cv2.resize(img, (self.W, self.H), interpolation=cv2.INTER_LINEAR)
 
-        # ch0: raw Y  —— RGB→YCrCb，取第 0 分量（亮度）
-        raw_y = cv2.cvtColor(raw_rgb, cv2.COLOR_RGB2YCrCb)[:, :, 0].astype(np.float32) / 255.0
+        # ch0: raw Y  -- RGB->YCrCb, note 0 note(note)
+        raw_y = cv2.cvtColor(raw_rgb, cv2.COLOR_RGB2YCrCb)[:,:, 0].astype(np.float32) / 255.0
 
-        # 线提取器和 GreenDetector 均期望 BGR
+        # note GreenDetector note BGR
         raw_bgr = cv2.cvtColor(raw_rgb, cv2.COLOR_RGB2BGR)
         motion_hint = (
             np.clip(np.abs(raw_y - self._prev_y) * 4.0, 0.0, 1.0)
@@ -279,7 +279,7 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
         ).astype(np.float32)
 
         if self._domain == "ws":
-            from .WS2NewTrack import build_ws_observation_line_probs
+            from.WS2NewTrack import build_ws_observation_line_probs
 
             ws_out = build_ws_observation_line_probs(
                 raw_bgr,
@@ -331,16 +331,16 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
                 line_prob_min=self.line_prob_min,
             )
             edge = ws_out["edge"].astype(np.float32)
-            # WS 原始提取里：
-            #   white_prob  = 白色中心虚线（引导线）
-            #   yellow_prob = 黄色边线
-            # 这里对调到与 GT 一致的 canonical 语义：
-            #   ch1 = 车边线, ch2 = 中线/引导线
+            # WS note:
+            #   white_prob  = note(note)
+            #   yellow_prob = note
+            # note GT note canonical note:
+            #   ch1 = note, ch2 = note/note
             white_prob = ws_out["yellow_prob"].astype(np.float32)
             yellow_prob = ws_out["white_prob"].astype(np.float32)
         else:
             if self._domain == "gt":
-                from .GT2NewTrack import build_gt_observation_line_probs
+                from.GT2NewTrack import build_gt_observation_line_probs
 
                 gt_out = build_gt_observation_line_probs(
                     raw_bgr=raw_bgr,
@@ -355,7 +355,7 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
                 if np.max(yellow_raw) < 0.01:
                     yellow_prob = np.zeros_like(yellow_prob, dtype=np.float32)
             else:
-                from .GT2NewTrack import build_observation_line_probs
+                from.GT2NewTrack import build_observation_line_probs
 
                 white_raw, yellow_raw = self._extract_raw_lane_masks(raw_bgr)
                 generic_out = build_observation_line_probs(
@@ -387,14 +387,14 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
                 edge = generic_out["edge"].astype(np.float32)
                 white_prob = generic_out["white_prob"].astype(np.float32)
                 yellow_prob = generic_out["yellow_prob"].astype(np.float32)
-                # 地图先天无中线 → 全零，与 augment 无关
+                # note -> note, note augment note
                 if np.max(yellow_raw) < 0.01:
                     yellow_prob = np.zeros_like(yellow_prob, dtype=np.float32)
 
         if self.augment and np.random.random() < self._get_yellow_dropout():
-            yellow_prob = np.zeros_like(yellow_prob, dtype=np.float32)   # 渐进 dropout
+            yellow_prob = np.zeros_like(yellow_prob, dtype=np.float32)   # note dropout
 
-        # ch4: vehicle prob（GreenVehicleDetector，期望 BGR）
+        # ch4: vehicle prob(GreenVehicleDetector, note BGR)
         det = self._green_det.detect(raw_bgr)
         if det.detected:
             veh = (det.mask > 0).astype(np.float32)
@@ -402,7 +402,7 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
         else:
             veh_prob = np.zeros((self.H, self.W), dtype=np.float32)
 
-        # ch5: motion residual |Y_t - Y_{t-1}|，放大小运动
+        # ch5: motion residual |Y_t - Y_{t-1}|, note
         if self._prev_y is not None:
             motion = motion_hint
         else:
@@ -418,7 +418,7 @@ class CanonicalSemanticWrapper(gym.ObservationWrapper):
         ).astype(np.float32)
 
     def reset(self, **kwargs):
-        self._prev_y = None   # reset 时清除运动历史
+        self._prev_y = None   # reset note
         self._prev_ws_white_prob = None
         return super().reset(**kwargs)
 
@@ -433,31 +433,31 @@ def _build_state_v13(
     v_max: float = 2.2,
 ) -> np.ndarray:
     """
-    返回 7 维状态向量，完全来自传感器 info + adapter 内部状态，无 TrackGeometryManager 依赖：
+    note 7 note, note info + adapter note, note TrackGeometryManager note:
       [v_long_norm, yaw_rate_norm, accel_x_norm, prev_steer, prev_throttle,
        steer_core, bias_smooth]
 
-    归一化范围：
+    note:
       v_long_norm      = clip(speed / v_max,      0,   2)
-      yaw_rate_norm    = clip(gyro_y / 8.0,      -2,   2)   ← Unity Y-up: yaw=gyro[1], /8 dampened
-      accel_x_norm     = clip(accel_x / 9.8,     -2,   2)   ← 纵向加减速
-      prev_steer       ∈ [-1, 1]   ← 上一已执行低层 steer（safety 约束后）
-      prev_throttle    ∈ [-1, 1]   ← 上一已执行低层 throttle（adapter 输出）
-      steer_core       ∈ [-1, 1]   ← ActionAdapterWrapper 积分器内部状态
-      bias_smooth      ∈ [-1, 1]   ← ActionAdapterWrapper 占位意图（低通滤波后原始值）
+      yaw_rate_norm    = clip(gyro_y / 8.0,      -2,   2)   <- Unity Y-up: yaw=gyro[1], /8 dampened
+      accel_x_norm     = clip(accel_x / 9.8,     -2,   2)   <- note
+      prev_steer       ∈ [-1, 1]   <- noterowsnote steer(safety note)
+      prev_throttle    ∈ [-1, 1]   <- noterowsnote throttle(adapter output)
+      steer_core       ∈ [-1, 1]   <- ActionAdapterWrapper note
+      bias_smooth      ∈ [-1, 1]   <- ActionAdapterWrapper note(note)
 
-    ⚠️  accel_x 上线前需 sanity check（直线大油门起步应显著为正）。
-        若不可信，可替换为 delta_speed 或退化为 6 维状态。
+    ⚠️  accel_x notefirstnote sanity check(note).
+        note, note delta_speed note 6 note.
 
-    兼容性：若 control_wrapper 无 steer_core/bias_smooth 属性（V12 path），
-    对应维度退化为 0.0。
+    note: note control_wrapper note steer_core/bias_smooth note(V12 path),
+    note 0.0.
     """
     v = float(info.get("speed", 0.0) or 0.0)
     gyro  = info.get("gyro",  (0.0, 0.0, 0.0))
     accel = info.get("accel", (0.0, 0.0, 0.0))
     # DonkeySim uses Unity coords (Y-up): yaw rotation = gyro[1] (gyro_y).
     # Previously used gyro[2] (gyro_z) which is near-zero in sim.
-    # On physical car, the sensor adapter should map -rp2040/gyro_z → gyro[1].
+    # On physical car, the sensor adapter should map -rp2040/gyro_z -> gyro[1].
     try:
         gy = float(gyro[1])
     except Exception:
@@ -521,10 +521,10 @@ def _build_state_v16(
        obstacle_dist_norm,
        obstacle_risk]
 
-    设计原则：
-    - 保留 V13 的控制内态，避免 action adapter 学习重置
-    - 障碍信息来自 runtime wrapper 注入的 info，不依赖赛道几何
-    - 当本步无障碍信号时，新增 5 维全部退化为 0
+    note:
+    - note V13 notecontrolnote, note action adapter note
+    - obstaclenote runtime wrapper note info, notetrackgeometry
+    - noteobstaclenote, note 5 note 0
     """
     base = _build_state_v13(
         info=info,

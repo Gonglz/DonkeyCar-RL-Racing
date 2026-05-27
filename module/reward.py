@@ -1,9 +1,9 @@
 """
 module/reward.py
-DonkeyRewardWrapper：DonkeyCar 统一奖励包装器。
+DonkeyRewardWrapper: DonkeyCar unifiedrewardnote.
 
-所有奖励和惩罚逻辑均在本文件中定义，不依赖外部版本脚本。
-详细说明见 docs/reward.md。
+noterewardnotefilenote, note.
+notedescriptionnote docs/reward.md.
 """
 
 import math
@@ -15,34 +15,34 @@ import numpy as np
 
 
 # ============================================================
-# 统一奖励包装器
+# unifiedrewardnote
 # ============================================================
 class DonkeyRewardWrapper(gym.Wrapper):
     """
-    DonkeyCar 统一奖励包装器。
+    DonkeyCar unifiedrewardnote.
 
-    奖励构成：
+    rewardnote:
       survival      = survival_reward_scale * speed_gate * 1[progress>0]
       speed         = 0.25 * ontrack * speed_gate * center_factor * 1[progress>0]
-      progress      = progress_reward_scale * signed_progress_ratio（按赛道弧长）
-      cte           = 超界惩罚 | 在界奖励（× speed_gate_cte）
-      lap           = 完圈奖励
+      progress      = progress_reward_scale * signed_progress_ratio(notetracknote)
+      cte           = note | notereward(x speed_gate_cte)
+      lap           = notereward
       center        = -w_center * |lat_err_norm|
       heading       = -w_heading * |heading_err| / pi
       speed_ref     = -w_speed_ref * ((v-v_ref(kappa))/v_ref_max)^2
       time          = -w_time
-      near_offtrack = 出界前线性惩罚（cte 接近 out 边界）
-      near_collision= 碰撞前风险线性惩罚（obstacle/heading/speed/control）
-      overtake      = 成功绕过并超过障碍车后的 bonus
-      collision     = 碰撞/stuck/offtrack 终止惩罚
+      near_offtrack = notefirstnote(cte note out note)
+      near_collision= notefirstnote(obstacle/heading/speed/control)
+      overtake      = succeedednoteobstaclenote bonus
+      collision     = note/stuck/offtrack note
       smooth        = -w_d  * |Δsteer_exec|
       jerk          = -w_dd * |jerk|
       mismatch      = -w_m  * |steer_raw - steer_exec|
       sat           = -w_sat * tanh(rate_excess)
 
-    CTE 边界符号约定：cte_left > 0（左侧），cte_right < 0（右侧），与 lat_err 方向一致。
-    step() 使用 lat_err_cte = lat_err * coord_scale 作为有符号横偏距与边界比较。
-    详细参数说明见 docs/reward.md。
+    CTE note: cte_left > 0(note), cte_right < 0(note), note lat_err note.
+    step() note lat_err_cte = lat_err * coord_scale note.
+    notedescriptionnote docs/reward.md.
     """
 
     def __init__(
@@ -101,7 +101,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
         self.total_timesteps = total_timesteps
         self.current_step = 0
         self.action_safety_wrapper = action_safety_wrapper
-        # 轨迹几何：用于计算 lat_err_cte = lat_err * coord_scale（有符号横偏距，与 CTE 表同单位）
+        # notegeometry: notecompute lat_err_cte = lat_err * coord_scale(note, note CTE note)
         self._track_geometry = track_geometry
         self._scene_key = scene_key
         self._logging_key = str(logging_key or scene_key or "")
@@ -114,11 +114,11 @@ class DonkeyRewardWrapper(gym.Wrapper):
         self.reset_collision_grace_steps = max(0, int(reset_collision_grace_steps))
         self._episode_index = 0
 
-        # reward decay: 长 episode 每步奖励递减，抑制总回报线性膨胀
+        # reward decay: note episode noterewardnote, note
         self.reward_decay_ref_steps = max(0, int(reward_decay_ref_steps))
 
-        # offtrack done 阈值课程：前 leniency_ratio 比例步数内从 mult 倍线性收缩到 1.0 倍
-        # 注意：CTE 惩罚(cte_term)始终基于真实边界，不受此影响
+        # offtrack done note: first leniency_ratio note mult note 1.0 note
+        # note: CTE note(cte_term)note, note
         self._leniency_steps = int(total_timesteps * float(np.clip(offtrack_leniency_ratio, 0.0, 0.5)))
         self._leniency_mult  = float(max(1.0, offtrack_leniency_mult))
 
@@ -150,7 +150,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
         self.w_near_collision = float(max(0.0, w_near_collision))
         self.near_collision_start_ratio = float(np.clip(near_collision_start_ratio, 0.0, 0.98))
         self.overtake_success_bonus = float(max(0.0, overtake_success_bonus))
-        # 固定 10 步渐进惩罚：风险触发后，从第1步到第10步线性增强到满惩罚。
+        # note 10 note: note, note1note10note.
         self.near_penalty_ramp_steps = 10
         self._near_offtrack_ramp_step = 0
         self._near_collision_ramp_step = 0
@@ -163,21 +163,21 @@ class DonkeyRewardWrapper(gym.Wrapper):
 
         self.smooth_stats: deque = deque(maxlen=1000)
 
-        # CTE 边界（非对称左右）
-        # cte_left/right = left_in_max_sim：车辆确认仍在赛道的最大 CTE（用于奖励梯度）
-        # cte_left_out/right_out = left_out_first_sim：首次确认出界的 CTE（用于 done 判定）
+        # CTE note(note)
+        # cte_left/right = left_in_max_sim: notetracknote CTE(noterewardnote)
+        # cte_left_out/right_out = left_out_first_sim: note CTE(note done note)
         self.cte_left      = float(max(cte_left,  0.1))
-        self.cte_right     = float(min(cte_right, -0.1))   # 负值：右侧边界
+        self.cte_right     = float(min(cte_right, -0.1))   # note: note
         self.cte_left_out  = float(max(cte_left_out,  self.cte_left))  if cte_left_out  is not None else self.cte_left  * 1.1
         self.cte_right_out = float(min(cte_right_out, self.cte_right)) if cte_right_out is not None else self.cte_right * 1.1
 
-        # CTE 奖励归一化：使各赛道 CTE 奖惩「比例」一致
-        # 核心思想：cte_abs / cte_boundary 已经是 [0,1] 的比例量，
-        #   但 cte_boundary 本身决定了「在边界内能获得的正奖励积分总量」。
-        #   窄赛道 boundary 小 → 正奖励区间窄 → 每步正 CTE 奖励低；
-        #   宽赛道 boundary 大 → 正奖励区间宽 → 每步正 CTE 奖励高。
-        #   归一化目标：让窄赛道保持居中的难度与宽赛道一致。
-        #   当前再做一次截断，避免窄赛道（如 ws）惩罚过轻、宽赛道惩罚过重。
+        # CTE rewardnote: notetrack CTE note「note」note
+        # note: cte_abs / cte_boundary note [0,1] note,
+        #   note cte_boundary note「noterewardnote」.
+        #   notetrack boundary note -> noterewardnote -> note CTE rewardnote;
+        #   notetrack boundary note -> noterewardnote -> note CTE rewardnote.
+        #   notegoal: notetracknotetracknote.
+        #   currentnote, notetrack(note ws)note, notetracknote.
         CTE_REF_HALF_WIDTH = 4.6
         self.cte_half_width = float(max(cte_half_width, 0.5))
         if cte_norm_scale is not None:
@@ -195,7 +195,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
         self._overtake_cooldown_steps_left = 0
         self._overtake_last_longitudinal: Optional[float] = None
 
-        _side_method = "lat_err * coord_scale（精确）" if track_geometry and scene_key else "-sim_cte（近似 fallback）"
+        _side_method = "lat_err * coord_scale(note)" if track_geometry and scene_key else "-sim_cte(note fallback)"
         print(
             f"DonkeyRewardWrapper: w_d={w_d}, w_dd={w_dd}, w_m={w_m}, w_sat={w_sat}, "
             f"w_time={self.w_time:.3f}, w_center={self.w_center:.3f}, "
@@ -211,10 +211,10 @@ class DonkeyRewardWrapper(gym.Wrapper):
             f"   speed_ref: vmin={self.speed_ref_vmin:.2f}, vmax={self.speed_ref_vmax:.2f}, "
             f"kappa_ref={self.speed_ref_kappa_ref:.3f}"
         )
-        print(f"   CTE in-边界: left=+{self.cte_left:.3f}, right={self.cte_right:.3f}  out-边界: left=+{self.cte_left_out:.3f}, right={self.cte_right_out:.3f}  coord_scale={self.coord_scale:.1f}")
-        print(f"   CTE 归一化: half_width={self.cte_half_width:.2f}, norm_scale={self.cte_norm_scale:.3f} (ref={CTE_REF_HALF_WIDTH})")
-        print(f"   左右侧判断: {_side_method}")
-        print(f"   offtrack done 课程: 前 {self._leniency_steps:,} 步 done阈值 {self._leniency_mult:.1f}x → 1.0x  (惩罚始终生效)")
+        print(f"   CTE in-note: left=+{self.cte_left:.3f}, right={self.cte_right:.3f}  out-note: left=+{self.cte_left_out:.3f}, right={self.cte_right_out:.3f}  coord_scale={self.coord_scale:.1f}")
+        print(f"   CTE note: half_width={self.cte_half_width:.2f}, norm_scale={self.cte_norm_scale:.3f} (ref={CTE_REF_HALF_WIDTH})")
+        print(f"   note: {_side_method}")
+        print(f"   offtrack done note: first {self._leniency_steps:,} note donenote {self._leniency_mult:.1f}x -> 1.0x  (note)")
         if self.overtake_success_bonus > 0.0:
             print(
                 f"   overtake_bonus: +{self.overtake_success_bonus:.2f} "
@@ -222,30 +222,30 @@ class DonkeyRewardWrapper(gym.Wrapper):
                 f"behind<={self.overtake_pass_longitudinal_threshold_m:.1f}m)"
             )
         if self.reward_decay_ref_steps > 0:
-            print(f"   reward_decay: ref_steps={self.reward_decay_ref_steps} (超过后每步奖励按 ref/step 衰减)")
+            print(f"   reward_decay: ref_steps={self.reward_decay_ref_steps} (noterewardnote ref/step note)")
         if self.reset_env_done_grace_steps > 0 or self.reset_collision_grace_steps > 0:
             print(
-                f"   reset保护: env_done前{self.reset_env_done_grace_steps}步忽略, "
-                f"collision前{self.reset_collision_grace_steps}步忽略"
+                f"   resetnote: env_donefirst{self.reset_env_done_grace_steps}note, "
+                f"collisionfirst{self.reset_collision_grace_steps}note"
             )
 
-        # 奖励分项累计（每个 episode 重置）—— 供 Monitor → PerSceneStatsCallback 使用
+        # rewardnote(note episode note)-- note Monitor -> PerSceneStatsCallback note
         self._reward_parts_episode: Dict[str, float] = self._zero_reward_parts()
-        # 额外诊断统计（每个 episode 重置）—— 供日志分析
+        # note(note episode note)-- note
         self._episode_diag: Dict[str, Any] = self._zero_episode_diag()
 
     @staticmethod
     def _extract_obstacle_risk(info: Dict[str, Any]) -> float:
         """
-        从 info 中提取“障碍物接近风险”[0,1]。
+        note info note"obstaclenote"[0,1].
 
-        优先级：
-        1) 直接风险字段（已归一化）
-        2) 距离字段（2.0 距离单位内按指数曲线映射）
-        3) lidar（若存在）按最近有效距离估计风险
-        4) 未提供则返回 -1（表示无可用障碍物信号）
+        note:
+        1) note(note)
+        2) note(2.0 note)
+        3) lidar(note)note
+        4) note -1(noteobstaclenote)
         """
-        # 直接风险字段（值越大越危险）
+        # note(note)
         risk_keys = (
             "obstacle_risk",
             "collision_risk",
@@ -263,11 +263,11 @@ class DonkeyRewardWrapper(gym.Wrapper):
                 except Exception:
                     pass
 
-        # 距离字段（值越小越危险）
-        # 风险区间定义：
-        # - d >= 4.0: 视为安全（风险0）
-        # - d <= 0.5: 视为高危（风险1）
-        # - 中间按指数曲线上升，保证远处风险较小、近处陡增。
+        # note(note)
+        # note:
+        # - d >= 4.0: note(note0)
+        # - d <= 0.5: note(note1)
+        # - note, note, note.
         dist_keys = (
             "obstacle_dist",
             "obstacle_distance",
@@ -303,7 +303,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
                 except Exception:
                     pass
 
-        # lidar 回退：使用最近有效距离的 5% 分位，降低单点噪声影响。
+        # lidar note: note 5% note, note.
         lidar = info.get("lidar", None)
         if lidar is not None:
             try:
@@ -349,7 +349,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
 
     @staticmethod
     def _signed_arc_ratio(g, idx_prev: int, idx_now: int) -> float:
-        """返回基于赛道弧长的有向进度比例，前进为正，后退为负。"""
+        """notetracknote, firstnote, note."""
         n = int(g.center.shape[0])
         i0 = int(idx_prev) % n
         i1 = int(idx_now) % n
@@ -368,7 +368,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
         if not np.isfinite(ds_signed) or g.loop_len <= 1e-6:
             return 0.0
 
-        # 屏蔽异常跳变（reset/定位抖动）
+        # note(reset/note)
         max_reasonable = max(3.0, 0.03 * float(g.loop_len))
         if abs(ds_signed) > max_reasonable:
             return 0.0
@@ -428,8 +428,8 @@ class DonkeyRewardWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         self.episode_stats = self._zero_episode_stats()
         self.prev_lap_count = 0
-        self._soft_lap_progress = 0.0   # 累计前进弧长比例，≥1.0 计一圈
-        self._soft_lap_count = 0        # 软件检测的圈数
+        self._soft_lap_progress = 0.0   # notefirstnote, >=1.0 note
+        self._soft_lap_count = 0        # notedetectionnote
         self.stuck_counter  = 0
         self.offtrack_counter = 0
         self._prev_track_idx = None
@@ -443,19 +443,19 @@ class DonkeyRewardWrapper(gym.Wrapper):
         self._reward_parts_episode = self._zero_reward_parts()
         self._episode_diag = self._zero_episode_diag()
         self._episode_index += 1
-        
+
         obs = self.env.reset(**kwargs)
         return obs
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
         self.current_step += 1
-        
-        # 记录环境级的 done 状态（用于诊断）
+
+        # note done note(note)
         env_done_before_processing = done
         term_reasons = []
         prev_reason = str(info.get("termination_reason", "") or "").strip()
-        if prev_reason and prev_reason != "normal":
+        if prev_reason and prev_reason!= "normal":
             term_reasons.append(prev_reason)
         episode_step = int(self.episode_stats["steps"]) + 1
         reset_env_done_grace_active = (
@@ -488,9 +488,9 @@ class DonkeyRewardWrapper(gym.Wrapper):
 
         self.episode_stats["max_speed"] = max(self.episode_stats["max_speed"], speed)
 
-        # 用轨迹几何计算有符号横偏距 lat_err_cte（与 _SCENE_CTE_TABLE 同单位）
-        # lat_err_cte > 0 = 赛道左侧，lat_err_cte < 0 = 赛道右侧
-        # 无几何时用 -cte_signed 近似（lat_err * coord_scale ≈ -sim_cte）
+        # notegeometrycomputenote lat_err_cte(note _SCENE_CTE_TABLE note)
+        # lat_err_cte > 0 = tracknote, lat_err_cte < 0 = tracknote
+        # notegeometrynote -cte_signed note(lat_err * coord_scale ~ -sim_cte)
         lat_err_cte = -cte_signed   # fallback
         lat_err_norm = 0.0
         heading_err_abs = 0.0
@@ -508,7 +508,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
                 curr_track_idx = int(geo["idx"])
                 self._prev_track_idx = curr_track_idx
                 lat_err = geo["lat_err"]
-                lat_err_cte = lat_err * self.coord_scale  # 有符号横偏距，与 CTE 表同单位
+                lat_err_cte = lat_err * self.coord_scale  # note, note CTE note
                 lat_err_norm = float(geo.get("lat_err_norm", 0.0))
                 heading_err_abs = abs(float(math.atan2(
                     float(geo.get("heading_err_sin", 0.0)),
@@ -518,14 +518,14 @@ class DonkeyRewardWrapper(gym.Wrapper):
             except Exception:
                 pass
 
-        # 有符号横偏距的幅值（用于边界比较）
+        # note(note)
         lat_err_cte_abs = abs(lat_err_cte)
-        is_left_side = (lat_err_cte >= 0)  # 用于日志和边界选择
+        is_left_side = (lat_err_cte >= 0)  # note
 
-        # 非对称 CTE 边界（有符号选边，幅值比较）
+        # note CTE note(note, note)
         cte_boundary     = abs(self.cte_left     if is_left_side else self.cte_right)
         cte_out_boundary = abs(self.cte_left_out if is_left_side else self.cte_right_out)
-        # ontrack：边界点仍视为在界内；超过边界才记 over_in / over_out
+        # ontrack: note; note over_in / over_out
         ontrack = float(lat_err_cte_abs <= cte_boundary)
         cte_over_in = float(lat_err_cte_abs > cte_boundary)
         cte_over_out = float(lat_err_cte_abs > cte_out_boundary)
@@ -540,11 +540,11 @@ class DonkeyRewardWrapper(gym.Wrapper):
         cte_norm = lat_err_cte_abs / max(1e-6, cte_boundary)
         center_factor = float(np.clip(1.0 - cte_norm * cte_norm, 0.0, 1.0))
 
-        # Progress reward（按赛道几何弧长计算有向进度，前进正、后退负）
+        # Progress reward(notetrackgeometrynotecomputenote, firstnote, note)
         progress_reward = 0.0
         progress_reward_raw = 0.0
         progress_ratio = 0.0
-        progress_ratio_unclipped = 0.0  # 未裁切的弧长比例，用于软件圈数检测
+        progress_ratio_unclipped = 0.0  # note, notedetection
         progress_center_gate = 1.0
         progress_forward_gain = 1.0
         if (
@@ -559,42 +559,42 @@ class DonkeyRewardWrapper(gym.Wrapper):
                 progress_ratio = float(np.clip(progress_ratio_unclipped, -0.02, 0.02))
                 curve_ratio = float(np.clip(kappa_abs / self.progress_kappa_ref, 0.0, 1.0))
                 if progress_ratio > 0.0:
-                    # 修复：正向进度奖励与横向控制耦合，贴边时不再用高进度“抵消”CTE/碰撞风险
+                    # note: noterewardnotecontrolnote, note"note"CTE/note
                     progress_center_gate = float(max(
                         self.progress_center_gate_min,
                         center_factor ** self.progress_center_gate_power,
                     ))
-                    # 弯道增益也受中心线因子调制，避免“贴边+高曲率”被额外鼓励
+                    # note, note"note+note"note
                     progress_forward_gain = float(1.0 + self.progress_curve_boost * curve_ratio * center_factor)
                     progress_reward_raw = ontrack * self.progress_reward_scale * progress_ratio * progress_forward_gain
                     progress_reward = progress_reward_raw * progress_center_gate
                 else:
-                    # 负向进度保持全额惩罚，不做门控
+                    # note, note
                     progress_reward = ontrack * self.progress_reward_scale * progress_ratio
                     progress_reward_raw = progress_reward
             except Exception:
                 progress_ratio = 0.0
                 progress_reward_raw = 0.0
                 progress_reward = 0.0
-        # 记录几何进度累计（与 progress_reward_scale 解耦，供动态采样软成功使用）
+        # notegeometrynote(note progress_reward_scale note, notedynamicnotesucceedednote)
         self._episode_diag["progress_ratio_signed_sum"] += float(progress_ratio)
         self._episode_diag["progress_ratio_forward_sum"] += float(max(0.0, progress_ratio))
 
-        # ── 软件圈数检测（解决 WS 等赛道无 starting-line trigger 的问题）──
-        # 使用 unclipped 弧长比例累加，当净前进距离 ≥ 1.0 圈时计一圈
+        # ── notedetection(note WS notetracknote starting-line trigger note)──
+        # note unclipped note, notefirstnote >= 1.0 note
         self._soft_lap_progress += float(progress_ratio_unclipped)
-        # 防止长时间倒退造成巨大赤字
+        # note
         self._soft_lap_progress = max(-0.5, self._soft_lap_progress)
         while self._soft_lap_progress >= 1.0:
             self._soft_lap_count += 1
             self._soft_lap_progress -= 1.0
 
-        # Survival / speed：都要求“真的在前进”，避免学成慢速保命。
+        # Survival / speed: note"notefirstnote", note.
         alive_forward_gate = float(progress_ratio > 1e-6)
         survival_reward = self.survival_reward_scale * speed_gate * alive_forward_gate
         speed_reward = 0.25 * ontrack * speed_gate * center_factor * alive_forward_gate
 
-        # 稠密项：最短路径 / 姿态 / 曲率目标速度 / 时间惩罚
+        # note: notepath / note / notegoalnote / note
         center_penalty = -self.w_center * abs(float(lat_err_norm))
         heading_penalty = -self.w_heading * (float(heading_err_abs) / math.pi)
         curve_ratio_speed = float(np.clip(kappa_abs / self.speed_ref_kappa_ref, 0.0, 1.0))
@@ -606,15 +606,15 @@ class DonkeyRewardWrapper(gym.Wrapper):
         speed_ref_penalty = -self.w_speed_ref * (speed_err_norm * speed_err_norm)
         time_penalty = -self.w_time
 
-        # ★ CTE reward（BUG FIXED：使用 cte_abs + cte_boundary）
-        # V3 归一化: 乘以 cte_norm_scale 使各赛道 CTE 奖惩量级一致
-        #   norm_scale = cte_half_width / REF → 窄赛道 <1（缩小惩罚），宽赛道 >1（放大惩罚）
+        # ★ CTE reward(BUG FIXED: note cte_abs + cte_boundary)
+        # V3 note: note cte_norm_scale notetrack CTE note
+        #   norm_scale = cte_half_width / REF -> notetrack <1(note), notetrack >1(note)
         if lat_err_cte_abs > cte_boundary:
-            # 出界量（有符号）= lat_err_cte - 边界（正=左出界，负=右出界）
-            # 分母用 cte_half_width（平均宽度）而非侧向 boundary，
-            # 防止非对称赛道（wt/gt/wh 右侧窄）惩罚因分母小而爆炸
+            # note(note)= lat_err_cte - note(note=note, note=note)
+            # note cte_half_width(note)note boundary,
+            # notetrack(wt/gt/wh note)note
             exceed_ratio = (lat_err_cte_abs - cte_boundary) / max(1e-6, self.cte_half_width)
-            # clip exceed_ratio 防止出界后惩罚无限累积
+            # clip exceed_ratio note
             exceed_ratio = min(exceed_ratio, 2.0)
             cte_term = -(1.0 + 4.0 * exceed_ratio) * self.cte_norm_scale
             self.episode_stats["cte_violations"] += 1
@@ -623,9 +623,9 @@ class DonkeyRewardWrapper(gym.Wrapper):
             speed_gate_cte = float(np.clip(speed / 0.3, 0.0, 1.0))
             cte_term = cte_base * speed_gate_cte * self.cte_norm_scale
 
-        # Terminal penalty（仅记录真正的终止惩罚；near_* 单独累计）
+        # Terminal penalty(note; near_* note)
         terminal_penalty = 0.0
-        if hit != "none":
+        if hit!= "none":
             if reset_collision_grace_active:
                 collision_masked = True
                 if env_done_before_processing:
@@ -638,20 +638,20 @@ class DonkeyRewardWrapper(gym.Wrapper):
                 done = True
                 term_reasons.append("collision")
 
-        # Lap reward（合并 sim 计圈和软件计圈，取较大值）
+        # Lap reward(note sim note, note)
         effective_lap_count = max(lap_count, self._soft_lap_count)
         lap_reward = 0.0
         lap_reward_raw = 0.0
-        # WS无障碍episode用更短的圈数上限：
-        # 有障碍时ep_len≈200步，无障碍时ep_len≈1300步，步数严重倾斜（有障碍仅占18%步数）
-        # 无障碍WS限制3圈done，让两类episode步数接近，提升有障碍的学习信号比例
+        # WSnoteobstacleepisodenote:
+        # noteobstaclenoteep_len~200note, noteobstaclenoteep_len~1300note, note(noteobstaclenote18%note)
+        # noteobstacleWSnote3notedone, noteclassepisodenote, noteobstaclenote
         obstacle_active = float(info.get("obstacle_runtime_active", 1.0))
         if self._scene_key == "waveshare" and obstacle_active < 0.5:
-            MAX_LAPS_FOR_REWARD = 3  # WS无障碍：3圈done
+            MAX_LAPS_FOR_REWARD = 3  # WSnoteobstacle: 3notedone
         else:
-            MAX_LAPS_FOR_REWARD = 5  # WS有障碍 / GT：5圈done
+            MAX_LAPS_FOR_REWARD = 5  # WSnoteobstacle / GT: 5notedone
         if effective_lap_count > self.prev_lap_count and effective_lap_count <= MAX_LAPS_FOR_REWARD:
-            # 每步最多按 1 圈计奖，避免计数抖动造成奖励尖峰
+            # note 1 note, noterewardnote
             laps_completed_raw = effective_lap_count - self.prev_lap_count
             laps_completed = int(max(0, min(laps_completed_raw, 1)))
             lap_reward_raw = 6.0 * laps_completed
@@ -659,21 +659,21 @@ class DonkeyRewardWrapper(gym.Wrapper):
             self.prev_lap_count = effective_lap_count
             lap_source = "sim" if lap_count >= self._soft_lap_count else "soft"
             print(
-                f"\n🎉 [{self._logging_key}] 完成第 {effective_lap_count} 圈 ({lap_source})! "
-                f"奖励 +{lap_reward:.1f} (raw={lap_reward_raw:.1f}, "
+                f"\n🎉 [{self._logging_key}] note {effective_lap_count} note ({lap_source})! "
+                f"reward +{lap_reward:.1f} (raw={lap_reward_raw:.1f}, "
                 f"scale={self.lap_reward_scale:.2f}, "
                 f"sim_lap={lap_count}, soft_lap={self._soft_lap_count})"
             )
         elif effective_lap_count > MAX_LAPS_FOR_REWARD:
-            # 超过上限，不再给奖励，但更新prev_lap_count避免重复计数
+            # note, notereward, noteprev_lap_countnote
             self.prev_lap_count = effective_lap_count
 
-        # ★ 圈数上限到达后立即终止 episode
+        # ★ note episode
         if effective_lap_count >= MAX_LAPS_FOR_REWARD:
             done = True
             term_reasons.append("max_laps_reached")
 
-        # Stuck 检测（速度 < 0.1，连续 30 步后逐步增加惩罚）
+        # Stuck detection(note < 0.1, note 30 note)
         if ontrack and speed < 0.1:
             self.stuck_counter += 1
         else:
@@ -684,10 +684,10 @@ class DonkeyRewardWrapper(gym.Wrapper):
             terminal_penalty -= stuck_penalty_increment
             term_reasons.append("stuck")
 
-        # 出界课程：done 触发阈值前期放宽，后期收紧；CTE 惩罚(cte_term)始终基于真实边界
+        # note: done notefirstnote, note; CTE note(cte_term)note
         if self._leniency_steps > 0 and self.current_step < self._leniency_steps:
-            _progress = self.current_step / self._leniency_steps          # 0 → 1
-            _leniency = self._leniency_mult * (1.0 - _progress) + _progress  # mult → 1.0
+            _progress = self.current_step / self._leniency_steps          # 0 -> 1
+            _leniency = self._leniency_mult * (1.0 - _progress) + _progress  # mult -> 1.0
         else:
             _leniency = 1.0
         _effective_out = cte_out_boundary * _leniency
@@ -697,14 +697,14 @@ class DonkeyRewardWrapper(gym.Wrapper):
         else:
             self.offtrack_counter = 0
 
-        # Offtrack done（惩罚 -6 始终附加，done 阈值随课程收紧）
+        # Offtrack done(note -6 note, done note)
         if self.offtrack_counter >= 3:
             terminal_penalty -= self.offtrack_penalty_base
             done = True
             term_reasons.append("offtrack")
 
-        # 线性“预惩罚”：在真正出界/碰撞前就开始惩罚，降低最后一刻急打方向的策略偏好。
-        # 注意：风险评估使用“真实 out 边界”，不跟随 done 阈值 leniency 放宽。
+        # note"note": note/notefirstnote, note.
+        # note: note"note out note", note done note leniency note.
         cte_out_ratio_done = float(np.clip(lat_err_cte_abs / max(_effective_out, 1e-6), 0.0, 2.0))
         cte_out_ratio_risk = float(np.clip(lat_err_cte_abs / max(cte_out_boundary, 1e-6), 0.0, 2.0))
 
@@ -751,7 +751,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
             0.0,
             1.0,
         ))
-        # 优先使用障碍物信号；无信号时回退到代理风险。
+        # noteobstaclenote; note.
         if has_obstacle_signal > 0.5:
             near_collision_risk_raw = float(np.clip(
                 0.75 * obstacle_risk + 0.25 * proxy_collision_risk,
@@ -876,7 +876,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
         info["reward_debug/overtake_obstacle_planar_distance"] = float(obstacle_planar_distance)
         info["reward_debug/r_overtake"] = float(overtake_bonus)
 
-        # 调试日志
+        # note
         info["reward_debug/survival"]         = survival_reward
         info["reward_debug/speed_gate"]       = speed_gate
         info["reward_debug/alive_forward_gate"] = alive_forward_gate
@@ -902,7 +902,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
             int(self.stuck_counter),
         )
 
-        # 平滑惩罚
+        # note
         smooth_penalty = 0.0
         jerk_penalty   = 0.0
         mismatch_penalty = 0.0
@@ -920,7 +920,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
             rate_limit_hit        = float(diag["rate_limit_hit"])
             steer_clip_hit        = float(diag["steer_clip_hit"])
 
-            # 发夹弯等高曲率段适度降低平滑惩罚，避免策略“怕转向”
+            # note, note"note"
             smooth_penalty = -self.w_d   * abs_delta * curve_penalty_scale
             jerk_penalty   = -self.w_dd  * abs_jerk * curve_penalty_scale
             mismatch_penalty = -self.w_m * abs_mismatch * curve_penalty_scale
@@ -965,7 +965,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
         throttle_high_penalty = 0.0
         if throttle_cmd > self.throttle_penalty_threshold:
             speed_norm_for_penalty = float(np.clip(speed / 4.0, 0.0, 2.0))
-            # 安全驾驶惩罚：油门过高时按速度加重（速度越大，扣分越多）
+            # note: note(note, note)
             throttle_high_penalty = -self.throttle_penalty_amount * (1.0 + speed_norm_for_penalty)
         else:
             speed_norm_for_penalty = float(np.clip(speed / 4.0, 0.0, 2.0))
@@ -984,15 +984,15 @@ class DonkeyRewardWrapper(gym.Wrapper):
             throttle_high_penalty
         )
 
-        # reward decay: 超过 ref_steps 后按 ref/step 衰减每步奖励
-        ep_steps = self.episode_stats["steps"] + 1   # 当前步（从1开始）
+        # reward decay: note ref_steps note ref/step notereward
+        ep_steps = self.episode_stats["steps"] + 1   # currentnote(note1note)
         if self.reward_decay_ref_steps > 0 and ep_steps > self.reward_decay_ref_steps:
             total_reward /= (ep_steps / self.reward_decay_ref_steps)
 
         self.episode_stats["total_reward"] += total_reward
         self.episode_stats["steps"] += 1
 
-        # ── 奖励分项累计（供 ep_info_buffer → PerSceneStatsCallback 消费）──
+        # ── rewardnote(note ep_info_buffer -> PerSceneStatsCallback note)──
         self._reward_parts_episode["survival"]  += survival_reward
         self._reward_parts_episode["speed"]     += speed_reward
         self._reward_parts_episode["progress"]  += progress_reward
@@ -1058,7 +1058,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
             info["ep_progress_ratio_forward_sum"] = float(self._episode_diag["progress_ratio_forward_sum"])
             info["ep_progress_reward_scale"] = float(self.progress_reward_scale)
 
-        # 可选：前若干步诊断日志（默认关闭，避免训练日志污染）
+        # note: firstnote(defaultnote, notetrainingnote)
         _diag_episode_hit = (
             self.step_diagnostics_every_episodes <= 0
             or (self._episode_index % self.step_diagnostics_every_episodes == 0)
@@ -1081,7 +1081,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
                 f"speed={speed:.2f}, hit={hit}, done={done}, "
                 f"env_done={env_done_before_processing}, reason={reason_preview}"
             )
-        
+
         if term_reasons:
             dedup = []
             for r in term_reasons:
@@ -1111,7 +1111,7 @@ class DonkeyRewardWrapper(gym.Wrapper):
 
 
 # ---------------------------------------------------------------------------
-# 向后兼容别名（供旧脚本 ppo_waveshare_v8/v9/test 等直接导入）
+# note(note ppo_waveshare_v8/v9/test note)
 # ---------------------------------------------------------------------------
 ImprovedRewardWrapperV3 = DonkeyRewardWrapper
 V9DomainRewardWrapper   = DonkeyRewardWrapper

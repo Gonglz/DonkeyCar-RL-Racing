@@ -9,11 +9,11 @@ import time
 import gym
 import gym_donkeycar  # noqa: F401
 
-from .v14_dep_generatedtrack_base import build_dist_scale_profile
-from .v14_env_factory import _query_generated_track_cache_from_env
-from .v14_train import train_v14
-from .v14_paths import default_generated_track_profile
-from .utils import _write_json
+from.v14_dep_generatedtrack_base import build_dist_scale_profile
+from.v14_env_factory import _query_generated_track_cache_from_env
+from.v14_train import train_v14
+from.v14_paths import default_generated_track_profile
+from.utils import _write_json
 
 def parse_args():
     p = argparse.ArgumentParser(description="V14 CNN+CBAM + 4-stage Curriculum + Policy Distillation")
@@ -24,7 +24,7 @@ def parse_args():
     p.add_argument('--seed', type=int, default=42)
     p.add_argument('--exe-path', type=str, default=None)
 
-    # 地图
+    # note
     p.add_argument('--max-cte', type=float, default=10.0)
     p.add_argument('--num-npc', type=int, default=2)
     p.add_argument('--max-episode-steps', type=int, default=1500)
@@ -34,7 +34,7 @@ def parse_args():
     p.add_argument('--manual-width-profile', type=str,
                    default=default_generated_track_profile())
 
-    # 训练
+    # training
     p.add_argument('--total-steps', type=int, default=700000)
     p.add_argument('--train-chunk-steps', type=int, default=4096)
     p.add_argument('--save-freq', type=int, default=50000)
@@ -45,7 +45,7 @@ def parse_args():
     p.add_argument('--auto-promote', action='store_true', default=True)
     p.add_argument('--no-auto-promote', action='store_false', dest='auto_promote')
 
-    # PPO超参
+    # PPOnote
     p.add_argument('--lr', type=float, default=1.5e-4)
     p.add_argument('--n-steps', type=int, default=512)
     p.add_argument('--batch-size', type=int, default=64)
@@ -57,7 +57,7 @@ def parse_args():
     p.add_argument('--vf-coef', type=float, default=0.5)
     p.add_argument('--max-grad-norm', type=float, default=0.5)
 
-    # 控制层
+    # controlnote
     p.add_argument('--max-throttle', type=float, default=0.30)
     p.add_argument('--delta-max', type=float, default=0.10)
     p.add_argument('--enable-lpf', action='store_true', default=True)
@@ -112,14 +112,14 @@ def parse_args():
     p.add_argument('--no-v14-stage34-collision-reset-npc', action='store_false', dest='v14_stage34_collision_reset_npc')
     p.add_argument('--v14-stage34-npc-contact-reset-cooldown-steps', type=int, default=60)
 
-    # V14 赛车线
+    # V14 note
     p.add_argument('--racing-line-lookahead', type=int, default=20)
     p.add_argument('--racing-line-smoothing', type=int, default=10)
     p.add_argument('--racing-line-max-offset-ratio', type=float, default=0.35)
     p.add_argument('--racing-line-reward-scale', type=float, default=0.15)
     p.add_argument('--curvature-penalty-scale', type=float, default=0.10)
 
-    # V14 主动避障
+    # V14 note
     p.add_argument('--proactive-zone-scale', type=float, default=2.0)
     p.add_argument('--proactive-reward-scale', type=float, default=0.30)
     p.add_argument('--close-call-penalty', type=float, default=0.30)
@@ -136,16 +136,16 @@ def parse_args():
     p.add_argument('--rear-end-penalty', type=float, default=1.2)
     p.add_argument('--racing-line-weight-stage4', type=float, default=0.5)
 
-    # V14 策略蒸馏
+    # V14 note
     p.add_argument('--kl-coef-initial', type=float, default=0.5)
     p.add_argument('--kl-decay', type=float, default=0.995)
     p.add_argument('--kl-min', type=float, default=0.05)
 
-    # V14 混合采样
+    # V14 note
     p.add_argument('--p-npc-free', type=float, default=0.15,
-                   help='Stage4 混合采样: 无NPC episode概率')
+                   help='Stage4 note: noteNPC episodenote')
 
-    # 评估
+    # note
     p.add_argument('--eval-freq-steps', type=int, default=25000)
     p.add_argument('--eval-episodes', type=int, default=3)
     p.add_argument('--eval-consecutive-success', type=int, default=2)
@@ -159,7 +159,7 @@ def main():
     args = parse_args()
 
     if args.mode == 'calibrate':
-        print("📏 V14 标定模式")
+        print("📏 V14 note")
         env = None
         try:
             conf = {
@@ -188,7 +188,7 @@ def main():
             out_path = "dist_scale_profile_generated_track.json"
             _write_json(out_path, profile)
         except Exception as e:
-            print(f"❌ 标定失败: {e}")
+            print(f"FAIL notefailed: {e}")
             import traceback
             traceback.print_exc()
         finally:

@@ -85,7 +85,7 @@ DEFAULT_ENV_IDS: List[str] = [
 ]
 
 # ============================================================
-# Curriculum stages — 仅 ws+gt
+# Curriculum stages - note ws+gt
 # ============================================================
 STAGE_ENV_IDS: Dict[str, List[str]] = {
     "S1": [
@@ -108,7 +108,7 @@ STAGE_STEP_BALANCE_MASK: Dict[str, List[bool]] = {
     "S2": [True, True],
 }
 
-# Per-scene 动态调权上限：顺序与 STAGE_ENV_IDS 对应: [ws, gt]
+# Per-scene dynamicnote: note STAGE_ENV_IDS note: [ws, gt]
 STAGE_DYNAMIC_WEIGHT_MAX: Dict[str, List[float]] = {
     "S1": [0.55, 0.55],
     "S2": [0.55, 0.55],
@@ -116,7 +116,7 @@ STAGE_DYNAMIC_WEIGHT_MAX: Dict[str, List[float]] = {
 
 CURRICULUM_STAGE_ADVANCE_RULES: Dict[str, Dict[str, Any]] = {
     "S1": {
-        # 总步数 30% 后开始检查：ws/gt 最近 10 局都至少 2 lap，则提前晋级到 S2。
+        # note 30% note: ws/gt note 10 note 2 lap, notefirstnote S2.
         "advance_after_ratio": 0.30,
         "required_logging_keys": ["ws", "gt"],
         "recent_episodes": 10,
@@ -246,7 +246,7 @@ class CurriculumStageAdvanceCallback(BaseCallback):
                 if self.max_total_timesteps is not None else ""
             )
             print(
-                f"🎓 课程晋级门控[{self.stage_name}]: "
+                f"🎓 note[{self.stage_name}]: "
                 f"after {self.min_total_timesteps} total steps, "
                 f"{joined} recent {self.recent_episodes} eps all >= "
                 f"{self.min_laps_per_episode:.1f} laps{max_txt}"
@@ -314,7 +314,7 @@ class CurriculumStageAdvanceCallback(BaseCallback):
                     for key in self.required_logging_keys
                 }
                 print(
-                    f"🎯 课程提前晋级[{self.stage_name}]："
+                    f"🎯 notefirstnote[{self.stage_name}]: "
                     f"total_steps={self.stop_num_timesteps}, "
                     f"stage_steps={self.stop_stage_timesteps}, recent_laps={snapshot}"
                 )
@@ -327,8 +327,8 @@ class CurriculumStageAdvanceCallback(BaseCallback):
             self.stop_stage_timesteps = self._stage_timesteps()
             if self.verbose > 0:
                 print(
-                    f"⏱️  课程阶段[{self.stage_name}]未触发提前晋级，"
-                    f"达到总步数上限 {self.max_total_timesteps}，切换下一阶段"
+                    f"⏱️  notestage[{self.stage_name}]notefirstnote, "
+                    f"note {self.max_total_timesteps}, notestage"
                 )
             return False
 
@@ -351,7 +351,7 @@ class StrictStageTimestepsStopCallback(BaseCallback):
         self._start_num_timesteps = int(getattr(self.model, "num_timesteps", 0))
         if self.verbose > 0:
             print(
-                f"⛔ 严格阶段步数门控[{self.stage_name}]: "
+                f"⛔ notestagenote[{self.stage_name}]: "
                 f"max_stage_timesteps={self.max_stage_timesteps}"
             )
 
@@ -375,7 +375,7 @@ class StrictStageTimestepsStopCallback(BaseCallback):
             self.stop_stage_timesteps = int(stage_timesteps)
             if self.verbose > 0:
                 print(
-                    f"⛔ 严格阶段步数门控[{self.stage_name}]命中: "
+                    f"⛔ notestagenote[{self.stage_name}]note: "
                     f"stage_steps={self.stop_stage_timesteps} >= {self.max_stage_timesteps}"
                 )
             return False
@@ -491,10 +491,10 @@ def run_v13_contract_tests(obs_size: int = 128) -> None:
     obs = env.reset()
     assert isinstance(obs, dict), f"obs should be dict, got {type(obs)}"
     assert obs["image"].shape == (6, obs_size, obs_size), \
-        f"image shape {obs['image'].shape} != (6, {obs_size}, {obs_size})"
-    assert obs["state"].shape == (7,), f"state shape {obs['state'].shape} != (7,)"
-    assert env.action_space.shape == (3,), f"action shape {env.action_space.shape} != (3,)"
-    print("  ✅ Test 1: obs/action dimension contract passed")
+        f"image shape {obs['image'].shape}!= (6, {obs_size}, {obs_size})"
+    assert obs["state"].shape == (7,), f"state shape {obs['state'].shape}!= (7,)"
+    assert env.action_space.shape == (3,), f"action shape {env.action_space.shape}!= (3,)"
+    print("  PASS Test 1: obs/action dimension contract passed")
 
     # --- Test 2: reset contract (no state leakage) ---
     for _ in range(5):
@@ -510,22 +510,22 @@ def run_v13_contract_tests(obs_size: int = 128) -> None:
     assert abs(obs["state"][4]) < 1e-6, f"prev_throttle_exec={obs['state'][4]} after reset"
     assert abs(obs["state"][5]) < 1e-6, f"steer_core={obs['state'][5]} after reset"
     assert abs(obs["state"][6]) < 1e-6, f"bias_smooth={obs['state'][6]} after reset"
-    print("  ✅ Test 2: reset contract passed (no state leakage)")
+    print("  PASS Test 2: reset contract passed (no state leakage)")
 
     # --- Test 3: one-step wrapper chain contract ---
     obs = env.reset()
     action = np.array([0.5, -0.3, 0.7], dtype=np.float32)
     obs2, r, done, info = env.step(action)
-    assert adapter.steer_core != 0.0, "steer_core should change after Δsteer=0.5"
-    assert adapter.bias_smooth != 0.0, "bias_smooth should change after line_bias=0.7"
+    assert adapter.steer_core!= 0.0, "steer_core should change after Δsteer=0.5"
+    assert adapter.bias_smooth!= 0.0, "bias_smooth should change after line_bias=0.7"
     assert "steer_exec" in action_safety.diag, "safety should write steer_exec to diag"
     assert abs(obs2["state"][5] - adapter.steer_core) < 1e-6, \
-        f"state[5]={obs2['state'][5]} != adapter.steer_core={adapter.steer_core}"
+        f"state[5]={obs2['state'][5]}!= adapter.steer_core={adapter.steer_core}"
     assert abs(obs2["state"][6] - adapter.bias_smooth) < 1e-6, \
-        f"state[6]={obs2['state'][6]} != adapter.bias_smooth={adapter.bias_smooth}"
+        f"state[6]={obs2['state'][6]}!= adapter.bias_smooth={adapter.bias_smooth}"
     for k in ["ctrl/v_target", "ctrl/steer_core", "ctrl/bias_smooth"]:
         assert k in info, f"info missing key: {k}"
-    print("  ✅ Test 3: one-step wrapper chain contract passed")
+    print("  PASS Test 3: one-step wrapper chain contract passed")
 
     print("🧪 All V13 contract tests passed\n")
 
@@ -536,9 +536,9 @@ def run_preflight_tests(
 ) -> None:
     print("\n🔍 Running preflight checks...")
     run_offline_track_checks(track_geometry)
-    print("  ✅ Track geometry checks passed")
+    print("  PASS Track geometry checks passed")
     run_v13_contract_tests(obs_size=obs_size)
-    print("✅ All preflight checks passed\n")
+    print("PASS All preflight checks passed\n")
 
 
 def _probe_sim_tcp(host: str, port: int, timeout_s: float = 1.0) -> Tuple[bool, str]:
@@ -733,7 +733,7 @@ def train_v13(
     if scene_weights is None:
         scene_weights = [1.0 / len(env_ids)] * len(env_ids)
     else:
-        if len(scene_weights) != len(env_ids):
+        if len(scene_weights)!= len(env_ids):
             raise ValueError("scene_weights length must match env_ids")
         total_w = float(sum(scene_weights))
         if total_w <= 0:
@@ -847,17 +847,17 @@ def train_v13(
             resend_scene_names_s=float(sim_wait_resend_scene_names_s),
         ):
             print(
-                f"🔧 sim wait patch enabled: timeout={float(sim_loaded_timeout_s):.1f}s, "
+                f"config sim wait patch enabled: timeout={float(sim_loaded_timeout_s):.1f}s, "
                 f"resend_scene_names_every={float(sim_wait_resend_scene_names_s):.1f}s"
             )
     else:
         print("ℹ️  sim wait timeout patch disabled (sim_loaded_timeout_s <= 0)")
 
     if not _launch_sim:
-        print("ℹ️  sim_path 为空/remote，不自动启动模拟器，请手动启动")
+        print("ℹ️  sim_path note/remote, note, note")
         ok, err = _probe_sim_tcp(sim_host, sim_port, timeout_s=1.0)
         if ok:
-            print(f"✅ sim tcp reachable: {sim_host}:{sim_port}")
+            print(f"PASS sim tcp reachable: {sim_host}:{sim_port}")
         else:
             print(f"⚠️  sim tcp not reachable: {sim_host}:{sim_port} ({err})")
 
@@ -1073,10 +1073,10 @@ def train_v13(
             save_dir=save_dir,
             check_freq=2000,
             rolling_window=30,
-            crash_ratio=0.25,        # rolling < peak * 0.25 → 判定崩溃
-            min_peak_len=80.0,       # peak < 80 的场景不触发（RRL 等早期场景）
-            cooldown_steps=50000,    # 回滚后 50k 步冷却
-            min_warmup_steps=30000,  # 开训 30k 步内不检测
+            crash_ratio=0.25,        # rolling < peak * 0.25 -> note
+            min_peak_len=80.0,       # peak < 80 note(RRL note)
+            cooldown_steps=50000,    # note 50k note
+            min_warmup_steps=30000,  # note 30k notedetection
             verbose=1,
         ),
     ]
@@ -1129,7 +1129,7 @@ def train_v13(
                 reset_num_timesteps=(resume_ckpt_path is None),
             )
         except Exception as e:
-            print(f"\n⚠️  learn() 异常: {e}")
+            print(f"\n⚠️  learn() note: {e}")
             raise
     except KeyboardInterrupt:
         print("\n⚠️  Training interrupted by user")
@@ -1298,7 +1298,7 @@ def train_v13(
         json.dump(config, f, indent=2, ensure_ascii=False)
 
     print("\n" + "=" * 76)
-    print("✅ V13 training finished")
+    print("PASS V13 training finished")
     print("=" * 76)
     print(f"elapsed: {elapsed / 3600.0:.2f} h")
     print(f"model: {final_model_path}.zip")
@@ -1330,22 +1330,22 @@ if __name__ == "__main__":
 
     parser.add_argument("--train-profile", type=str, default="v13_clean",
                         choices=["v13_clean", "v13_softsafe"],
-                        help="训练配置档位：v13_clean(默认baseline) / v13_softsafe(安全项更软)")
+                        help="trainingconfigurationnote: v13_clean(defaultbaseline) / v13_softsafe(note)")
     parser.add_argument("--env-ids", nargs="+", type=str, default=None)
     parser.add_argument("--scene-weights", nargs="+", type=float, default=None)
     parser.add_argument("--stage", type=str, default=None, choices=["S1", "S2"],
-                        help="分阶段训练：S1(ws+gt) / S2(ws+gt)。优先级低于 --env-ids")
+                        help="notestagetraining: S1(ws+gt) / S2(ws+gt).note --env-ids")
     parser.add_argument("--track-dir", type=str, default="/home/longzhao/track")
 
     parser.add_argument("--sim", type=str, default="remote",
-                        help="模拟器路径，设为 remote/none/空 则不自动启动 (默认: remote)")
+                        help="notepath, note remote/none/note(default: remote)")
     parser.add_argument("--steps", type=int, default=2000000)
     parser.add_argument("--save-dir", type=str, default="models/v13_multi_scene")
     parser.add_argument("--port", type=int, default=9091)
     parser.add_argument("--sim-loaded-timeout-s", type=float, default=35.0,
-                        help="sim 握手最长等待秒数；超时后直接报错而不是无限等待")
+                        help="sim note; note")
     parser.add_argument("--sim-wait-resend-scene-names-s", type=float, default=3.0,
-                        help="等待 sim 握手时，重发 get_scene_names 的间隔秒数")
+                        help="note sim note, note get_scene_names note")
 
     parser.add_argument("--obs-size", type=int, default=128)
     parser.add_argument("--no-augment", action="store_false", dest="augment", default=False)
@@ -1370,7 +1370,7 @@ if __name__ == "__main__":
     parser.add_argument("--adapter-v-min", type=float, default=0.6)
     parser.add_argument("--adapter-v-max", type=float, default=1.8)
     parser.add_argument("--adapter-max-throttle", type=float, default=0.3,
-                        help="Adapter 内部速度控制器最大油门")
+                        help="Adapter notecontrolnote")
 
     # PI+FF speed controller
     parser.add_argument("--speed-vmax", type=float, default=2.2)
@@ -1422,11 +1422,11 @@ if __name__ == "__main__":
     parser.add_argument("--w-sat", type=float, default=0.0)
     parser.add_argument("--w-time", type=float, default=0.01)
     parser.add_argument("--w-center", type=float, default=0.03,
-                        help="居中惩罚权重（轻量引导，依赖 TrackGeometry）")
+                        help="note(note, note TrackGeometry)")
     parser.add_argument("--w-heading", type=float, default=0.015,
-                        help="航向惩罚权重（轻量引导，依赖 TrackGeometry）")
+                        help="note(note, note TrackGeometry)")
     parser.add_argument("--w-speed-ref", type=float, default=0.0,
-                        help="速度参考惩罚权重（V13 默认 0：adapter 内部管速度）")
+                        help="note(V13 default 0: adapter note)")
     parser.add_argument("--speed-ref-vmin", type=float, default=0.35)
     parser.add_argument("--speed-ref-vmax", type=float, default=2.2)
     parser.add_argument("--speed-ref-kappa-ref", type=float, default=0.15)
@@ -1472,12 +1472,12 @@ if __name__ == "__main__":
 
     # Curriculum
     parser.add_argument("--curriculum-auto", action="store_true", default=False,
-                        help="自动按课程阶段连续训练（默认 S1 30%后可提前晋级，60%兜底切到 S2）")
+                        help="notestagenotetraining(default S1 30%notefirstnote, 60%note S2)")
     parser.add_argument("--no-curriculum-auto", action="store_false", dest="curriculum_auto")
     parser.add_argument("--curriculum-stages", type=str, default="S1,S2",
-                        help="自动课程阶段顺序，例如 S1,S2")
+                        help="notestagenote, note S1,S2")
     parser.add_argument("--curriculum-ratios", type=str, default="0.60,0.40",
-                        help="各阶段步数占比，逗号分隔")
+                        help="notestagenote, note")
 
     args = parser.parse_args()
 
@@ -1687,19 +1687,19 @@ if __name__ == "__main__":
     if use_curriculum_auto:
         stages = [s.strip().upper() for s in args.curriculum_stages.split(",") if s.strip()]
         if not stages:
-            raise ValueError("--curriculum-stages 为空")
+            raise ValueError("--curriculum-stages note")
         for s in stages:
             if s not in STAGE_ENV_IDS:
-                raise ValueError(f"未知课程阶段: {s}")
+                raise ValueError(f"notestage: {s}")
 
         raw_ratios = [float(x.strip()) for x in args.curriculum_ratios.split(",") if x.strip()]
-        if len(raw_ratios) != len(stages):
+        if len(raw_ratios)!= len(stages):
             raise ValueError(
-                f"--curriculum-ratios 数量({len(raw_ratios)})必须与阶段数量({len(stages)})一致"
+                f"--curriculum-ratios note({len(raw_ratios)})notestagenote({len(stages)})note"
             )
         ratio_sum = float(sum(raw_ratios))
         if ratio_sum <= 0:
-            raise ValueError("--curriculum-ratios 总和必须 > 0")
+            raise ValueError("--curriculum-ratios note > 0")
         ratios = [r / ratio_sum for r in raw_ratios]
 
         stage_steps = [max(1, int(args.steps * r)) for r in ratios]
@@ -1707,20 +1707,20 @@ if __name__ == "__main__":
         if stage_steps[-1] <= 0:
             stage_steps[-1] = 1
 
-        print("\n📚 自动课程学习已启用")
-        print(f"   阶段顺序: {' -> '.join(stages)}")
-        print(f"   总步数: {args.steps}")
-        print(f"   阶段最大步数: {stage_steps}")
+        print("\n📚 note")
+        print(f"   stagenote: {' -> '.join(stages)}")
+        print(f"   note: {args.steps}")
+        print(f"   stagenote: {stage_steps}")
         if "S1" in stages and "S1" in CURRICULUM_STAGE_ADVANCE_RULES:
             _rule = CURRICULUM_STAGE_ADVANCE_RULES["S1"]
             print(
-                "   S1 提前晋级: "
-                f"总步数>{int(args.steps * float(_rule['advance_after_ratio']))} 后, "
-                f"{'+'.join(_rule['required_logging_keys'])} 最近{int(_rule['recent_episodes'])}局"
-                f"每局 >= {float(_rule['min_laps_per_episode']):.1f} lap"
+                "   S1 notefirstnote: "
+                f"note>{int(args.steps * float(_rule['advance_after_ratio']))} note, "
+                f"{'+'.join(_rule['required_logging_keys'])} note{int(_rule['recent_episodes'])}note"
+                f"note >= {float(_rule['min_laps_per_episode']):.1f} lap"
             )
         if args.scene_weights is not None:
-            print("⚠️  自动课程模式下忽略 --scene-weights（每阶段用预设权重）")
+            print("⚠️  note --scene-weights(notestagenote)")
 
         prev_resume_path = args.resume_path
         prev_resume_latest = bool(args.resume_latest and (prev_resume_path is None))
@@ -1728,7 +1728,7 @@ if __name__ == "__main__":
         for i, stage_name in enumerate(stages):
             remaining_total_steps = max(0, int(args.steps) - int(consumed_total_steps))
             if remaining_total_steps <= 0:
-                print(f"⏹️  总步数已用尽，跳过后续阶段: {stage_name}")
+                print(f"⏹️  note, notestage: {stage_name}")
                 break
             stage_env_ids = STAGE_ENV_IDS[stage_name]
             stage_scene_weights = STAGE_SCENE_WEIGHTS.get(stage_name)
@@ -1764,7 +1764,7 @@ if __name__ == "__main__":
                 )
                 stage_extra_callbacks.append(stage_hard_stop_cb)
             print(
-                f"\n🎯 课程阶段 {stage_name} | maps={'+'.join(stage_short)} | "
+                f"\n🎯 notestage {stage_name} | maps={'+'.join(stage_short)} | "
                 f"steps={stage_budget} | save_dir={stage_dir}"
             )
 
@@ -1793,14 +1793,14 @@ if __name__ == "__main__":
             if stage_gate_cb is not None:
                 gate_summary = stage_gate_cb.summary()
                 print(
-                    f"   阶段结果[{stage_name}]: "
+                    f"   stageresult[{stage_name}]: "
                     f"trained={stage_trained_timesteps}, total={consumed_total_steps}, "
                     f"stop={gate_summary['stop_reason'] or 'natural_end'}"
                 )
             elif stage_hard_stop_cb is not None:
                 stop_summary = stage_hard_stop_cb.summary()
                 print(
-                    f"   阶段结果[{stage_name}]: "
+                    f"   stageresult[{stage_name}]: "
                     f"trained={stage_trained_timesteps}, total={consumed_total_steps}, "
                     f"stop={stop_summary['stop_reason'] or 'natural_end'}"
                 )
@@ -1809,18 +1809,18 @@ if __name__ == "__main__":
         effective_scene_weights = args.scene_weights
         effective_mask = None
         if effective_env_ids is None and args.stage is None:
-            print("ℹ️  未指定 --env-ids/--stage：将使用 DEFAULT_ENV_IDS (ws+gt 2 场景)。")
+            print("ℹ️  note --env-ids/--stage: note DEFAULT_ENV_IDS (ws+gt 2 note).")
         effective_dynamic_weight_max = args.dynamic_weight_max  # CLI global default
         if effective_env_ids is None and args.stage is not None:
             effective_env_ids = STAGE_ENV_IDS[args.stage]
             effective_mask = STAGE_STEP_BALANCE_MASK.get(args.stage)
             stage_names = [SCENE_SPECS[eid]["logging_key"] for eid in effective_env_ids]
-            print(f"📋 Stage {args.stage} 训练: {'+'.join(stage_names)} ({len(effective_env_ids)} 场景)")
+            print(f"📋 Stage {args.stage} training: {'+'.join(stage_names)} ({len(effective_env_ids)} note)")
             if effective_scene_weights is None:
                 effective_scene_weights = STAGE_SCENE_WEIGHTS.get(args.stage)
                 if effective_scene_weights is not None:
                     wtxt = ",".join(f"{w:.2f}" for w in effective_scene_weights)
-                    print(f"🎚️  Stage {args.stage} 默认权重: [{wtxt}]")
+                    print(f"🎚️  Stage {args.stage} defaultnote: [{wtxt}]")
             # per-scene dynamic_weight_max
             _stage_wmax = STAGE_DYNAMIC_WEIGHT_MAX.get(args.stage)
             if _stage_wmax is not None:

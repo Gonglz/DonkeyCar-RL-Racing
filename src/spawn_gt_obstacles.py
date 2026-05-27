@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-兼容脚本：实际障碍车 preset / fleet 逻辑已下沉到 `module/obstacle.py`。
+note: noteobstaclenote preset / fleet note `module/obstacle.py`.
 
-默认会在赛道范围内随机启动 2 台障碍车；
-两台初始位置最少相隔 `3.0` 个 sim/world 坐标单位。
-可通过 `--scene ws` 切到 waveshare。
+defaultnotetracknote 2 noteobstaclenote;
+note `3.0` note sim/world note.
+note `--scene ws` note waveshare.
 """
 
 from __future__ import annotations

@@ -8,7 +8,7 @@ import time
 import numpy as np
 import torch
 
-from .utils import _safe_float
+from.utils import _safe_float
 
 
 class V14RewardMixin:
@@ -86,27 +86,27 @@ class V14RewardMixin:
 
     def _reward_racing_line(self, reward, info, weight=1.0):
         """
-        Stage 1 & 4: 赛车线奖励 + 曲率惩罚。
+        Stage 1 & 4: notereward + note.
 
-        奖励沿最优赛车线行驶，惩罚急转向。
+        rewardnoterowsnote, note.
         """
         rt = self._rt_add
         fi = getattr(self, 'learner_fine_idx', 0)
 
         if self.racing_line.loaded:
-            # 赛车线偏移奖励
+            # notereward
             racing_offset = self.racing_line.get_offset_cte(fi)
-            cte_raw = _safe_float(info.get('cte', 0.0), 0.0)  # 带符号CTE
+            cte_raw = _safe_float(info.get('cte', 0.0), 0.0)  # noteCTE
             hw_cte = self._half_width_avg_cte_at_fine(fi)
             hw_cte = max(0.1, hw_cte)
 
-            # 距离赛车线的偏差 (归一化)
+            # note (note)
             deviation = abs(cte_raw - racing_offset) / hw_cte
             racing_reward = self.racing_line_reward_scale * weight * max(0.0, 1.0 - deviation)
             reward += racing_reward
             rt(info, "racing_line_bonus", racing_reward)
 
-        # 曲率惩罚: 速度足够时惩罚大曲率转向
+        # note: note
         speed = _safe_float(info.get('speed', 0.0), 0.0)
         if speed > self.curvature_penalty_speed_thresh:
             kappa = abs(getattr(self, 'kappa_ref', 0.0))
@@ -118,14 +118,14 @@ class V14RewardMixin:
         return reward
     def _reward_proactive_avoid(self, reward, done, info, scale=1.0):
         """
-        Stage 2 & 3: 密集连续的主动避障奖励。
+        Stage 2 & 3: notereward.
 
-        修复v14初版三个问题:
-        1) 用真实learner-NPC横向距离代替CTE（CTE是离中心线距离，不是离NPC距离）
-        2) 距离梯度奖励全程连续（不只在proactive_zone内）—— 远距离弱信号、近距离强信号
-        3) Stage2每步调用_maybe_reposition_npcs_on_path确保NPC在前方路径上
+        notev14note:
+        1) notelearner-NPCnoteCTE(CTEnote, noteNPCnote)
+        2) noterewardnote(noteproactive_zonenote)-- note, note
+        3) Stage2note_maybe_reposition_npcs_on_pathnoteNPCnotefirstnotepathnote
         """
-        # 确保NPC在learner前方路径上
+        # noteNPCnotelearnerfirstnotepathnote
         self._maybe_reposition_npcs_on_path(info)
 
         feats = self._npc_distance_features(info)
@@ -136,7 +136,7 @@ class V14RewardMixin:
         d_safe_min = float(self.dist_scale.get('follow_safe_min_sim', 1.6))
         d_safe_max = float(self.dist_scale.get('follow_safe_max_sim', 4.0))
         d_proactive_near = d_danger * self.proactive_zone_scale
-        d_awareness_far = d_safe_max * 2.5  # 感知范围：更远就开始给微弱信号
+        d_awareness_far = d_safe_max * 2.5  # note: note
         rt = self._rt_add
         radius_penalty_radius = max(0.0, float(self.v14_npc_radius_penalty_radius_sim))
         radius_penalty_step = max(0.0, float(self.v14_npc_radius_penalty_per_step))
@@ -158,7 +158,7 @@ class V14RewardMixin:
             speed = f.get('learner_speed', 0.0)
             closing = float(f.get('closing_speed', 0.0))
 
-            # 计算真实横向距离（垂直于赛道方向）
+            # computenote(notetracknote)
             lateral_dist, longitudinal_dist = self._compute_learner_npc_lateral_dist(info, f)
             self._npc_lateral_dist_history.append(lateral_dist)
             npc = f.get('npc')
@@ -173,68 +173,68 @@ class V14RewardMixin:
                 hist = self._npc_lateral_dist_history
 
             # ═══════════════════════════════════════════════════
-            # [密集连续] 距离梯度奖励: 全程有信号
-            # 远距离(>d_safe_max): 微弱正奖励，鼓励保持进度
-            # 中距离(d_proactive_near ~ d_safe_max): 横向距离越大奖励越高
-            # 近距离(<d_proactive_near): 急需避让，横向距离直接决定奖励/惩罚
+            # [note] notereward: note
+            # note(>d_safe_max): notereward, note
+            # note(d_proactive_near ~ d_safe_max): noterewardnote
+            # note(<d_proactive_near): note, notereward/note
             # ═══════════════════════════════════════════════════
 
             if dist_metric > d_awareness_far:
-                # 超出感知范围: 只给微弱存活信号（与NPC无关）
+                # note: note(noteNPCnote)
                 pass
 
             elif dist_metric > d_safe_max:
-                # 远感知区: NPC在远处，微弱连续信号
-                # 鼓励维持横向距离（预防性）
+                # note: NPCnote, note
+                # note(note)
                 awareness_ratio = 1.0 - float(np.clip(
                     (dist_metric - d_safe_max) / max(1e-6, d_awareness_far - d_safe_max), 0.0, 1.0))
-                # 横向距离越大越好
+                # note
                 lateral_norm = float(np.clip(lateral_dist / max(0.1, d_danger), 0.0, 2.0))
                 awareness_r = 0.03 * scale * awareness_ratio * min(1.0, lateral_norm)
                 reward += awareness_r
                 rt(info, "npc_awareness_bonus", awareness_r)
 
             elif dist_metric > d_proactive_near:
-                # ═══ Proactive Zone: 主动避让区 (核心密集奖励) ═══
-                # 距离越近、横向偏移越大 → 奖励越高
+                # ═══ Proactive Zone: note (notereward) ═══
+                # note, note -> rewardnote
                 proximity_ratio = 1.0 - float(np.clip(
                     (dist_metric - d_proactive_near) / max(1e-6, d_safe_max - d_proactive_near), 0.0, 1.0))
-                # 横向距离归一化: lateral_dist / danger_close 作为"安全程度"
+                # note: lateral_dist / danger_close note"note"
                 lateral_safety = float(np.clip(lateral_dist / max(0.1, d_danger), 0.0, 2.0))
 
-                # 基础奖励: 横向距离足够 + 在proactive zone
+                # notereward: note + noteproactive zone
                 proactive_r = self.proactive_reward_scale * scale * (0.3 + 0.7 * proximity_ratio) * min(1.0, lateral_safety)
                 reward += proactive_r
                 rt(info, "proactive_avoid_bonus", proactive_r)
 
-                # 横向距离增长奖励: 检查横向距离是否在增加（agent正在远离NPC）
+                # notereward: note(agentnoteNPC)
                 if len(hist) >= 3:
                     prev_lateral = hist[-3]
                     lateral_delta = lateral_dist - prev_lateral
                     if lateral_delta > 0.01:
-                        # 横向距离在增加（正在避让）
+                        # note(note)
                         steer_away_r = 0.12 * scale * float(np.clip(lateral_delta / 0.15, 0.0, 1.0))
                         reward += steer_away_r
                         rt(info, "steer_away_bonus", steer_away_r)
 
             elif dist_metric > d_danger:
-                # ═══ 近距离通过区 ═══
-                # 横向距离决定: 距离够=安全通过奖励, 距离不够=惩罚
+                # ═══ note ═══
+                # note: note=notereward, note=note
                 lateral_safety = float(np.clip(lateral_dist / max(0.1, d_danger * 0.5), 0.0, 2.0))
                 if lateral_safety > 0.8:
-                    # 安全通过: 横向距离足够
+                    # note: note
                     passage_r = self.safe_passage_bonus * scale * min(1.0, lateral_safety - 0.5)
                     reward += passage_r
                     rt(info, "safe_passage_bonus", passage_r)
                 else:
-                    # 横向距离不足: 逼近惩罚（梯度连续，越近越重）
+                    # note: note(note, note)
                     close_ratio = 1.0 - lateral_safety
                     close_pen = 0.15 * scale * close_ratio
                     reward -= close_pen
                     rt(info, "insufficient_lateral_penalty", -close_pen)
 
             else:
-                # ═══ Danger Zone: 已进入碰撞危险区 ═══
+                # ═══ Danger Zone: note ═══
                 danger_ratio = float(np.clip((d_danger - dist_metric) / max(1e-6, d_danger), 0.0, 1.0))
                 pen = 0.25 + 0.50 * danger_ratio
                 if speed > 0.8:
@@ -244,12 +244,12 @@ class V14RewardMixin:
                 reward -= pen * scale
                 rt(info, "danger_penalty", -pen * scale)
 
-                # Close Call Penalty: 进入danger zone时横向距离不够
+                # Close Call Penalty: notedanger zonenote
                 if lateral_dist < d_danger * 0.4:
                     reward -= self.close_call_penalty * scale
                     rt(info, "close_call_penalty", -self.close_call_penalty * scale)
 
-                # 即使在danger zone，横向距离够大也给正向信号（鼓励侧向避让而非停车）
+                # notedanger zone, note(note)
                 if lateral_dist > d_danger * 0.6:
                     lateral_save_r = 0.15 * scale * float(np.clip(
                         (lateral_dist - d_danger * 0.6) / max(0.1, d_danger * 0.4), 0.0, 1.0))
@@ -258,17 +258,17 @@ class V14RewardMixin:
 
                 self._episode_avoidance_success = False
 
-                # 极近距离紧急惩罚
+                # note
                 if dist < 0.65 * d_danger:
                     reward -= 0.20 * scale
                     rt(info, "emergency_gap_penalty", -0.20 * scale)
 
-            # ═══ 安全跟车/绕行窗口 (在所有距离段之外的通用信号) ═══
+            # ═══ note/noterowsnote (note) ═══
             if d_safe_min <= dist_metric <= d_safe_max and 0.30 < speed < 1.60:
                 reward += 0.12 * scale
                 rt(info, "safe_follow_bonus", 0.12 * scale)
 
-            # ═══ 速度维持奖励: 鼓励在避障时保持前进，防止学到"停车"策略 ═══
+            # ═══ notereward: notefirstnote, note"note"note ═══
             if speed > 0.4 and dist_metric > d_danger:
                 speed_keep_r = float(max(0.0, self.v14_speed_maintain_bonus_scale)) * scale * float(
                     np.clip(speed / 1.2, 0.0, 1.0)
@@ -279,11 +279,11 @@ class V14RewardMixin:
         return reward, done
     def _reward_dynamic_avoid(self, reward, done, info):
         """
-        Stage 3: 动态避让奖励 (规则NPC跟车+超车)。
+        Stage 3: dynamicnotereward (noteNPCnote+note).
 
-        在proactive_avoid基础上增加: 安全跟车带、动态超车奖励、追尾惩罚。
+        noteproactive_avoidnote: note, dynamicnotereward, note.
         """
-        # 先应用主动避障 (scale=0.6, 因为动态场景需要更多跟车奖励)
+        # note (scale=0.6, notedynamicnotereward)
         reward, done = self._reward_proactive_avoid(reward, done, info, scale=0.6)
 
         feats = self._npc_distance_features(info)
@@ -300,7 +300,7 @@ class V14RewardMixin:
             closing = f.get('closing_speed', 0.0)
             progress_diff = f.get('progress_diff', 0)
 
-            # 安全跟车带奖励 (agent在NPC后方)
+            # notereward (agentnoteNPCnote)
             if progress_diff < 0:
                 if d_safe_min <= dist <= d_safe_max:
                     reward += 0.18
@@ -310,7 +310,7 @@ class V14RewardMixin:
                     rt(info, "rear_end_risk_penalty", -self.rear_end_penalty)
                     info['rear_end_risk'] = True
 
-            # 安全超车检测
+            # notedetection
             if hasattr(self, '_prev_progress_diff'):
                 if self._prev_progress_diff < 0 and progress_diff > 0 and dist > d_danger:
                     next_count = int(self._episode_overtake_count) + 1
@@ -327,18 +327,18 @@ class V14RewardMixin:
         return reward, done
     def _reward_chaos_robust(self, reward, done, info):
         """
-        Stage 4: 混沌NPC + 防遗忘奖励。
+        Stage 4: noteNPC + notereward.
 
-        组合proactive_avoid + 赛车线回忆 + KL蒸馏惩罚。
+        noteproactive_avoid + note + KLnote.
         """
         if self._episode_npc_free:
-            # 无NPC episode: 使用Stage 1赛车线奖励
+            # noteNPC episode: noteStage 1notereward
             reward = self._reward_racing_line(reward, info, weight=1.0)
         else:
-            # 有NPC: 主动避障 + 动态避让
+            # noteNPC: note + dynamicnote
             reward, done = self._reward_proactive_avoid(reward, done, info, scale=0.8)
 
-            # 当附近无NPC时，恢复赛车线奖励 (防遗忘)
+            # noteNPCnote, notereward (note)
             feats = self._npc_distance_features(info)
             npc_nearby = False
             d_safe_max = float(self.dist_scale.get('follow_safe_max_sim', 4.0))
@@ -353,7 +353,7 @@ class V14RewardMixin:
 
         return reward, done
     def step(self, action):
-        """V14 step: 调用parent step, 然后叠加V14奖励。"""
+        """V14 step: noteparent step, noteV14reward."""
         obs, reward, done, info = super().step(action)
         if not isinstance(info, dict):
             info = {}
@@ -371,7 +371,7 @@ class V14RewardMixin:
         reward_mode = self.curriculum_stage_ref.get('reward_mode', 'racing_line')
 
         # ═══ Stage-specific rewards ═══
-        # 赛车线奖励在所有阶段都保留（权重递减），防止驾驶能力退化
+        # noterewardnotestagenote(note), note
         if reward_mode == 'racing_line':
             reward = self._reward_racing_line(reward, info, weight=1.0)
 
@@ -386,7 +386,7 @@ class V14RewardMixin:
         elif reward_mode == 'chaos_robust':
             reward, done = self._reward_chaos_robust(reward, done, info)
 
-        # 额外碰撞惩罚（比基础惩罚更强）
+        # note(note)
         collision_pen = float(max(0.0, self.v14_collision_extra_penalty))
         if collision_pen > 0.0:
             hit_v = str(info.get("hit", "none")).strip().lower()
@@ -396,7 +396,7 @@ class V14RewardMixin:
                 reward -= collision_pen
                 rt(info, "collision_extra_penalty", -collision_pen)
 
-        # ═══ KL蒸馏惩罚 (所有Stage 2+) ═══
+        # ═══ KLnote (noteStage 2+) ═══
         if (self.distillation_manager is not None
                 and self.distillation_manager.has_snapshot
                 and self.distillation_model_ref is not None):
@@ -413,7 +413,7 @@ class V14RewardMixin:
             except Exception:
                 pass
 
-        # 避障成功终局奖励（避免稀疏、强化“安全绕行后完成回合”）
+        # notesucceedednotereward(note, note"noterowsnote")
         if bool(done) and bool(self._episode_avoidance_success):
             term = str(info.get('termination_reason', ''))
             if term in ('success_avoidance_2laps', 'success_laps_target', 'two_laps_success'):
@@ -422,7 +422,7 @@ class V14RewardMixin:
                     reward += bonus
                     self._rt_add(info, "avoidance_success_bonus", bonus)
 
-        # ═══ 圈速追踪 ═══
+        # ═══ note ═══
         lap_count = int(_safe_float(info.get('lap_count', 0), 0))
         if lap_count > len(self._episode_lap_times):
             now = time.time()

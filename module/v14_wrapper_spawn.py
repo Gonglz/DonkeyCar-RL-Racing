@@ -8,8 +8,8 @@ import time
 
 import numpy as np
 
-from .v14_dep_sim_core import SimExtendedAPI
-from .utils import _safe_float
+from.v14_dep_sim_core import SimExtendedAPI
+from.utils import _safe_float
 
 
 class V14SpawnResetMixin:
@@ -136,7 +136,7 @@ class V14SpawnResetMixin:
         n = len(fine)
         if n <= 0:
             return {"ok": False, "reason": "no_fine_track", "obs": None, "info": {}, "fine_idx": 0}
-        # 固定起点附近多次尝试，避免偶发物理抖动导致CTE爆表
+        # note, noteCTEnote
         candidates = [0, 1, 2, n - 1, 3]
         candidates = [int(c) % n for c in candidates]
         cte_ok_th = max(1.0, min(float(self.current_max_cte) * 0.75, float(self.current_max_cte) - 0.2))
@@ -167,7 +167,7 @@ class V14SpawnResetMixin:
             n = len(fine)
             if n > 0:
                 fi = int(fi) % int(n)
-        if len(self._v14_learner_trace_fi) == 0 or int(self._v14_learner_trace_fi[-1]) != int(fi):
+        if len(self._v14_learner_trace_fi) == 0 or int(self._v14_learner_trace_fi[-1])!= int(fi):
             self._v14_learner_trace_fi.append(int(fi))
     def _v14_place_npc_from_trace_window(self, npc, learner_fi, learner_pos):
         if not self.track_cache:
@@ -342,7 +342,7 @@ class V14SpawnResetMixin:
             })
         return bool(records), records
     def should_refresh_npc_layout(self, active_npcs):
-        # V14自写reset：每回合直接按当前learner状态重采样，无复用缓存布局
+        # V14notereset: notecurrentlearnernote, note
         if not active_npcs:
             return False, "v14_no_active_npc"
         return True, "v14_custom_reset_each_episode"
@@ -416,7 +416,7 @@ class V14SpawnResetMixin:
                 self._v14_forget_npc_anchor(npc)
             active_npcs = []
 
-        # 启动NPC运行模式（仅对成功放置的活跃NPC）
+        # noteNPCnoterowsnote(notesucceedednoteNPC)
         if active_npcs:
             if bool(self.v14_npc_wobble_in_place) and str(npc_mode).strip().lower() == "wobble":
                 self._v14_apply_custom_wobble_runtime_mode(active_npcs)
@@ -459,7 +459,7 @@ class V14SpawnResetMixin:
         if spawn_debug["spawn_validation_pass"] and (not spawn_debug.get("spawn_fail_reason")):
             spawn_debug["spawn_fail_reason"] = None
 
-        # 同步布局状态，避免父类进入旧的layout-reuse判断链路
+        # note, noteclassnotelayout-reusenote
         self.npc_layout_id = int(getattr(self, "npc_layout_id", 0)) + 1
         self.npc_layout_last_reset_reason = "v14_custom_reset"
         self.npc_layout_age_agent_resets = 0
@@ -471,10 +471,10 @@ class V14SpawnResetMixin:
         if isinstance(info, dict):
             self._v14_record_learner_trace(info)
 
-        # 不返回失败，避免父类触发旧版fallback链路
+        # notefailed, noteclassnotefallbacknote
         return {"ok": True, "obs": obs, "info": info, "debug": spawn_debug}
     def _refresh_npc_layout_mid_episode(self):
-        # V14自写：禁用父类中途重排，避免闪烁/飞车
+        # V14note: noteclassnote, note/note
         return False
 
 

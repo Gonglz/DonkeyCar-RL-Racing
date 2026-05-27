@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
 """
-绿色车辆检测器 - Green Vehicle Detector (优化版)
+notedetectionnote - Green Vehicle Detector (note)
 
-检测仿真场景中的绿色小车，支持多种HSV参数方案对比与融合检测。
-也可作为模块导入用于实时检测。
+detectionnote, noteHSVnotedetection.
+notedetection.
 
-用法:
-    # 作为脚本运行（批量处理障碍物图片并保存可视化结果）
+note:
+    # noterows(noteobstaclenotesavenoteresult)
     python -m module.green_vehicle_detect
 
-    # 作为模块导入 - 融合检测模式（推荐）
+    # note - notedetectionnote(note)
     from module.green_vehicle_detect import GreenVehicleDetector
     detector = GreenVehicleDetector(mode='fused')
     detections = detector.detect(img_bgr)
 
-    # 作为模块导入 - 简单模式
+    # note - note
     detector = GreenVehicleDetector(mode='simple')
     detections = detector.detect(img_bgr)
 
-更新日期: 2026-03-16
-改进内容:
-  - 改进的9种检测方法（添加饱和度过滤、面积约束等）
-  - 新增融合检测模式（基于4个干净方法的投票机制）
-  - 100%置信度的绿车检测（零误检）
-  - 支持简单和融合两种工作模式
+note: 2026-03-16
+note:
+  - note9notedetectionnote(note, note)
+  - notedetectionnote(note4note)
+  - 100%notedetection(note)
+  - note
 """
 
 import os
@@ -34,7 +34,7 @@ import cv2
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# 路径常量
+# pathnote
 # ---------------------------------------------------------------------------
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OBSTACLE_DIR = os.path.join(REPO_ROOT, "data", "data_sample", "obstacle")
@@ -42,23 +42,23 @@ OUT_DIR = os.path.join(REPO_ROOT, "data", "data_sample", "obstacle_green_detect"
 
 
 # ---------------------------------------------------------------------------
-# 数据结构
+# datanote
 # ---------------------------------------------------------------------------
 @dataclass
 class VehicleDetection:
-    """单个绿色车辆的检测结果"""
-    bbox: Tuple[int, int, int, int]   # (x, y, w, h) — 左上角坐标 + 宽高
-    area: int                          # 像素面积
-    centroid: Tuple[float, float]      # (cx, cy) — 质心坐标
-    confidence: float                  # 0~1，融合置信度
-    votes: int = 0                     # 投票数（融合模式）
-    detecting_methods: List[str] = field(default_factory=list)  # 支持的方法列表
+    """notedetectionresult"""
+    bbox: Tuple[int, int, int, int]   # (x, y, w, h) - note + note
+    area: int                          # note
+    centroid: Tuple[float, float]      # (cx, cy) - note
+    confidence: float                  # 0~1, note
+    votes: int = 0                     # note(note)
+    detecting_methods: List[str] = field(default_factory=list)  # note
 
 
 @dataclass
 class DetectionResult:
-    """一帧图像的完整检测结果"""
-    mask: np.ndarray                          # 二值掩码 (H×W, uint8)
+    """notedetectionresult"""
+    mask: np.ndarray                          # note (HxW, uint8)
     detections: List[VehicleDetection] = field(default_factory=list)
 
     @property
@@ -71,7 +71,7 @@ class DetectionResult:
 
 
 # ---------------------------------------------------------------------------
-# 通用去噪和过滤函数
+# notefunction
 # ---------------------------------------------------------------------------
 def _denoise_and_filter(
     mask: np.ndarray,
@@ -82,11 +82,11 @@ def _denoise_and_filter(
     img_hsv: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
-    增强的去噪和过滤函数
-    - 形态学操作（CLOSE + OPEN）
-    - 面积过滤
-    - 长宽比过滤
-    - 饱和度过滤（可选）
+    notefunction
+    - note(CLOSE + OPEN)
+    - note
+    - note
+    - note(note)
     """
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
@@ -101,13 +101,13 @@ def _denoise_and_filter(
         h = stats[i, cv2.CC_STAT_HEIGHT]
         aspect = max(w, h) / (min(w, h) + 1e-5)
 
-        # 基础过滤
+        # note
         if not (min_area <= area <= max_area):
             continue
         if not (aspect_range[0] <= aspect <= aspect_range[1]):
             continue
 
-        # 饱和度过滤
+        # note
         if min_saturation is not None and img_hsv is not None:
             region_saturation = img_hsv[labels == i, 1]
             mean_sat = region_saturation.mean()
@@ -120,10 +120,10 @@ def _denoise_and_filter(
 
 
 # ---------------------------------------------------------------------------
-# 改进的9种检测方法（去除草地误检）
+# note9notedetectionnote(note)
 # ---------------------------------------------------------------------------
 def detect_a_improved(img: np.ndarray) -> np.ndarray:
-    """A: H[35-85] S[80-255] + 增强过滤 (宽松但有饱和度过滤)"""
+    """A: H[35-85] S[80-255] + note (note)"""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, (35, 80, 60), (85, 255, 255))
     return _denoise_and_filter(mask, min_area=25, max_area=250,
@@ -132,7 +132,7 @@ def detect_a_improved(img: np.ndarray) -> np.ndarray:
 
 
 def detect_b_improved(img: np.ndarray) -> np.ndarray:
-    """B: H[40-80] S[100-255] + 过滤 (中等严格度) ✓ CLEAN"""
+    """B: H[40-80] S[100-255] + note (note) PASS CLEAN"""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, (40, 100, 80), (80, 255, 255))
     return _denoise_and_filter(mask, min_area=30, max_area=250,
@@ -141,7 +141,7 @@ def detect_b_improved(img: np.ndarray) -> np.ndarray:
 
 
 def detect_c_improved(img: np.ndarray) -> np.ndarray:
-    """C: H[45-75] S[120-255] + 过滤 (较严格) ✓ CLEAN"""
+    """C: H[45-75] S[120-255] + note (note) PASS CLEAN"""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, (45, 120, 80), (75, 255, 255))
     return _denoise_and_filter(mask, min_area=20, max_area=200,
@@ -150,7 +150,7 @@ def detect_c_improved(img: np.ndarray) -> np.ndarray:
 
 
 def detect_d_improved(img: np.ndarray) -> np.ndarray:
-    """D: A + 形态学 + 增强过滤"""
+    """D: A + note + note"""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, (35, 80, 60), (85, 255, 255))
     return _denoise_and_filter(mask, min_area=25, max_area=250,
@@ -159,7 +159,7 @@ def detect_d_improved(img: np.ndarray) -> np.ndarray:
 
 
 def detect_e_improved(img: np.ndarray) -> np.ndarray:
-    """E: B + 严格饱和度过滤 (S>115) ✓ CLEAN"""
+    """E: B + note (S>115) PASS CLEAN"""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, (40, 100, 80), (80, 255, 255))
     return _denoise_and_filter(mask, min_area=30, max_area=250,
@@ -168,7 +168,7 @@ def detect_e_improved(img: np.ndarray) -> np.ndarray:
 
 
 def detect_f_improved(img: np.ndarray) -> np.ndarray:
-    """F: C + 极严格过滤"""
+    """F: C + note"""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, (45, 120, 80), (75, 255, 255))
     return _denoise_and_filter(mask, min_area=20, max_area=200,
@@ -177,18 +177,18 @@ def detect_f_improved(img: np.ndarray) -> np.ndarray:
 
 
 def detect_g_improved(img: np.ndarray) -> np.ndarray:
-    """G: A + ROI (下2/3) + 过滤"""
+    """G: A + ROI (note2/3) + note"""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, (35, 80, 60), (85, 255, 255))
     h_img = img.shape[0]
-    mask[:h_img//3, :] = 0  # 屏蔽上1/3
+    mask[:h_img//3,:] = 0  # note1/3
     return _denoise_and_filter(mask, min_area=25, max_area=250,
                               aspect_range=(0.3, 4.0),
                               min_saturation=90, img_hsv=hsv)
 
 
 def detect_h_improved(img: np.ndarray) -> np.ndarray:
-    """H: H[38-82] S[110-255] V[70-200] + 过滤 ✓ CLEAN"""
+    """H: H[38-82] S[110-255] V[70-200] + note PASS CLEAN"""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, (38, 110, 70), (82, 255, 200))
     return _denoise_and_filter(mask, min_area=25, max_area=250,
@@ -197,7 +197,7 @@ def detect_h_improved(img: np.ndarray) -> np.ndarray:
 
 
 def detect_i_improved(img: np.ndarray) -> np.ndarray:
-    """I: 双阈值 + 颜色纯度 + 过滤 ✓ CLEAN"""
+    """I: note + note + note PASS CLEAN"""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     mask_loose = cv2.inRange(hsv, (35, 70, 60), (90, 255, 255))
     mask_strict = cv2.inRange(hsv, (42, 110, 80), (78, 255, 255))
@@ -209,7 +209,7 @@ def detect_i_improved(img: np.ndarray) -> np.ndarray:
                               min_saturation=100, img_hsv=hsv)
 
 
-# 所有方法列表
+# note
 METHODS = [
     ("A_improved",      detect_a_improved),
     ("B_improved",      detect_b_improved),
@@ -222,7 +222,7 @@ METHODS = [
     ("I_improved",      detect_i_improved),
 ]
 
-# 干净方法列表（检测结果≤1个，推荐用于融合）
+# note(detectionresult<=1note, note)
 CLEAN_METHODS = [
     ("B_improved",      detect_b_improved),
     ("E_improved",      detect_e_improved),
@@ -232,10 +232,10 @@ CLEAN_METHODS = [
 
 
 # ---------------------------------------------------------------------------
-# 融合检测辅助函数
+# notedetectionnotefunction
 # ---------------------------------------------------------------------------
 def _get_iou(box1: Tuple, box2: Tuple) -> float:
-    """计算两个bbox的IOU"""
+    """computenotebboxnoteIOU"""
     x1_1, y1_1, w1, h1 = box1
     x1_2, y1_2, w1_2, h1_2 = box2
 
@@ -256,7 +256,7 @@ def _get_iou(box1: Tuple, box2: Tuple) -> float:
 
 
 def _extract_objects_from_mask(mask: np.ndarray, method_name: str) -> List[dict]:
-    """从掩码中提取所有连通域"""
+    """note"""
     n, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
     objects = []
     for i in range(1, n):
@@ -276,7 +276,7 @@ def _extract_objects_from_mask(mask: np.ndarray, method_name: str) -> List[dict]
 
 
 def _fuse_detections(all_objects_by_method: Dict, iou_threshold: float = 0.25) -> List[VehicleDetection]:
-    """融合多个方法的检测结果，使用投票机制"""
+    """notedetectionresult, note"""
     if not all_objects_by_method:
         return []
 
@@ -287,7 +287,7 @@ def _fuse_detections(all_objects_by_method: Dict, iou_threshold: float = 0.25) -
     if not all_detections:
         return []
 
-    # 聚类：根据IOU关联相似的检测
+    # noteclass: noteIOUnotedetection
     clusters = []
     used = set()
 
@@ -311,7 +311,7 @@ def _fuse_detections(all_objects_by_method: Dict, iou_threshold: float = 0.25) -
 
         clusters.append(cluster)
 
-    # 生成融合检测结果
+    # generatenotedetectionresult
     fused = []
     for cluster in clusters:
         cluster_dets = [all_detections[idx] for idx in cluster]
@@ -348,22 +348,22 @@ def _fuse_detections(all_objects_by_method: Dict, iou_threshold: float = 0.25) -
 
 
 # ---------------------------------------------------------------------------
-# GreenVehicleDetector - 主检测器类
+# GreenVehicleDetector - notedetectionnoteclass
 # ---------------------------------------------------------------------------
 class GreenVehicleDetector:
     """
-    绿色车辆检测器，支持融合检测和简单模式。
+    notedetectionnote, notedetectionnote.
 
-    参数
+    note
     ----
-    mode : str
-        'fused' - 使用4个干净方法的融合检测（推荐，高置信度）
-        'simple' - 使用单一HSV阈值的简单检测（快速）
-    h_lo, h_hi : HSV色调范围（仅简单模式使用）
-    s_lo : 最低饱和度
-    v_lo : 最低亮度
-    min_area : 最小像素面积
-    roi_top_frac : 屏蔽图像顶部的比例
+    mode: str
+        'fused' - note4notedetection(note, note)
+        'simple' - noteHSVnotedetection(note)
+    h_lo, h_hi: HSVnote(note)
+    s_lo: note
+    v_lo: note
+    min_area: note
+    roi_top_frac: note
     """
 
     def __init__(
@@ -385,20 +385,20 @@ class GreenVehicleDetector:
         self._kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
 
     def detect(self, img_bgr: np.ndarray) -> DetectionResult:
-        """对单帧BGR图像执行绿车检测"""
+        """noteBGRnoterowsnotedetection"""
         if self.mode == 'fused':
             return self._detect_fused(img_bgr)
         else:
             return self._detect_simple(img_bgr)
 
     def _detect_simple(self, img_bgr: np.ndarray) -> DetectionResult:
-        """简单检测模式 - 单一HSV阈值"""
+        """notedetectionnote - noteHSVnote"""
         h_img = img_bgr.shape[0]
         roi_top = int(h_img * self.roi_top_frac)
 
         hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, self.lower, self.upper)
-        mask[:roi_top, :] = 0
+        mask[:roi_top,:] = 0
 
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, self._kernel_close, iterations=2)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, self._kernel_open, iterations=1)
@@ -429,8 +429,8 @@ class GreenVehicleDetector:
         return DetectionResult(mask=mask, detections=detections)
 
     def _detect_fused(self, img_bgr: np.ndarray) -> DetectionResult:
-        """融合检测模式 - 投票机制"""
-        # 收集所有干净方法的检测结果
+        """notedetectionnote - note"""
+        # notedetectionresult
         all_objects_by_method = {}
         mask_combined = np.zeros(img_bgr.shape[:2], dtype=np.uint8)
 
@@ -440,7 +440,7 @@ class GreenVehicleDetector:
             all_objects_by_method[method_name] = objects
             mask_combined = cv2.bitwise_or(mask_combined, mask)
 
-        # 融合检测结果
+        # notedetectionresult
         detections = _fuse_detections(all_objects_by_method, iou_threshold=0.25)
 
         return DetectionResult(mask=mask_combined, detections=detections)
@@ -452,23 +452,23 @@ class GreenVehicleDetector:
         box_color: Tuple[int, int, int] = (0, 255, 0),
         mask_color: Tuple[int, int, int] = (0, 255, 128),
     ) -> np.ndarray:
-        """将检测结果叠加到图像上"""
+        """notedetectionresultnote"""
         if result is None:
             result = self.detect(img_bgr)
 
         vis = img_bgr.copy()
 
-        # 半透明掩码叠加
+        # note
         overlay = vis.copy()
         overlay[result.mask > 0] = mask_color
         vis = cv2.addWeighted(vis, 0.6, overlay, 0.4, 0)
 
-        # 检测框 + 信息标注
+        # detectionnote + note
         for det in result.detections:
             x, y, w, h = det.bbox
-            # 根据投票数和置信度调整颜色
+            # note
             if det.votes == 4 or det.confidence >= 0.95:
-                color = (0, 255, 0)  # 纯绿
+                color = (0, 255, 0)  # note
             elif det.votes >= 3 or det.confidence >= 0.75:
                 color = (0, 200, 50)
             else:
@@ -479,7 +479,7 @@ class GreenVehicleDetector:
             cv2.putText(vis, label, (x, max(y - 4, 12)),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1, cv2.LINE_AA)
 
-        # 帧级统计
+        # note
         info = f"Detected: {result.count} | Mode: {self.mode}"
         cv2.putText(vis, info, (4, 14),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
@@ -487,7 +487,7 @@ class GreenVehicleDetector:
 
 
 # ---------------------------------------------------------------------------
-# 可视化辅助函数
+# notefunction
 # ---------------------------------------------------------------------------
 def _overlay_mask(img: np.ndarray, mask: np.ndarray,
                   color: Tuple[int, int, int] = (0, 255, 128)) -> np.ndarray:
@@ -497,7 +497,7 @@ def _overlay_mask(img: np.ndarray, mask: np.ndarray,
 
 
 def _build_compare_grid(img: np.ndarray, methods: List = None) -> np.ndarray:
-    """生成多方案对比网格图"""
+    """generatenote"""
     if methods is None:
         methods = METHODS
 
@@ -523,14 +523,14 @@ def _build_compare_grid(img: np.ndarray, methods: List = None) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# 批量处理入口
+# noteentry point
 # ---------------------------------------------------------------------------
 def _run_batch(
     src_dir: str = OBSTACLE_DIR,
     out_dir: str = OUT_DIR,
     max_images: int = 20,
 ):
-    """对obstacle目录里的图片批量运行检测"""
+    """noteobstacledirectorynoterowsdetection"""
     os.makedirs(out_dir, exist_ok=True)
     detector_fused = GreenVehicleDetector(mode='fused')
     detector_simple = GreenVehicleDetector(mode='simple')
@@ -541,35 +541,35 @@ def _run_batch(
     )[:max_images]
 
     if not files:
-        print(f"[warn] {src_dir} 中没有找到图片。")
+        print(f"[warn] {src_dir} note.")
         return
 
     for fname in files:
         path = os.path.join(src_dir, fname)
         img = cv2.imread(path)
         if img is None:
-            print(f"[skip] 无法读取: {path}")
+            print(f"[skip] noteread: {path}")
             continue
 
         stem = os.path.splitext(fname)[0]
 
-        # 1. 多方案对比网格
+        # 1. note
         grid = _build_compare_grid(img, CLEAN_METHODS)
         cv2.imwrite(os.path.join(out_dir, f"{stem}_clean_methods.png"), grid)
 
-        # 2. 融合检测可视化
+        # 2. notedetectionnote
         result_fused = detector_fused.detect(img)
         vis_fused = detector_fused.visualize(img, result_fused)
         cv2.imwrite(os.path.join(out_dir, f"{stem}_fused.png"), vis_fused)
 
-        # 3. 简单检测可视化
+        # 3. notedetectionnote
         result_simple = detector_simple.detect(img)
         vis_simple = detector_simple.visualize(img, result_simple)
         cv2.imwrite(os.path.join(out_dir, f"{stem}_simple.png"), vis_simple)
 
-        print(f"[ok] {fname}  →  融合: {result_fused.count} 辆, 简单: {result_simple.count} 辆")
+        print(f"[ok] {fname}  ->  note: {result_fused.count} note, note: {result_simple.count} note")
 
-    print(f"\n完成！结果保存在: {out_dir}")
+    print(f"\nnote!resultsavenote: {out_dir}")
 
 
 if __name__ == "__main__":

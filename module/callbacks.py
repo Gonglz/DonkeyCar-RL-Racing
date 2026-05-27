@@ -1,7 +1,7 @@
 """
 module/callbacks.py
-所有 SB3 训练回调：PTHExport、Coverage、PerSceneStats、AdaptiveLR、
-TrainingMetricsFileLogger、BestModel、ShortEpisodeLogger。
+note SB3 trainingnote: PTHExport, Coverage, PerSceneStats, AdaptiveLR,
+TrainingMetricsFileLogger, BestModel, ShortEpisodeLogger.
 """
 
 import json
@@ -16,14 +16,14 @@ import torch
 
 from stable_baselines3.common.callbacks import BaseCallback
 
-from .utils import _get_domain_for_env
+from.utils import _get_domain_for_env
 
 
 # ============================================================
-# checkpoint + .pth 导出
+# checkpoint +.pth note
 # ============================================================
 class PTHExportCallback(BaseCallback):
-    """每 save_freq 步自动导出 .zip + .pth。"""
+    """note save_freq note.zip +.pth."""
 
     def __init__(self, save_path: str, save_freq: int = 10000, name_prefix: str = "v12", verbose: int = 0):
         super().__init__(verbose)
@@ -39,15 +39,15 @@ class PTHExportCallback(BaseCallback):
             pth = stem + "_policy.pth"
             torch.save(self.model.policy.state_dict(), pth)
             if self.verbose > 0:
-                print(f"\n💾 Checkpoint: {self.n_calls}步 -> {stem}.zip + {pth}")
+                print(f"\nsaved Checkpoint: {self.n_calls}note -> {stem}.zip + {pth}")
         return True
 
 
 # ============================================================
-# Coverage 日志（验证 Coverage Dropout 效果）
+# Coverage note(note Coverage Dropout note)
 # ============================================================
 class CoverageLoggingCallback(BaseCallback):
-    """周期性记录 mask 通道 coverage 统计到 TensorBoard。"""
+    """note mask note coverage note TensorBoard."""
 
     def __init__(self, env, log_freq: int = 500, verbose: int = 0):
         super().__init__(verbose)
@@ -55,8 +55,8 @@ class CoverageLoggingCallback(BaseCallback):
         self.log_freq = int(max(1, log_freq))
 
     def _find_lane_wrapper(self):
-        from .wrappers import V9YellowLaneWrapper
-        from .multi_scene_env import MultiSceneEnv
+        from.wrappers import V9YellowLaneWrapper
+        from.multi_scene_env import MultiSceneEnv
 
         env = self._env
         while hasattr(env, "envs"):
@@ -85,10 +85,10 @@ class CoverageLoggingCallback(BaseCallback):
 
 
 # ============================================================
-# 按场景统计（原 PerDomainStatsCallback，改为按 scene_key 分组）
+# note(note PerDomainStatsCallback, note scene_key note)
 # ============================================================
 class PerSceneStatsCallback(BaseCallback):
-    """按 scene_key 汇总 ep_info_buffer，避免混合均值掩盖单场景退化。"""
+    """note scene_key note ep_info_buffer, note."""
 
     REWARD_PART_KEYS = (
         "ep_r_survival", "ep_r_speed", "ep_r_progress", "ep_r_cte", "ep_r_collision",
@@ -117,7 +117,7 @@ class PerSceneStatsCallback(BaseCallback):
             return {}
         grouped: Dict[str, List[dict]] = {}
         for ep in self.model.ep_info_buffer:
-            # 优先用 logging_key（V12），其次 scene_key（V9），向下兼容 domain 字段
+            # note logging_key(V12), note scene_key(V9), note domain note
             group_key = ep.get("logging_key") or ep.get("scene_key") or ep.get("domain", "unknown")
             grouped.setdefault(group_key, []).append(ep)
         stats: Dict[str, Any] = {}
@@ -161,7 +161,7 @@ class PerSceneStatsCallback(BaseCallback):
         return stats
 
     def _on_step(self) -> bool:
-        if self.n_calls % self.check_freq != 0:
+        if self.n_calls % self.check_freq!= 0:
             return True
         stats = self._collect_scene_stats()
         if not stats:
@@ -185,7 +185,7 @@ class PerSceneStatsCallback(BaseCallback):
             for key, rate_val in s.get("term_rates", {}).items():
                 self.logger.record(f"scene/{sk}_{key}_rate", rate_val)
 
-        # 跨场景平衡指标
+        # note
         if len(all_rewards) >= 2:
             self.logger.record("scene/balanced_min_reward", float(min(all_rewards)))
 
@@ -199,19 +199,19 @@ class PerSceneStatsCallback(BaseCallback):
                     + (f", short={short_pct:.0f}%" if short_pct > 5 else "")
                     + (f", cov={s['mean_cov']:.3f}" if not np.isnan(s["mean_cov"]) else "")
                 )
-            print("📈 按场景统计 | " + " | ".join(parts))
+            print("trend note | " + " | ".join(parts))
         return True
 
 
-# 向下兼容别名
+# note
 PerDomainStatsCallback = PerSceneStatsCallback
 
 
 # ============================================================
-# 场景调度日志（采样概率 / 动态调权）
+# note(note / dynamicnote)
 # ============================================================
 class SceneSchedulerLoggingCallback(BaseCallback):
-    """记录 MultiSceneEnv 的场景采样与动态调权状态。"""
+    """note MultiSceneEnv notedynamicnote."""
 
     def __init__(self, check_freq: int = 1000, verbose: int = 0):
         super().__init__(verbose)
@@ -232,7 +232,7 @@ class SceneSchedulerLoggingCallback(BaseCallback):
     def _scene_log_key(ms_env, idx: int) -> str:
         env_id = str(ms_env.env_ids[idx])
         try:
-            from .multi_scene_env import MultiSceneEnvV12
+            from.multi_scene_env import MultiSceneEnvV12
             spec = getattr(MultiSceneEnvV12, "_SCENE_SPECS", {}).get(env_id, {})
             if isinstance(spec, dict):
                 k = spec.get("logging_key") or spec.get("scene_key")
@@ -252,7 +252,7 @@ class SceneSchedulerLoggingCallback(BaseCallback):
         return f if np.isfinite(f) else None
 
     def _on_step(self) -> bool:
-        if self.n_calls % self.check_freq != 0:
+        if self.n_calls % self.check_freq!= 0:
             return True
 
         ms_env = self._find_multi_scene_env(getattr(self, "training_env", None))
@@ -328,22 +328,22 @@ class SceneSchedulerLoggingCallback(BaseCallback):
 
 
 # ============================================================
-# 自适应学习率
+# note
 # ============================================================
 class AdaptiveLearningRateCallback(BaseCallback):
-    """根据「平衡分数回落」和「approx_kl 过高」自动降低学习率。
+    """note「note」note「approx_kl note」note.
 
-    V3 改进:
-    - balanced 指标: 各场景平均奖励的 **最小值** (min), 对最差场景退化更敏感
-    - 滑动窗口 best: 只和最近 best_window 次检查中的最大值比较, 避免棘轮效应
-    - 预热期: 前 warmup_steps 步不触发 LR 衰减, 等训练稳定后再监控
+    V3 note:
+    - balanced note: noterewardnote **note** (min), note
+    - note best: note best_window note, note
+    - note: first warmup_steps note LR note, notetrainingstablenote
     """
 
     def __init__(
         self,
         check_freq: int = 1000,
-        scene_keys: Optional[Tuple[str, ...]] = None,
-        domain_keys: Optional[Tuple[str, ...]] = None,  # 已废弃，优先用 scene_keys
+        scene_keys: Optional[Tuple[str,...]] = None,
+        domain_keys: Optional[Tuple[str,...]] = None,  # note, note scene_keys
         min_episodes_per_domain: int = 10,
         balanced_drop_threshold: float = 1.0,
         balanced_drop_patience: int = 3,
@@ -358,14 +358,14 @@ class AdaptiveLearningRateCallback(BaseCallback):
     ):
         super().__init__(verbose)
         self.check_freq               = max(1, int(check_freq))
-        # scene_keys=None 表示使用缓冲区中所有出现的 scene_key（V12 全场景均衡）
+        # scene_keys=None note scene_key(V12 note)
         if scene_keys is not None:
-            self.scene_keys: Optional[Tuple[str, ...]] = tuple(scene_keys)
+            self.scene_keys: Optional[Tuple[str,...]] = tuple(scene_keys)
         elif domain_keys is not None:
-            self.scene_keys = tuple(domain_keys)  # 向下兼容
+            self.scene_keys = tuple(domain_keys)  # note
         else:
             self.scene_keys = None
-        self.domain_keys              = self.scene_keys  # 保留旧属性名
+        self.domain_keys              = self.scene_keys  # note
         self.min_episodes_per_domain  = max(1, int(min_episodes_per_domain))
         self.balanced_drop_threshold  = float(max(0.0, balanced_drop_threshold))
         self.balanced_drop_patience   = max(1, int(balanced_drop_patience))
@@ -378,7 +378,7 @@ class AdaptiveLearningRateCallback(BaseCallback):
         self.best_window              = max(10, int(best_window))
 
         self.best_balanced = -np.inf
-        self._balanced_history: list = []   # 滑动窗口 history
+        self._balanced_history: list = []   # note history
         self.balanced_drop_streak = 0
         self.high_kl_streak       = 0
         self.cooldown_left        = 0
@@ -398,15 +398,15 @@ class AdaptiveLearningRateCallback(BaseCallback):
         return f if np.isfinite(f) else None
 
     def _compute_balanced(self) -> Optional[float]:
-        """计算各场景平均奖励的 **最小值**（关注最差场景）。"""
+        """computenoterewardnote **note**(note)."""
         if len(self.model.ep_info_buffer) == 0:
             return None
         grouped: Dict[str, list] = {}
         for ep in self.model.ep_info_buffer:
-            # 优先用 logging_key（V12），其次 scene_key，兼容旧 domain 字段
+            # note logging_key(V12), note scene_key, note domain note
             sk = ep.get("logging_key") or ep.get("scene_key") or ep.get("domain", "unknown")
             grouped.setdefault(sk, []).append(ep)
-        # 若指定了 scene_keys，只看这些；否则用缓冲区所有场景
+        # note scene_keys, note; note
         keys_to_check = list(self.scene_keys) if self.scene_keys else list(grouped.keys())
         vals = []
         for k in keys_to_check:
@@ -433,19 +433,19 @@ class AdaptiveLearningRateCallback(BaseCallback):
             pg["lr"] = new_lr
 
     def _on_step(self) -> bool:
-        if self.n_calls % self.check_freq != 0:
+        if self.n_calls % self.check_freq!= 0:
             return True
 
         balanced   = self._compute_balanced()
         approx_kl  = self._get_logger_value("train/approx_kl")
         if balanced is not None:
-            # 记录最差场景分数（min）
+            # note(min)
             self.logger.record("train/balanced_min_reward_buffer", balanced)
-            # 记录滑动窗口 best
+            # note best
             self._balanced_history.append(balanced)
             if len(self._balanced_history) > self.best_window:
                 self._balanced_history = self._balanced_history[-self.best_window:]
-            # V3: best 来自滑动窗口，而非全局历史
+            # V3: best note, note
             window_best = float(max(self._balanced_history))
             self.best_balanced = window_best
 
@@ -469,7 +469,7 @@ class AdaptiveLearningRateCallback(BaseCallback):
         if cur_lr is not None:
             self.logger.record("train/adaptive_lr_current", cur_lr)
 
-        # V3: 预热期内不触发 LR 衰减
+        # V3: note LR note
         if self.num_timesteps < self.warmup_steps:
             return True
 
@@ -480,7 +480,7 @@ class AdaptiveLearningRateCallback(BaseCallback):
         trigger_reasons = []
         if balanced is not None and self.balanced_drop_streak >= self.balanced_drop_patience:
             trigger_reasons.append(
-                f"balanced回落({balanced:.2f}< best={self.best_balanced:.2f}-{self.balanced_drop_threshold:.2f})"
+                f"balancednote({balanced:.2f}< best={self.best_balanced:.2f}-{self.balanced_drop_threshold:.2f})"
             )
         if self.high_kl_streak >= self.high_kl_patience and approx_kl is not None:
             trigger_reasons.append(f"approx_kl={approx_kl:.4f}>{self.high_kl_threshold:.4f}")
@@ -490,7 +490,7 @@ class AdaptiveLearningRateCallback(BaseCallback):
 
         if cur_lr <= self.min_lr * (1.0 + 1e-6):
             if self.verbose > 0:
-                print(f"🧊 自动降LR触发，但已到下限: lr={cur_lr:.2e}")
+                print(f"🧊 noteLRnote, note: lr={cur_lr:.2e}")
             self.cooldown_left = self.cooldown_checks
             self.balanced_drop_streak = 0
             self.high_kl_streak = 0
@@ -508,17 +508,17 @@ class AdaptiveLearningRateCallback(BaseCallback):
         self.logger.record("train/adaptive_lr_num_decays", self.num_decays)
         if self.verbose > 0:
             print(
-                f"📉 自动降LR: {cur_lr:.2e} -> {new_lr:.2e} | "
+                f"📉 noteLR: {cur_lr:.2e} -> {new_lr:.2e} | "
                 + " & ".join(trigger_reasons)
             )
         return True
 
 
 # ============================================================
-# 训练指标落盘（JSONL）
+# trainingnote(JSONL)
 # ============================================================
 class TrainingMetricsFileLoggerCallback(BaseCallback):
-    """将训练关键指标周期性写入 JSONL 文件，断线后离线分析可用。"""
+    """notetrainingnote JSONL file, note."""
 
     DEFAULT_PREFIXES = (
         "train/", "domain/", "coverage/", "rollout/", "eval/", "time/",
@@ -531,7 +531,7 @@ class TrainingMetricsFileLoggerCallback(BaseCallback):
         log_freq: int = 1000,
         filename: str = "train_metrics.jsonl",
         exp_tag: Optional[str] = None,
-        prefixes: Tuple[str, ...] = DEFAULT_PREFIXES,
+        prefixes: Tuple[str,...] = DEFAULT_PREFIXES,
         verbose: int = 0,
     ):
         super().__init__(verbose)
@@ -619,7 +619,7 @@ class TrainingMetricsFileLoggerCallback(BaseCallback):
         self._fh.write(json.dumps(meta, ensure_ascii=False) + "\n")
         self._fh.flush()
         if self.verbose > 0:
-            print(f"📝 训练指标JSONL: {self.file_path}")
+            print(f"📝 trainingnoteJSONL: {self.file_path}")
 
     def _on_step(self) -> bool:
         if self.n_calls % self.log_freq == 0:
@@ -647,10 +647,10 @@ class TrainingMetricsFileLoggerCallback(BaseCallback):
 
 
 # ============================================================
-# 按场景保存最佳模型（原 DomainAwareBestModelCallback）
+# notesavenotemodel(note DomainAwareBestModelCallback)
 # ============================================================
 class BestModelCallback(BaseCallback):
-    """按 scene_key 保存最佳模型（全局 best + 每场景 best + 可选平衡分数 best）。"""
+    """note scene_key savenotemodel(note best + note best + note best)."""
 
     def __init__(
         self,
@@ -659,11 +659,11 @@ class BestModelCallback(BaseCallback):
         metric_mode: str = "per_scene_min",
         min_episodes_per_scene_for_save: int = 10,
         save_separate_per_scene_best: bool = True,
-        scene_keys: Optional[Tuple[str, ...]] = None,
-        domain_keys: Optional[Tuple[str, ...]] = None,  # 已废弃，优先用 scene_keys
+        scene_keys: Optional[Tuple[str,...]] = None,
+        domain_keys: Optional[Tuple[str,...]] = None,  # note, note scene_keys
         save_balanced_from_training_buffer: bool = False,
         verbose: int = 0,
-        # 旧参数别名
+        # note
         min_episodes_per_domain_for_save: Optional[int] = None,
         save_separate_per_domain_best: Optional[bool] = None,
     ):
@@ -671,7 +671,7 @@ class BestModelCallback(BaseCallback):
         self.save_path   = save_path
         self.check_freq  = max(1, int(check_freq))
         self.metric_mode = metric_mode
-        # 旧参数兼容
+        # note
         if min_episodes_per_domain_for_save is not None:
             min_episodes_per_scene_for_save = min_episodes_per_domain_for_save
         if save_separate_per_domain_best is not None:
@@ -679,11 +679,11 @@ class BestModelCallback(BaseCallback):
         self.min_episodes_per_scene_for_save = max(1, int(min_episodes_per_scene_for_save))
         self.save_separate_per_scene_best    = bool(save_separate_per_scene_best)
         if scene_keys is not None:
-            self.scene_keys: Optional[Tuple[str, ...]] = tuple(scene_keys)
+            self.scene_keys: Optional[Tuple[str,...]] = tuple(scene_keys)
         elif domain_keys is not None:
-            self.scene_keys = tuple(domain_keys)  # 向下兼容
+            self.scene_keys = tuple(domain_keys)  # note
         else:
-            self.scene_keys = None  # None = 动态发现所有场景
+            self.scene_keys = None  # None = dynamicnote
         self.save_balanced = bool(save_balanced_from_training_buffer)
         os.makedirs(save_path, exist_ok=True)
 
@@ -715,11 +715,11 @@ class BestModelCallback(BaseCallback):
             counts[sk] = len(eps)
         return means, counts
 
-    # 旧方法别名
+    # note
     _domain_means = _scene_means
 
     def _calc_balanced(self, means: Dict[str, float], counts: Dict[str, int]) -> Optional[float]:
-        # 若指定了 scene_keys，只看这些；否则用所有场景
+        # note scene_keys, note; note
         keys_to_check = list(self.scene_keys) if self.scene_keys else list(counts.keys())
         vals = []
         for k in keys_to_check:
@@ -740,7 +740,7 @@ class BestModelCallback(BaseCallback):
         return float(min(vals))  # per_scene_min
 
     def _on_step(self) -> bool:
-        if self.n_calls % self.check_freq != 0:
+        if self.n_calls % self.check_freq!= 0:
             return True
         episodes, grouped = self._split_ep_info()
         if not episodes:
@@ -751,19 +751,19 @@ class BestModelCallback(BaseCallback):
         balanced = self._calc_balanced(means, counts)
 
         if self.verbose > 0:
-            print(f"\n📊 {self.num_timesteps}步 | 全局平均奖励: {global_mean:.1f}")
+            print(f"\nmetrics {self.num_timesteps}note | notereward: {global_mean:.1f}")
             by_scene = ", ".join(
                 [f"{sk}: n={counts[sk]} rew={means[sk]:.1f}" for sk in sorted(counts)]
             )
             if by_scene:
-                print(f"   按场景: {by_scene}")
+                print(f"   note: {by_scene}")
 
         if global_mean > self.best_global_mean_reward:
             self.best_global_mean_reward = global_mean
             self._save_pair("best_model_global")
-            self._save_pair("best_model")   # 兼容旧路径
+            self._save_pair("best_model")   # notepath
             if self.verbose > 0:
-                print(f"⭐ 新全局最佳: {global_mean:.2f}")
+                print(f"⭐ note: {global_mean:.2f}")
 
         if self.save_separate_per_scene_best:
             for sk, mr in means.items():
@@ -773,36 +773,36 @@ class BestModelCallback(BaseCallback):
                     self.best_per_scene_reward[sk] = mr
                     z, p = self._save_pair(f"best_model_{sk}")
                     if self.verbose > 0:
-                        print(f"⭐ 新场景 [{sk}] 最佳: {mr:.2f} -> {z}")
+                        print(f"⭐ note [{sk}] note: {mr:.2f} -> {z}")
 
         if self.save_balanced and balanced is not None and balanced > self.best_balanced_score:
             self.best_balanced_score = balanced
             z, p = self._save_pair("best_model_balanced")
             if self.verbose > 0:
-                print(f"⭐ 新平衡最佳(缓冲区): {balanced:.2f}")
+                print(f"⭐ note(note): {balanced:.2f}")
         return True
 
 
-# 向下兼容别名
+# note
 DomainAwareBestModelCallback = BestModelCallback
 
 
 # ============================================================
-# 崩溃检测 + 自动回滚到最佳 checkpoint
+# notedetection + note checkpoint
 # ============================================================
 class CrashRecoveryCallback(BaseCallback):
     """
-    监控每个场景的 ep_len 滑动平均值，当检测到严重退化时自动回滚模型到最佳 checkpoint。
+    note ep_len note, notedetectionnotemodelnote checkpoint.
 
-    检测逻辑:
-      1. 维护每个场景的 ep_len 峰值 (peak) 和最近 N 局的滑动平均 (rolling)
-      2. 当 rolling < peak * crash_ratio 且 peak 超过 min_peak_len 时判定为崩溃
-      3. 回滚到 save_dir 下最近的常规 checkpoint (v13_*_steps.zip)
-      4. 回滚后进入冷却期，冷却期间不检测
+    detectionnote:
+      1. note ep_len note (peak) note N note (rolling)
+      2. note rolling < peak * crash_ratio note peak note min_peak_len note
+      3. note save_dir note checkpoint (v13_*_steps.zip)
+      4. note, notedetection
 
-    回滚行为:
-      - 加载 checkpoint 的 policy state_dict（不重建 model，保留 env/buffer）
-      - 重置 peak 为当前水平，避免循环回滚
+    noterowsnote:
+      - note checkpoint note policy state_dict(note model, note env/buffer)
+      - note peak notecurrentnote, note
     """
 
     def __init__(
@@ -838,7 +838,7 @@ class CrashRecoveryCallback(BaseCallback):
         self._started_step = self.num_timesteps
 
     def _find_latest_checkpoint(self) -> Optional[str]:
-        """查找 save_dir 下最新的 v13_*_steps.zip checkpoint。"""
+        """note save_dir note v13_*_steps.zip checkpoint."""
         import re
         pat = re.compile(rf"^{re.escape(self.checkpoint_prefix)}_(\d+)_steps\.zip$")
         best_steps = -1
@@ -855,55 +855,55 @@ class CrashRecoveryCallback(BaseCallback):
         return best_path
 
     def _rollback(self, crash_scene: str, rolling_avg: float, peak: float):
-        """回滚 policy 到最近的 checkpoint。"""
+        """note policy note checkpoint."""
         ckpt = self._find_latest_checkpoint()
         if ckpt is None:
-            print(f"🔄 [{crash_scene}] 崩溃检测触发但无可用 checkpoint，跳过回滚")
+            print(f"🔄 [{crash_scene}] notedetectionnote checkpoint, note")
             return False
 
         try:
-            # 只加载 policy state_dict，不重建整个 model
+            # note policy state_dict, note model
             from sb3_contrib import RecurrentPPO
             tmp_model = RecurrentPPO.load(ckpt)
             old_state = tmp_model.policy.state_dict()
             self.model.policy.load_state_dict(old_state)
-            # 同步 optimizer 的参数引用
+            # note optimizer note
             for pg in self.model.policy.optimizer.param_groups:
                 pg["params"] = [p for p in self.model.policy.parameters() if p.requires_grad]
             del tmp_model
             self._rollback_count += 1
             self._last_rollback_step = self.num_timesteps
-            # 重置所有场景 peak 为当前 rolling（避免回滚后立刻再次触发）
+            # note peak notecurrent rolling(note)
             for sk in self._scene_peaks:
                 if sk in self._scene_ep_lens and len(self._scene_ep_lens[sk]) > 0:
                     self._scene_peaks[sk] = float(np.mean(self._scene_ep_lens[sk]))
                 else:
                     self._scene_peaks[sk] = 0.0
             print(
-                f"🔄 崩溃回滚 #{self._rollback_count} [{crash_scene}]: "
-                f"rolling={rolling_avg:.0f} < peak={peak:.0f}×{self.crash_ratio}={peak*self.crash_ratio:.0f} "
-                f"→ 恢复 {os.path.basename(ckpt)}"
+                f"🔄 note #{self._rollback_count} [{crash_scene}]: "
+                f"rolling={rolling_avg:.0f} < peak={peak:.0f}x{self.crash_ratio}={peak*self.crash_ratio:.0f} "
+                f"-> note {os.path.basename(ckpt)}"
             )
             return True
         except Exception as e:
-            print(f"🔄 [{crash_scene}] 回滚失败: {type(e).__name__}: {e}")
+            print(f"🔄 [{crash_scene}] notefailed: {type(e).__name__}: {e}")
             return False
 
     def _on_step(self) -> bool:
-        if self.n_calls % self.check_freq != 0:
+        if self.n_calls % self.check_freq!= 0:
             return True
 
-        # 预热期不检测
+        # notedetection
         if self._started_step is not None:
             trained = self.num_timesteps - self._started_step
             if trained < self.min_warmup_steps:
                 return True
 
-        # 冷却期不检测
+        # notedetection
         if self.num_timesteps - self._last_rollback_step < self.cooldown_steps:
             return True
 
-        # 收集 per-scene episode lengths
+        # note per-scene episode lengths
         if len(self.model.ep_info_buffer) == 0:
             return True
 
@@ -918,7 +918,7 @@ class CrashRecoveryCallback(BaseCallback):
                 self._scene_ep_lens[sk] = deque(maxlen=self.rolling_window)
                 self._scene_peaks[sk] = 0.0
 
-            # 更新 rolling window（用 buffer 中该场景最近的均值作为一个数据点）
+            # note rolling window(note buffer notedatanote)
             if lens:
                 self._scene_ep_lens[sk].append(float(np.mean(lens)))
 
@@ -927,16 +927,16 @@ class CrashRecoveryCallback(BaseCallback):
 
             rolling_avg = float(np.mean(self._scene_ep_lens[sk]))
 
-            # 更新 peak
+            # note peak
             if rolling_avg > self._scene_peaks[sk]:
                 self._scene_peaks[sk] = rolling_avg
 
             peak = self._scene_peaks[sk]
 
-            # 崩溃检测
+            # notedetection
             if peak >= self.min_peak_len and rolling_avg < peak * self.crash_ratio:
                 if self._rollback(sk, rolling_avg, peak):
-                    return True  # 回滚后继续训练
+                    return True  # notetraining
 
         return True
 
@@ -949,14 +949,14 @@ class CrashRecoveryCallback(BaseCallback):
 
 
 # ============================================================
-# 短命 episode 日志（供后期分析特定地图卡死/即时 done 问题）
+# note episode note(note/note done note)
 # ============================================================
 class ShortEpisodeLoggerCallback(BaseCallback):
     """
-    记录 episode 步数 < threshold 的早终止事件到 JSONL 文件。
-    每条记录包含：timestamp、num_timesteps、scene_key、episode_len、
-    episode_reward、termination_reason。
-    同时在控制台打印警告，便于实时发现问题地图。
+    note episode note < threshold note JSONL file.
+    note: timestamp, num_timesteps, scene_key, episode_len,
+    episode_reward, termination_reason.
+    notecontrolnote, note.
     """
 
     def __init__(
@@ -972,7 +972,7 @@ class ShortEpisodeLoggerCallback(BaseCallback):
         self.file_path = os.path.join(self.save_dir, filename)
         self._fh: Optional[Any] = None
         self._total_short = 0
-        # 按场景统计（供 _on_training_end 摘要）
+        # note(note _on_training_end note)
         self._scene_short_counts: Dict[str, int] = {}
 
     def _on_training_start(self) -> None:
@@ -986,7 +986,7 @@ class ShortEpisodeLoggerCallback(BaseCallback):
         }, ensure_ascii=False) + "\n")
         self._fh.flush()
         if self.verbose > 0:
-            print(f"📋 短命 episode 日志 (< {self.threshold} 步): {self.file_path}")
+            print(f"📋 note episode note (< {self.threshold} note): {self.file_path}")
 
     def _on_step(self) -> bool:
         infos = self.locals.get("infos", [])
@@ -1005,7 +1005,7 @@ class ShortEpisodeLoggerCallback(BaseCallback):
                 continue
 
             self._total_short += 1
-            # scene_key 优先从 episode dict，其次从 info 顶层
+            # scene_key note episode dict, note info note
             scene_key = ep.get("scene_key") or info.get("scene_key", "unknown")
             term_reason = ep.get("termination_reason") or info.get("termination_reason", "unknown")
             ep_reward = ep.get("r", float("nan"))
@@ -1031,13 +1031,13 @@ class ShortEpisodeLoggerCallback(BaseCallback):
 
             if self.verbose > 0:
                 print(
-                    f"⚠️  短命ep #{self._total_short}: scene={scene_key}, "
+                    f"⚠️  noteep #{self._total_short}: scene={scene_key}, "
                     f"len={ep_len:.0f}<{self.threshold}, "
                     f"rew={ep_reward:.1f}, reason={term_reason} "
-                    f"(@{self.num_timesteps}步)"
+                    f"(@{self.num_timesteps}note)"
                 )
 
-            # 写入 TensorBoard
+            # note TensorBoard
             self.logger.record("short_ep/total_count", self._total_short)
             for sk, cnt in self._scene_short_counts.items():
                 self.logger.record(f"short_ep/{sk}_count", cnt)
@@ -1064,16 +1064,16 @@ class ShortEpisodeLoggerCallback(BaseCallback):
                 self._fh = None
 
         if self._total_short > 0 and self.verbose > 0:
-            print(f"\n📋 短命 episode 汇总 (总计 {self._total_short} 次):")
+            print(f"\n📋 note episode note (note {self._total_short} note):")
             for sk, cnt in sorted(self._scene_short_counts.items(), key=lambda x: -x[1]):
-                print(f"   {sk}: {cnt} 次")
+                print(f"   {sk}: {cnt} note")
 
 
 # ============================================================
-# tqdm 进度条  📊 552000步 | 全局平均奖励: 46.2
+# tqdm note  metrics 552000note | notereward: 46.2
 # ============================================================
 class TqdmProgressCallback(BaseCallback):
-    """tqdm 进度条，显示当前步数、全局平均奖励、各场景奖励。"""
+    """tqdm note, notecurrentnote, notereward, notereward."""
 
     def __init__(self, total_timesteps: int, update_freq: int = 2048, verbose: int = 0):
         super().__init__(verbose)
@@ -1086,12 +1086,12 @@ class TqdmProgressCallback(BaseCallback):
         try:
             from tqdm import tqdm
         except ImportError:
-            print("⚠️  tqdm 未安装，进度条不可用")
+            print("⚠️  tqdm note, note")
             return
         self.pbar = tqdm(
             total=self.total_timesteps,
-            desc="📊 训练",
-            unit="步",
+            desc="metrics training",
+            unit="note",
             dynamic_ncols=True,
             bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]",
         )
@@ -1105,14 +1105,14 @@ class TqdmProgressCallback(BaseCallback):
             self.pbar.update(delta)
             self._last_update = current
 
-            # ------ 收集全局 + 各场景奖励 ------
+            # ------ note + notereward ------
             postfix = {}
             if len(self.model.ep_info_buffer) > 0:
                 all_rewards = [float(e["r"]) for e in self.model.ep_info_buffer if "r" in e]
                 if all_rewards:
-                    postfix["全局奖励"] = f"{np.mean(all_rewards):.1f}"
+                    postfix["notereward"] = f"{np.mean(all_rewards):.1f}"
 
-                # 按场景分组
+                # note
                 grouped: Dict[str, list] = {}
                 for ep in self.model.ep_info_buffer:
                     sk = ep.get("logging_key") or ep.get("scene_key") or ep.get("domain", "?")
@@ -1133,22 +1133,22 @@ class TqdmProgressCallback(BaseCallback):
 
 
 # ============================================================
-# 步数平衡采样：动态调整障碍物概率以补充缺失的障碍物步数
+# note: dynamicnoteobstaclenoteobstaclenote
 # ============================================================
 class ObstacleStepsBalancingCallback(BaseCallback):
     """
-    根据步数补充障碍物回合。
+    noteobstaclenote.
 
-    逻辑：
-    - 目标障碍物步数 = 总步数 × (1 - obstacle_free_prob)
-    - 跟踪：实际带障碍物的步数
-    - 补充：如果缺失，动态降低 obstacle_free_prob 来增加后续障碍物出现概率
+    note:
+    - goalobstaclenote = note x (1 - obstacle_free_prob)
+    - note: noteobstaclenote
+    - note: note, dynamicnote obstacle_free_prob noteobstaclenote
     """
 
     def __init__(
         self,
         check_freq: int = 1000,
-        target_obstacle_ratio: float = 0.5,  # 50% 的步数应该带障碍物
+        target_obstacle_ratio: float = 0.5,  # 50% noteobstaclenote
         verbose: int = 0,
     ):
         super().__init__(verbose)
@@ -1162,11 +1162,11 @@ class ObstacleStepsBalancingCallback(BaseCallback):
         self._last_check_step = 0
 
     def _on_training_start(self) -> None:
-        # 初始化场景
+        # note
         for scene_key in ['ws', 'gt']:
             self._scene_total_steps[scene_key] = 0
             self._scene_obstacle_steps[scene_key] = 0
-            # 从env获取初始obstacle_free_prob
+            # noteenvnoteobstacle_free_prob
             if hasattr(self.model.env, 'envs'):
                 # VecEnv
                 for env in self.model.env.envs:
@@ -1177,11 +1177,11 @@ class ObstacleStepsBalancingCallback(BaseCallback):
                 self._scene_obstacle_free_prob[scene_key] = self.model.env.obstacle_free_prob
 
     def _on_step(self) -> bool:
-        # 从ep_info_buffer中提取信息
+        # noteep_info_buffernote
         if len(self.model.ep_info_buffer) > 0 and self.num_timesteps - self._last_check_step >= self.check_freq:
             self._last_check_step = self.num_timesteps
 
-            # 处理最近的episodes
+            # noteepisodes
             for ep in self.model.ep_info_buffer:
                 scene_key = ep.get('logging_key') or 'unknown'
                 ep_len = ep.get('l', 0)  # episode length
@@ -1189,44 +1189,44 @@ class ObstacleStepsBalancingCallback(BaseCallback):
                 if scene_key in self._scene_total_steps:
                     self._scene_total_steps[scene_key] += ep_len
 
-                    # 检查是否有障碍物（通过碰撞或near_collision信息推断）
-                    # 简单启发：如果reward中有碰撞或near_collision惩罚，说明有障碍物
+                    # noteobstaclenote(notenear_collisionnote)
+                    # note: noterewardnotenear_collisionnote, descriptionnoteobstaclenote
                     has_obstacle = 'ep_term_collision' in ep or 'ep_r_near_collision' in ep
                     if has_obstacle:
                         self._scene_obstacle_steps[scene_key] += ep_len
 
-            # 根据缺失程度调整obstacle_free_prob
+            # noteobstacle_free_prob
             self._adjust_obstacle_probs()
 
         return True
 
     def _adjust_obstacle_probs(self) -> None:
-        """根据缺失的障碍物步数，动态调整obstacle_free_prob"""
+        """noteobstaclenote, dynamicnoteobstacle_free_prob"""
 
         for scene_key in ['ws', 'gt']:
             total = self._scene_total_steps.get(scene_key, 0)
             obstacle = self._scene_obstacle_steps.get(scene_key, 0)
 
-            if total < 100:  # 数据太少，不调整
+            if total < 100:  # datanote, note
                 continue
 
-            # 计算目标和实际的障碍物步数
+            # computegoalnoteobstaclenote
             target_obstacle_steps = total * self.target_obstacle_ratio
             actual_ratio = obstacle / total if total > 0 else 0
 
-            # 如果缺失过多，降低obstacle_free_prob来补充
+            # note, noteobstacle_free_probnote
             deficit_ratio = 1.0 - (obstacle / target_obstacle_steps) if target_obstacle_steps > 0 else 0
             deficit_ratio = np.clip(deficit_ratio, 0.0, 1.0)
 
-            # 新的obstacle_free_prob = 旧的 * (1 - deficit_ratio)
-            # 这样当缺失多时，障碍物概率会上升
+            # noteobstacle_free_prob = note * (1 - deficit_ratio)
+            # note, obstaclenote
             old_prob = self._scene_obstacle_free_prob.get(scene_key, 0.5)
-            new_prob = old_prob * (1.0 - deficit_ratio * 0.1)  # 每次最多调整10%
-            new_prob = np.clip(new_prob, 0.0, 0.9)  # 保持在合理范围
+            new_prob = old_prob * (1.0 - deficit_ratio * 0.1)  # note10%
+            new_prob = np.clip(new_prob, 0.0, 0.9)  # note
 
             self._scene_obstacle_free_prob[scene_key] = new_prob
 
-            # 应用到environment
+            # noteenvironment
             if hasattr(self.model.env, 'envs'):
                 for env in self.model.env.envs:
                     if hasattr(env, 'obstacle_free_prob'):
@@ -1238,21 +1238,21 @@ class ObstacleStepsBalancingCallback(BaseCallback):
                 setattr(self.model.env, f'{scene_key}_obstacle_free_prob', new_prob)
 
             if deficit_ratio > 0.05 and self.verbose >= 1:
-                print(f"[障碍物平衡] {scene_key}: 缺失{deficit_ratio:.1%}, "
-                      f"obstacle_free_prob: {old_prob:.3f} → {new_prob:.3f}")
+                print(f"[obstaclenote] {scene_key}: note{deficit_ratio:.1%}, "
+                      f"obstacle_free_prob: {old_prob:.3f} -> {new_prob:.3f}")
 
 
 # ============================================================
-# Step 预算补偿（基于步数统计的动态调整）
+# Step note(notedynamicnote)
 # ============================================================
 class StepBudgetCompensationCallback(BaseCallback):
     """
-    基于步数窗口统计，自动补偿学习机会不均衡。
+    note, note.
 
-    工作原理：
-    1. 环境跟踪每个scene的"有障碍"与"无障碍"的步数
-    2. 每50个episode评估一次，检查是否达到目标障碍步数比例
-    3. 如果缺失，动态降低obstacle_free_prob来补充；如果过度，提高
+    note:
+    1. notescenenote"noteobstacle"note"noteobstacle"note
+    2. note50noteepisodenote, notegoalobstaclenote
+    3. note, dynamicnoteobstacle_free_probnote; note, note
     """
 
     def __init__(
@@ -1265,36 +1265,36 @@ class StepBudgetCompensationCallback(BaseCallback):
         self.curriculum_phases = curriculum_phases
         self.window_episode_count = window_episode_count
 
-        # 跟踪补偿历史（用于日志）
-        self.compensation_history = {}  # {scene_key: [(step, stats_dict), ...]}
+        # note(note)
+        self.compensation_history = {}  # {scene_key: [(step, stats_dict),...]}
 
     def _on_step(self) -> bool:
-        """每一步检查是否需要评估和补偿"""
+        """note"""
 
-        # 只在 DummyVecEnv 或 SubprocVecEnv 上工作
+        # note DummyVecEnv note SubprocVecEnv note
         if not hasattr(self.model.env, 'envs'):
             return True
 
-        # 获取当前阶段的配置
+        # notecurrentstagenoteconfiguration
         if not hasattr(self.model.env, '_curriculum_phase'):
             return True
 
         phase_name = self.model.env._curriculum_phase
         phase_config = self.curriculum_phases.get(phase_name, {})
 
-        # 获取目标障碍比例
+        # notegoalobstaclenote
         target_ratios = phase_config.get("obstacle_target_ratios", {})
         if not target_ratios:
             return True
 
-        # 检查所有环境是否有步数统计
+        # note
         for env in self.model.env.envs:
             if not hasattr(env, '_step_budget_stats'):
                 continue
 
             stats = env._step_budget_stats
 
-            # 检查每个scene是否达到评估窗口
+            # notescenenote
             for scene_key in ['ws', 'gt']:
                 if scene_key not in target_ratios or scene_key not in stats:
                     continue
@@ -1302,8 +1302,8 @@ class StepBudgetCompensationCallback(BaseCallback):
                 ep_count = stats[scene_key]['episode_count']
                 window_episodes = self.window_episode_count
 
-                # 检查是否达到评估点（但只在有足够数据时）
-                if ep_count > 0 and ep_count % window_episodes == 0 and ep_count % (window_episodes + 1) != 0:
+                # note(notedatanote)
+                if ep_count > 0 and ep_count % window_episodes == 0 and ep_count % (window_episodes + 1)!= 0:
                     self._evaluate_and_compensate(env, scene_key, phase_config, target_ratios[scene_key])
 
         return True
@@ -1315,26 +1315,26 @@ class StepBudgetCompensationCallback(BaseCallback):
         phase_config: Dict[str, Any],
         target_ratio: float,
     ) -> None:
-        """评估窗口内的步数分布，计算缺陷，调整障碍概率"""
+        """notedistribution, computenote, noteobstaclenote"""
 
         stats = env._step_budget_stats[scene_key]
         with_obs_steps = stats["window_with_obs_steps"]
         without_obs_steps = stats["window_without_obs_steps"]
         total_steps = with_obs_steps + without_obs_steps
 
-        if total_steps < 10:  # 数据太少，不调整
+        if total_steps < 10:  # datanote, note
             return
 
-        # 计算实际比例和缺陷
+        # computenote
         actual_ratio = with_obs_steps / total_steps if total_steps > 0 else 0
         target_steps = int(total_steps * target_ratio)
-        deficit = target_steps - with_obs_steps  # 负数表示过度
+        deficit = target_steps - with_obs_steps  # note
 
-        # 只在缺陷显著时调整
-        if abs(deficit) < total_steps * 0.05:  # 缺陷 < 5% 不调整
+        # note
+        if abs(deficit) < total_steps * 0.05:  # note < 5% note
             return
 
-        # 获取当前的obstacle_free_prob
+        # notecurrentnoteobstacle_free_prob
         if scene_key == 'ws' and hasattr(env, 'ws_obstacle_free_prob'):
             current_free_prob = env.ws_obstacle_free_prob or 0.5
             is_ws = True
@@ -1345,23 +1345,23 @@ class StepBudgetCompensationCallback(BaseCallback):
         max_compensation_ratio = phase_config.get("max_compensation_ratio", 0.25)
 
         if deficit > 0:
-            # 缺少有障碍步数 → 降低 obstacle_free_prob
+            # noteobstaclenote -> note obstacle_free_prob
             reduction = min(deficit / total_steps, max_compensation_ratio)
             new_free_prob = max(0.0, current_free_prob - reduction)
             direction = "↓"
         else:
-            # 过度有障碍 → 提高 obstacle_free_prob
+            # noteobstacle -> note obstacle_free_prob
             addition = min(-deficit / total_steps, max_compensation_ratio)
             new_free_prob = min(1.0, current_free_prob + addition)
             direction = "↑"
 
-        # 应用调整
+        # note
         if is_ws:
             env.ws_obstacle_free_prob = new_free_prob
         else:
             env.obstacle_free_prob = new_free_prob
 
-        # 记录到历史
+        # note
         if scene_key not in self.compensation_history:
             self.compensation_history[scene_key] = []
 
@@ -1378,12 +1378,12 @@ class StepBudgetCompensationCallback(BaseCallback):
         }
         self.compensation_history[scene_key].append(comp_record)
 
-        # 打印日志
+        # note
         if self.verbose >= 1:
             log_msg = (
-                f"\n📊 [Step预算补偿] {scene_key.upper()} @ 步{self.num_timesteps}\n"
-                f"   目标障碍率: {target_ratio:.0%} | 实际: {actual_ratio:.0%} | "
-                f"缺陷: {deficit:+d}步\n"
+                f"\nmetrics [Stepnote] {scene_key.upper()} @ note{self.num_timesteps}\n"
+                f"   goalobstaclenote: {target_ratio:.0%} | note: {actual_ratio:.0%} | "
+                f"note: {deficit:+d}note\n"
                 f"   obstacle_free_prob: {current_free_prob:.3f} {direction} {new_free_prob:.3f} "
                 f"(±{abs(new_free_prob - current_free_prob):.3f})"
             )

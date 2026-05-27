@@ -1,6 +1,8 @@
 # DonkeyCar RL Racing
 
-Portfolio showcase for reinforcement learning in DonkeyCar simulation. This repository contains the simulator-side training code, environment wrappers, curriculum logic, track-processing utilities, and deployment helpers used to train obstacle-aware autonomous driving policies.
+Reinforcement learning training stack for DonkeyCar simulation. This repository contains simulator-side training code, environment wrappers, curriculum logic, track-processing utilities, and deployment helpers used to train obstacle-aware autonomous driving policies.
+
+![Physical tabletop track with JetRacer-style cars and obstacles](assets/real-track-and-car.jpg)
 
 ## Project Highlights
 
@@ -9,6 +11,14 @@ Portfolio showcase for reinforcement learning in DonkeyCar simulation. This repo
 - Custom observation and control stack: semantic lane extraction, multi-input observations, high-level speed control, steering safety limits, and reward shaping.
 - Sim-to-real support code for lane/track transformation, robust visual lane detection, green obstacle-vehicle detection, and Jetson runtime monitoring.
 - Reproducibility-oriented docs covering reward design, map transforms, multisim training, dynamics wrappers, and V16 curriculum gates.
+
+## Visual Context
+
+| DonkeySim multi-view setup | Calibrated track profiles |
+|---|---|
+| ![DonkeySim multi-view training setup](assets/donkeysim-multiview.jpg) | ![Rendered Waveshare and generated-track profiles](assets/track-profiles.png) |
+
+The physical track photo is from the smart-car lab setup. The track-profile render is generated from the JSON geometry files in `module/track_data/`, so the figure can be regenerated from repository data.
 
 ## Main Entry Points
 
@@ -37,9 +47,9 @@ Portfolio showcase for reinforcement learning in DonkeyCar simulation. This repo
 └── train.py / manage.py  # Standard DonkeyCar project entrypoints
 ```
 
-## Recommended Training Command
+## Training Command
 
-The current showcase path is the V16 dual-domain curriculum:
+The current main path is the V16 dual-domain curriculum:
 
 ```bash
 python src/ppo_multitrack_v16.py \

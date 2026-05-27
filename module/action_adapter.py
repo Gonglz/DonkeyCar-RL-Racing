@@ -1,33 +1,33 @@
 """
 module/action_adapter.py
 
-V13 ActionAdapterWrapper: 3D 高层动作 → 2D 低层控制量。
+V13 ActionAdapterWrapper: 3D note -> 2D notecontrolnote.
 
-动作空间
+note
 --------
-actor 输出: [Δsteer, speed_scale, line_bias] ∈ [-1, 1]³
+actor output: [Δsteer, speed_scale, line_bias] ∈ [-1, 1]³
 
-  Δsteer      即时转向增量 → 积累到 steer_core
-  speed_scale 相对基础速度的激进/保守系数
-  line_bias   持续横向占位意图 → 低通滤波为 bias_smooth
+  Δsteer      note -> note steer_core
+  speed_scale note/note
+  line_bias   note -> note bias_smooth
 
-传导链
+note
 ------
-Δsteer      → steer_core (积分器)  ┐
-line_bias   → bias_smooth (低通)   ┤→ steer_target = clip(steer_core + k_b·bias_smooth)
-speed_scale → v_ref (乘性缩放)     → PI+FF → throttle_cmd
+Δsteer      -> steer_core (note)  ┐
+line_bias   -> bias_smooth (note)   ┤-> steer_target = clip(steer_core + k_b·bias_smooth)
+speed_scale -> v_ref (note)     -> PI+FF -> throttle_cmd
 
-输出: [steer_target, throttle_cmd]
-  由下游 ActionSafetyWrapper 对 steer_target 做速率限制后送入 DonkeyEnv。
+output: [steer_target, throttle_cmd]
+  note ActionSafetyWrapper note steer_target note DonkeyEnv.
 
-内部状态（暴露给 obs builder）
+note(note obs builder)
 ------------------------------
-  steer_core   ∈ [-1, 1]  基础转向积分器
-  bias_smooth  ∈ [-1, 1]  占位意图（低通滤波后）
+  steer_core   ∈ [-1, 1]  note
+  bias_smooth  ∈ [-1, 1]  note(note)
 
-接口兼容（替代 HighLevelControlWrapper）
+note(note HighLevelControlWrapper)
 -----------------------------------------
-  consume_info(info)        更新 last_speed_mps
+  consume_info(info)        note last_speed_mps
   last_low_level_action     np.ndarray shape (2,)
   diag                      Dict[str, float]
 """
@@ -39,11 +39,11 @@ from typing import Any, Dict
 import gym
 import numpy as np
 
-from .utils import _clip_float
+from.utils import _clip_float
 
 
 class ActionAdapterWrapper(gym.ActionWrapper):
-    """V13 3D → 2D action adapter, replacing HighLevelControlWrapper."""
+    """V13 3D -> 2D action adapter, replacing HighLevelControlWrapper."""
 
     def __init__(
         self,
@@ -109,7 +109,7 @@ class ActionAdapterWrapper(gym.ActionWrapper):
         self.last_low_level_action = np.array([0.0, 0.0], dtype=np.float32)
         self.diag: Dict[str, float] = self._zero_diag()
 
-        print("✅ V13 ActionAdapterWrapper")
+        print("PASS V13 ActionAdapterWrapper")
         print(
             f"   k_delta={self.k_delta:.3f}, lambda_bias={self.lambda_bias:.3f}, "
             f"k_bias={self.k_bias:.3f}, decay={self.steer_core_decay:.4f}"
@@ -173,7 +173,7 @@ class ActionAdapterWrapper(gym.ActionWrapper):
         )
         bias_offset = self.k_bias * self.bias_smooth
 
-        # 3. steering target (no rate limit here — ActionSafetyWrapper handles it)
+        # 3. steering target (no rate limit here - ActionSafetyWrapper handles it)
         steer_target = _clip_float(self.steer_core + bias_offset, -1.0, 1.0)
 
         # 4. context-aware base speed

@@ -11,7 +11,7 @@ Options:
     --js                    Use physical joystick.
     -f --file=<file>        A text file containing paths to tub files, one per line. Option may be used more than once.
     --meta=<key:value>      Key/Value strings describing describing a piece of meta data about this drive. Option may be used more than once.
-    --myconfig=filename     Specify myconfig file to use. 
+    --myconfig=filename     Specify myconfig file to use.
                             [default: myconfig.py]
 """
 import os
@@ -74,7 +74,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
     if cfg.HAVE_MQTT_TELEMETRY:
         from donkeycar.parts.telemetry import MqttTelemetry
         tel = MqttTelemetry(cfg)
-        
+
     if cfg.HAVE_ODOM:
         if cfg.ENCODER_TYPE == "GPIO":
             from donkeycar.parts.encoder import RotaryEncoder
@@ -132,7 +132,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
         outputs = ['cam/image_array']
         threaded = True
         if cfg.DONKEY_GYM:
-            from donkeycar.parts.dgym import DonkeyGymEnv 
+            from donkeycar.parts.dgym import DonkeyGymEnv
             #rbx
             cam = DonkeyGymEnv(cfg.DONKEY_SIM_PATH, host=cfg.SIM_HOST, env_name=cfg.DONKEY_GYM_ENV_NAME, conf=cfg.GYM_CONF, record_location=cfg.SIM_RECORD_LOCATION, record_gyroaccel=cfg.SIM_RECORD_GYROACCEL, record_velocity=cfg.SIM_RECORD_VELOCITY, record_lidar=cfg.SIM_RECORD_LIDAR, delay=cfg.SIM_ARTIFICIAL_LATENCY)
             threaded = True
@@ -148,7 +148,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             cam = CvCam(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, iCam=cfg.CAMERA_INDEX)
         elif cfg.CAMERA_TYPE == "CSIC":
             from donkeycar.parts.camera import CSICamera
-            cam = CSICamera(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE, 
+            cam = CSICamera(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, framerate=cfg.CAMERA_FRAMERATE,
                             capture_width=cfg.IMAGE_W, capture_height=cfg.IMAGE_H, gstreamer_flip=cfg.CSIC_CAM_GSTREAMER_FLIP_PARM)
         elif cfg.CAMERA_TYPE == "V4L":
             from donkeycar.parts.camera import V4LCamera
@@ -165,7 +165,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
         else:
             raise(Exception("Unkown camera type: %s" % cfg.CAMERA_TYPE))
 
-        
+
         # Donkey gym part will output position information if it is configured
         if cfg.DONKEY_GYM:
             if cfg.SIM_RECORD_LOCATION:
@@ -176,7 +176,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
                 outputs += ['vel/vel_x', 'vel/vel_y', 'vel/vel_z']
             if cfg.SIM_RECORD_LIDAR:
                 outputs += ['lidar/dist_array']
-            
+
         V.add(cam, inputs=inputs, outputs=outputs, threaded=threaded)
 
     # add lidar
@@ -188,7 +188,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             V.add(lidar, inputs=[],outputs=['lidar/dist_array'], threaded=True)
         if cfg.LIDAR_TYPE == 'YD':
             print("YD Lidar not yet supported")
-    
+
     if cfg.SHOW_FPS:
         from donkeycar.parts.fps import FrequencyLogger
         V.add(FrequencyLogger(cfg.FPS_DEBUG_INTERVAL), outputs=["fps/current", "fps/fps_list"])
@@ -196,12 +196,12 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
 #This web controller will create a web server that is capable
     #of managing steering, throttle, and modes, and more.
     ctr = LocalWebController(port=cfg.WEB_CONTROL_PORT, mode=cfg.WEB_INIT_MODE)
-    
+
     V.add(ctr,
         inputs=['cam/image_array', 'tub/num_records', 'user/mode', 'recording'],
         outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
         threaded=True)
-        
+
     if use_joystick or cfg.USE_JOYSTICK_AS_DEFAULT:
         #modify max_throttle closer to 1.0 to have more power
         #modify steering_scale lower than 1.0 to have less responsive steering
@@ -210,7 +210,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             ctr = RCReceiver(cfg)
             V.add(
                 ctr,
-                inputs=['user/mode', 'recording'], 
+                inputs=['user/mode', 'recording'],
                 outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
                 threaded=False)
         else:
@@ -221,9 +221,9 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
                 throttle_scale=cfg.JOYSTICK_MAX_THROTTLE,
                 steering_scale=cfg.JOYSTICK_STEERING_SCALE,
                 auto_record_on_throttle=cfg.AUTO_RECORD_ON_THROTTLE)
-                ctr.set_deadzone(cfg.JOYSTICK_DEADZONE)          
+                ctr.set_deadzone(cfg.JOYSTICK_DEADZONE)
             elif cfg.CONTROLLER_TYPE == "MM1":
-                from donkeycar.parts.robohat import RoboHATController            
+                from donkeycar.parts.robohat import RoboHATController
                 ctr = RoboHATController(cfg)
             else:
                 from donkeycar.parts.controller import get_js_controller
@@ -234,11 +234,11 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
                     V.add(netwkJs, threaded=True)
                     ctr.js = netwkJs
             V.add(
-                ctr, 
-                inputs=['cam/image_array', 'user/mode', 'recording'], 
+                ctr,
+                inputs=['cam/image_array', 'user/mode', 'recording'],
                 outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
                 threaded=True)
-        
+
 
     #this throttle filter will allow one tap back for esc reverse
     th_filter = ThrottleFilter()
@@ -349,7 +349,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             if isinstance(ctr, JoystickController):
                 ctr.set_button_down_trigger('circle', show_record_count_status) #then we are not using the circle button. hijack that to force a record count indication
         else:
-            
+
             show_record_count_status()
 
     #Sombrero
@@ -501,7 +501,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
                                cfg.STOP_SIGN_REVERSE_THROTTLE),
               inputs=['cam/image_array', 'pilot/throttle'],
               outputs=['pilot/throttle', 'cam/image_array'])
-        V.add(ThrottleFilter(), 
+        V.add(ThrottleFilter(),
               inputs=['pilot/throttle'],
               outputs=['pilot/throttle'])
 
@@ -581,7 +581,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
         steering = PWMSteering(controller=steering_controller,
                                         left_pulse=dt["STEERING_LEFT_PWM"],
                                         right_pulse=dt["STEERING_RIGHT_PWM"])
-        
+
         throttle_controller = PulseController(
             pwm_pin=pins.pwm_pin_by_id(dt["PWM_THROTTLE_PIN"]),
             pwm_scale=dt["PWM_THROTTLE_SCALE"],
@@ -685,7 +685,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
 
         V.add(steering, inputs=['angle'], threaded=True)
         V.add(motor, inputs=["throttle"])
-        
+
     elif cfg.DRIVE_TRAIN_TYPE == "SERVO_HBRIDGE_3PIN":
         #
         # Servo for steering and HBridge motor driver in 3pin mode for motor
@@ -708,7 +708,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
 
         V.add(steering, inputs=['angle'], threaded=True)
         V.add(motor, inputs=["throttle"])
-        
+
     elif cfg.DRIVE_TRAIN_TYPE == "SERVO_HBRIDGE_PWM":
         #
         # Thi driver is DEPRECATED in favor of 'DRIVE_TRAIN_TYPE == "SERVO_HBRIDGE_2PIN"'
@@ -791,13 +791,13 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
 
     # rbx
     if cfg.DONKEY_GYM:
-        if cfg.SIM_RECORD_LOCATION:  
+        if cfg.SIM_RECORD_LOCATION:
             inputs += ['pos/pos_x', 'pos/pos_y', 'pos/pos_z', 'pos/speed', 'pos/cte']
             types  += ['float', 'float', 'float', 'float', 'float']
-        if cfg.SIM_RECORD_GYROACCEL: 
+        if cfg.SIM_RECORD_GYROACCEL:
             inputs += ['gyro/gyro_x', 'gyro/gyro_y', 'gyro/gyro_z', 'accel/accel_x', 'accel/accel_y', 'accel/accel_z']
             types  += ['float', 'float', 'float', 'float', 'float', 'float']
-        if cfg.SIM_RECORD_VELOCITY:  
+        if cfg.SIM_RECORD_VELOCITY:
             inputs += ['vel/vel_x', 'vel/vel_y', 'vel/vel_z']
             types  += ['float', 'float', 'float']
         if cfg.SIM_RECORD_LIDAR:
@@ -844,7 +844,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
         if cfg.DONKEY_GYM:
             print("You can now go to http://localhost:%d to drive your car." % cfg.WEB_CONTROL_PORT)
         else:
-            print("You can now go to <your hostname.local>:%d to drive your car." % cfg.WEB_CONTROL_PORT)        
+            print("You can now go to <your hostname.local>:%d to drive your car." % cfg.WEB_CONTROL_PORT)
     elif (cfg.CONTROLLER_TYPE != "pigpio_rc") and (cfg.CONTROLLER_TYPE != "MM1"):
         if isinstance(ctr, JoystickController):
             print("You can now move your joystick to drive your car.")

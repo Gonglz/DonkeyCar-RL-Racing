@@ -18,7 +18,7 @@ from typing import Optional
 import cv2
 import numpy as np
 
-from .green_vehicle_detect import GreenVehicleDetector
+from.green_vehicle_detect import GreenVehicleDetector
 
 _green_detector = GreenVehicleDetector()
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -211,7 +211,7 @@ def _detect_rrl_horizontal_supplement(
 
     h, w = candidate_mask.shape
     if guide_mask is not None and np.any(guide_mask):
-        lower_guide = guide_mask[int(0.45 * h):, :]
+        lower_guide = guide_mask[int(0.45 * h):,:]
         # This path is meant to be a fallback for frames where the main
         # detector under-covers the lower horizontal curb. If the main path
         # already has decent lower-half support, adding another horizontal pass
@@ -232,7 +232,7 @@ def _detect_rrl_horizontal_supplement(
         return candidate_mask.copy() & False
 
     accepted_lines = []
-    for line in lines[:, 0, :]:
+    for line in lines[:, 0,:]:
         x1, y1, x2, y2 = map(int, line)
         dx = x2 - x1
         dy = y2 - y1
@@ -797,8 +797,8 @@ def detect_rrl_white_lines(img_bgr: np.ndarray) -> np.ndarray:
     """
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     h, w = img_bgr.shape[:2]
-    v = hsv[:, :, 2].astype(np.float32)
-    s = hsv[:, :, 1]
+    v = hsv[:,:, 2].astype(np.float32)
+    s = hsv[:,:, 1]
     road_mask = cv2.dilate(detect_rrl_road_surface(img_bgr), _kernel(5), iterations=1) > 0
     checker_mask = cv2.dilate(detect_rrl_checker(img_bgr), _kernel(3), iterations=1) > 0
 
@@ -953,13 +953,13 @@ def detect_rrl_checker(img_bgr: np.ndarray) -> np.ndarray:
     """
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     h, w = img_bgr.shape[:2]
-    v = hsv[:, :, 2].astype(np.float32)
-    s = hsv[:, :, 1]
+    v = hsv[:,:, 2].astype(np.float32)
+    s = hsv[:,:, 1]
 
     checker_rows = np.zeros(h, dtype=bool)
     for y in range(int(0.3 * h), h):
-        row_s = s[y, :]
-        row_v = v[y, :]
+        row_s = s[y,:]
+        row_v = v[y,:]
         low_sat = row_s < 30
 
         n_bright = np.sum((row_v > 200) & low_sat)
@@ -986,8 +986,8 @@ def detect_rrl_checker(img_bgr: np.ndarray) -> np.ndarray:
         else:
             if run_start >= 0 and (y - run_start) >= 5:
                 for yy in range(run_start, min(y, h)):
-                    row_s = s[yy, :]
-                    row_v = v[yy, :]
+                    row_s = s[yy,:]
+                    row_v = v[yy,:]
                     is_checker = (row_s < 30) & ((row_v > 180) | (row_v < 60))
                     checker_mask[yy, is_checker] = 255
             run_start = -1
@@ -1003,8 +1003,8 @@ def detect_rrl_checker(img_bgr: np.ndarray) -> np.ndarray:
 def detect_rrl_road_surface(img_bgr: np.ndarray) -> np.ndarray:
     """Detect the dark asphalt road. Low saturation, wide V range."""
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
-    s = hsv[:, :, 1]
-    v = hsv[:, :, 2]
+    s = hsv[:,:, 1]
+    v = hsv[:,:, 2]
     road = ((s < 50) & (v >= 25) & (v <= 200)).astype(np.uint8) * 255
     road = cv2.morphologyEx(road, cv2.MORPH_CLOSE, _kernel(7))
     road = cv2.morphologyEx(road, cv2.MORPH_OPEN, _kernel(3))
@@ -1049,9 +1049,9 @@ def _paint_flat(
 ) -> None:
     if not np.any(mask):
         return
-    out_hsv[:, :, 0][mask] = float(base_hsv[0])
-    out_hsv[:, :, 1][mask] = float(base_hsv[1])
-    out_hsv[:, :, 2][mask] = np.clip(
+    out_hsv[:,:, 0][mask] = float(base_hsv[0])
+    out_hsv[:,:, 1][mask] = float(base_hsv[1])
+    out_hsv[:,:, 2][mask] = np.clip(
         float(base_hsv[2]) + value_gain * (shade[mask] - shade_ref), 0.0, 255.0
     )
 
@@ -1076,11 +1076,11 @@ def _paint_textured(
         return
     # High-freq texture = original V - local mean
     hf = src_v - shade
-    out_hsv[:, :, 0][mask] = float(base_hsv[0])
-    out_hsv[:, :, 1][mask] = np.clip(
+    out_hsv[:,:, 0][mask] = float(base_hsv[0])
+    out_hsv[:,:, 1][mask] = np.clip(
         float(base_hsv[1]) + texture_scale * 0.3 * hf[mask], 0.0, 60.0
     )
-    out_hsv[:, :, 2][mask] = np.clip(
+    out_hsv[:,:, 2][mask] = np.clip(
         float(base_hsv[2])
         + value_gain * (shade[mask] - shade_ref)
         + texture_scale * hf[mask],
@@ -1098,9 +1098,9 @@ def _blend_to_proto(
 ) -> None:
     if not np.any(mask):
         return
-    h_ch = hsv[:, :, 0]
-    s_ch = hsv[:, :, 1]
-    v_ch = hsv[:, :, 2]
+    h_ch = hsv[:,:, 0]
+    s_ch = hsv[:,:, 1]
+    v_ch = hsv[:,:, 2]
     th, ts, tv = float(proto_hsv[0]), float(proto_hsv[1]), float(proto_hsv[2])
     h_old = h_ch[mask]
     d = th - h_old
@@ -1125,12 +1125,12 @@ def transform_rrl_to_newtrack(img_bgr: np.ndarray) -> np.ndarray:
     colored_bg = detect_rrl_colored_bg(img_bgr) > 0
     road_raw = detect_rrl_road_surface(img_bgr) > 0
 
-    # 绿车区域：最高优先级，先从所有语义区域中排除
+    # note: note, note
     green_result = _green_detector.detect(img_bgr)
     green_mask = green_result.mask > 0
 
     # Priority-based classification
-    assigned = green_mask.copy()   # 绿车像素不参与后续语义渲染
+    assigned = green_mask.copy()   # note
 
     blue_line_region = white_mask & ~assigned
     assigned |= blue_line_region
@@ -1148,13 +1148,13 @@ def transform_rrl_to_newtrack(img_bgr: np.ndarray) -> np.ndarray:
     bg_mask = bg_colored | bg_remaining
 
     # Shade field
-    shade = _lowfreq_value_field(src_hsv[:, :, 2])
+    shade = _lowfreq_value_field(src_hsv[:,:, 2])
     road_ref = float(np.mean(shade[road_region])) if np.any(road_region) else float(np.mean(shade))
     bg_ref = float(np.mean(shade[bg_mask])) if np.any(bg_mask) else road_ref
 
     # Build output
     out_hsv = np.zeros_like(src_hsv, dtype=np.float32)
-    src_v = src_hsv[:, :, 2]
+    src_v = src_hsv[:,:, 2]
 
     _paint_textured(out_hsv, bg_mask, TARGET_BG_HSV, src_v, shade, bg_ref,
                     value_gain=0.25, texture_scale=0.18)
@@ -1171,7 +1171,7 @@ def transform_rrl_to_newtrack(img_bgr: np.ndarray) -> np.ndarray:
 
     result = cv2.cvtColor(out_hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
 
-    # 回填绿车原始像素
+    # note
     if np.any(green_mask):
         result[green_mask] = img_bgr[green_mask]
     return result

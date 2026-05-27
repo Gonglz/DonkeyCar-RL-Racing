@@ -1,35 +1,35 @@
 """
 module/predictive_safety_filter.py
 
-H 步预测安全滤波器 — V1
+H note - V1
 
-架构位置
+note
 --------
-插在 ActionAdapterWrapper 输出（steer_target, throttle）之后，
-ActionSafetyWrapper 之前：
+note ActionAdapterWrapper output(steer_target, throttle)note,
+ActionSafetyWrapper notefirst:
 
-    PPO → ActionAdapterWrapper
+    PPO -> ActionAdapterWrapper
                 ↓ [steer_target, throttle]
-         PredictiveSafetyFilter.check()     ← 本模块
-                ↓ 日志模式：原样透传
-         ActionSafetyWrapper → DonkeyEnv
+         PredictiveSafetyFilter.check()     <- note
+                ↓ note: note
+         ActionSafetyWrapper -> DonkeyEnv
 
-工作阶段
+notestage
 --------
-Phase 1（log-only，当前默认）：
-    只观测、不干预。每步对候选动作做 H=3 步前向预测，记录触发事件。
-    基于统计结果（触发率、误报率、与真实事故的相关性）标定阈值。
+Phase 1(log-only, currentdefault):
+    note, note.note H=3 notefirstnote, note.
+    noteresult(note, note, note)note.
 
-Phase 2（intervene，阈值确定后启用）：
-    触发时修改 steer_target，降低 throttle，保护真实车。
+Phase 2(intervene, note):
+    note steer_target, note throttle, note.
 
-关键依赖
+note
 --------
-- NeuralPhysicsDynamics（wm_real.pth）：前向预测引擎
-- ActionSafetyWrapper 参数：delta_max=0.5, beta=0.6
-  必须与实际 wrapper 精确一致，否则影子状态会累积漂移。
+- NeuralPhysicsDynamics(wm_real.pth): firstnote
+- ActionSafetyWrapper note: delta_max=0.5, beta=0.6
+  note wrapper note, note.
 
-使用示例
+note
 --------
     from module import PredictiveSafetyFilter, PhysState
 
@@ -40,16 +40,16 @@ Phase 2（intervene，阈值确定后启用）：
         log_path="safety_filter_events.jsonl",
     )
 
-    # 每 episode 开始
+    # note episode note
     flt.reset()
 
-    # 每步
+    # note
     triggered, preds, diag = flt.check(steer_target, throttle, phys, dt_ms=50.0)
 
-    # env.step 执行后，同步真实 safety wrapper 状态
+    # env.step noterowsnote, note safety wrapper note
     flt.sync(safety_wrapper.steer_prev_limited, safety_wrapper.steer_prev_exec)
 
-    # 结束后
+    # note
     flt.print_stats()
     flt.close()
 """
@@ -63,28 +63,28 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 
-from .world_model import NeuralPhysicsDynamics
+from.world_model import NeuralPhysicsDynamics
 
 
-# ─── 归一化范围（与 _build_state_v13 保持一致） ────────────────────
+# ─── note(note _build_state_v13 note) ────────────────────
 
-V_MAX    = 2.2   # m/s，v_long_norm = speed / V_MAX
-GYRO_MAX = 4.0   # rad/s，yaw_rate_norm = -gyro_z / GYRO_MAX
-ACCEL_MAX = 9.8  # m/s²，accel_x_norm = accel_x / ACCEL_MAX
+V_MAX    = 2.2   # m/s, v_long_norm = speed / V_MAX
+GYRO_MAX = 4.0   # rad/s, yaw_rate_norm = -gyro_z / GYRO_MAX
+ACCEL_MAX = 9.8  # m/s², accel_x_norm = accel_x / ACCEL_MAX
 
 
-# ─── 物理状态数据类 ────────────────────────────────────────────────
+# ─── notedataclass ────────────────────────────────────────────────
 
 @dataclass
 class PhysState:
     """
-    已归一化的物理状态（与世界模型输入一致）。
+    note(notemodelinputnote).
 
-    字段
+    note
     ----
-    v_long    : float  ∈ [0,  2]   speed / 2.2
-    yaw_rate  : float  ∈ [-2, 2]   -gyro_z / 4.0
-    accel_x   : float  ∈ [-2, 2]   accel_x / 9.8
+    v_long: float  ∈ [0,  2]   speed / 2.2
+    yaw_rate: float  ∈ [-2, 2]   -gyro_z / 4.0
+    accel_x: float  ∈ [-2, 2]   accel_x / 9.8
     """
     v_long: float
     yaw_rate: float
@@ -97,7 +97,7 @@ class PhysState:
 
     @classmethod
     def from_raw(cls, speed_mps: float, gyro_z: float, accel_x: float) -> "PhysState":
-        """从原始传感器值构建（含符号约定和归一化）。"""
+        """note(note)."""
         import numpy as np
         return cls(
             v_long   = float(np.clip(speed_mps / V_MAX,     0.0,  2.0)),
@@ -106,13 +106,13 @@ class PhysState:
         )
 
 
-# ─── 影子 ActionSafetyWrapper 状态 ──────────────────────────────────
+# ─── note ActionSafetyWrapper note ──────────────────────────────────
 
 @dataclass
 class _ShadowSafetyState:
     """
-    精确复现 ActionSafetyWrapper 的内部状态，用于前向预测。
-    必须与 control.py::ActionSafetyWrapper 参数完全一致。
+    note ActionSafetyWrapper note, notefirstnote.
+    note control.py::ActionSafetyWrapper note.
     """
     steer_prev_limited: float = 0.0
     steer_prev_exec: float = 0.0
@@ -121,8 +121,8 @@ class _ShadowSafetyState:
 
     def step(self, steer_target: float) -> Tuple[float, float]:
         """
-        执行一步，返回 (steer_exec, steer_limited)，同时更新内部状态。
-        完全对应 ActionSafetyWrapper.action() 逻辑。
+        noterowsnote, note (steer_exec, steer_limited), note.
+        note ActionSafetyWrapper.action() note.
         """
         delta = steer_target - self.steer_prev_limited
         if abs(delta) > self.delta_max:
@@ -143,33 +143,33 @@ class _ShadowSafetyState:
         )
 
 
-# ─── 主滤波器 ─────────────────────────────────────────────────────
+# ─── note ─────────────────────────────────────────────────────
 
 class PredictiveSafetyFilter:
     """
-    H 步预测安全滤波器。
+    H note.
 
     Parameters
     ----------
-    model_path : str
-        wm_real.pth 的路径。
-    horizon : int
-        前向预测步数，默认 3。
-    delta_max : float
-        ActionSafetyWrapper 的速率限制，必须与实际 wrapper 一致（默认 0.5）。
-    beta : float
-        ActionSafetyWrapper 的 LPF 系数，必须与实际 wrapper 一致（默认 0.6）。
-    yaw_thresh : float or None
-        |yaw_rate_norm| 超过此值时触发。None = 不设阈值（Phase 1 只统计）。
-    decel_thresh : float or None
-        单步 Δv_norm < -decel_thresh 触发（急减速预兆）。None = 不设阈值。
-    mode : "log" or "intervene"
-        "log" = Phase 1，只记录不干预；
-        "intervene" = Phase 2，触发时修改动作。
-    log_path : str
-        触发事件 JSONL 日志路径。空字符串 = 不写日志。
-    device : str
-        推理设备（默认 "cpu"，目标 < 0.3 ms / 3 次前向）。
+    model_path: str
+        wm_real.pth notepath.
+    horizon: int
+        firstnote, default 3.
+    delta_max: float
+        ActionSafetyWrapper note, note wrapper note(default 0.5).
+    beta: float
+        ActionSafetyWrapper note LPF note, note wrapper note(default 0.6).
+    yaw_thresh: float or None
+        |yaw_rate_norm| note.None = note(Phase 1 note).
+    decel_thresh: float or None
+        note Δv_norm < -decel_thresh note(note).None = note.
+    mode: "log" or "intervene"
+        "log" = Phase 1, note;
+        "intervene" = Phase 2, note.
+    log_path: str
+        note JSONL notepath.note = note.
+    device: str
+        note(default "cpu", goal < 0.3 ms / 3 notefirstnote).
     """
 
     def __init__(
@@ -194,19 +194,19 @@ class PredictiveSafetyFilter:
         self.decel_thresh = decel_thresh
         self.device      = device
 
-        # 世界模型
+        # notemodel
         self.model = NeuralPhysicsDynamics.load_checkpoint(model_path, device=device)
         self.model.eval()
 
-        # 影子 safety wrapper 状态
+        # note safety wrapper note
         self._shadow = _ShadowSafetyState(delta_max=delta_max, beta=beta)
 
-        # 统计
+        # note
         self._total_steps    = 0
         self._triggered_steps = 0
         self._episode        = 0
 
-        # 日志
+        # note
         self._log_path = log_path
         self._log_file = open(log_path, "a", encoding="utf-8") if log_path else None
 
@@ -215,11 +215,11 @@ class PredictiveSafetyFilter:
             f"delta_max={delta_max}, beta={beta}"
         )
         print(f"  yaw_thresh={yaw_thresh}, decel_thresh={decel_thresh}")
-        print(f"  model : {model_path}")
+        print(f"  model: {model_path}")
         if log_path:
-            print(f"  log   : {log_path}")
+            print(f"  log: {log_path}")
 
-    # ── 主接口 ─────────────────────────────────────────────────────
+    # ── note ─────────────────────────────────────────────────────
 
     def check(
         self,
@@ -229,31 +229,31 @@ class PredictiveSafetyFilter:
         dt_ms: float = 50.0,
     ) -> Tuple[bool, List[Dict], Dict]:
         """
-        对候选动作做 H 步前向预测。
+        note H notefirstnote.
 
         Parameters
         ----------
-        steer_target : float
-            ActionAdapterWrapper 输出的目标转向（未经 safety wrapper 滤波）。
-        throttle : float
-            ActionAdapterWrapper 输出的油门。
-        phys : PhysState
-            当前归一化物理状态。
-        dt_ms : float
-            控制步长（ms），用于 dt_norm 计算。
+        steer_target: float
+            ActionAdapterWrapper outputnotegoalnote(note safety wrapper note).
+        throttle: float
+            ActionAdapterWrapper outputnote.
+        phys: PhysState
+            currentnote.
+        dt_ms: float
+            controlnote(ms), note dt_norm compute.
 
         Returns
         -------
-        triggered : bool
-            是否有任何预测步超出阈值。Phase 1 下仅统计，不影响控制。
-        predictions : list[dict]
-            H 步预测结果，每步包含 {h, v_long, yaw_rate, accel_x, delta_v, steer_exec}。
-        diag : dict
-            诊断信息：triggered, trigger_dims, trigger_rate, total_steps。
+        triggered: bool
+            note.Phase 1 note, notecontrol.
+        predictions: list[dict]
+            H noteresult, note {h, v_long, yaw_rate, accel_x, delta_v, steer_exec}.
+        diag: dict
+            note: triggered, trigger_dims, trigger_rate, total_steps.
         """
         self._total_steps += 1
 
-        # 用影子状态副本做推演（不污染真实影子状态）
+        # note(note)
         shadow = self._shadow.copy()
         phys_cur = phys.to_tensor().to(self.device)
         dt_norm = dt_ms / 50.0
@@ -266,10 +266,10 @@ class PredictiveSafetyFilter:
         trigger_dims: List[str] = []
 
         for h in range(self.horizon):
-            # 1. 模拟 ActionSafetyWrapper，得到本步 steer_exec
+            # 1. note ActionSafetyWrapper, note steer_exec
             steer_exec, _ = shadow.step(float(steer_target))
 
-            # 2. 构建 8D 输入向量
+            # 2. note 8D inputnote
             x = torch.tensor(
                 [[
                     float(phys_cur[0]),   # v_long
@@ -285,7 +285,7 @@ class PredictiveSafetyFilter:
                 device=self.device,
             )
 
-            # 3. 世界模型前向
+            # 3. notemodelfirstnote
             with torch.no_grad():
                 delta, phys_next = self.model(x, phys_cur.unsqueeze(0))
 
@@ -302,7 +302,7 @@ class PredictiveSafetyFilter:
             }
             predictions.append(step_pred)
 
-            # 4. 阈值检查（None = 只统计，不触发）
+            # 4. note(None = note, note)
             if (self.yaw_thresh is not None
                     and abs(float(phys_next[1])) > self.yaw_thresh):
                 triggered = True
@@ -315,7 +315,7 @@ class PredictiveSafetyFilter:
                 if "v_long_decel" not in trigger_dims:
                     trigger_dims.append("v_long_decel")
 
-            # 5. 更新滚动状态
+            # 5. note
             prev_steer_exec = steer_exec
             prev_throttle   = float(throttle)
             phys_cur        = phys_next
@@ -330,7 +330,7 @@ class PredictiveSafetyFilter:
             "total_steps":  self._total_steps,
         }
 
-        # 写日志（触发时 + 每 500 步采样一次背景统计）
+        # note(note + note 500 note)
         if triggered or (self._total_steps % 500 == 0):
             self._write_log(steer_target, throttle, phys, predictions, trigger_dims)
 
@@ -338,36 +338,36 @@ class PredictiveSafetyFilter:
 
     def sync(self, steer_prev_limited: float, steer_prev_exec: float) -> None:
         """
-        每步 env.step() 执行后，用真实 ActionSafetyWrapper 的状态同步影子状态。
+        note env.step() noterowsnote, note ActionSafetyWrapper note.
 
-        调用方式：
+        note:
             flt.sync(
                 safety_wrapper.steer_prev_limited,
                 safety_wrapper.steer_prev_exec,
             )
 
-        不调用此方法则影子状态会累积漂移，导致预测不准。
+        note, note.
         """
         self._shadow.steer_prev_limited = float(steer_prev_limited)
         self._shadow.steer_prev_exec    = float(steer_prev_exec)
 
     def reset(self, episode: Optional[int] = None) -> None:
         """
-        每个 episode 开始时调用。重置影子状态和 episode 计数。
+        note episode note.note episode note.
 
         Parameters
         ----------
-        episode : int or None
-            手动指定 episode 编号；None = 自动递增。
+        episode: int or None
+            note episode note; None = note.
         """
         self._shadow.steer_prev_limited = 0.0
         self._shadow.steer_prev_exec    = 0.0
         self._episode = int(episode) if episode is not None else self._episode + 1
 
-    # ── 统计 ──────────────────────────────────────────────────────
+    # ── note ──────────────────────────────────────────────────────
 
     def stats(self) -> Dict:
-        """返回当前统计摘要。"""
+        """notecurrentnote."""
         return {
             "total_steps":     self._total_steps,
             "triggered_steps": self._triggered_steps,
@@ -387,7 +387,7 @@ class PredictiveSafetyFilter:
             f"mode={s['mode']}"
         )
 
-    # ── 日志 ──────────────────────────────────────────────────────
+    # ── note ──────────────────────────────────────────────────────
 
     def _write_log(
         self,
@@ -413,7 +413,7 @@ class PredictiveSafetyFilter:
         self._log_file.flush()
 
     def close(self) -> None:
-        """关闭日志文件。"""
+        """notefile."""
         if self._log_file is not None:
             self._log_file.close()
             self._log_file = None

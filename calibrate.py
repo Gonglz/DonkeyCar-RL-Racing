@@ -64,19 +64,19 @@ def drive(cfg ):
         from donkeycar.parts.actuator import PWMSteering, PWMThrottle, PulseController
         steering_controller = PulseController(
             pwm_pin=pins.pwm_pin_by_id(cfg.PWM_STEERING_PIN),
-            pwm_scale=cfg.PWM_STEERING_SCALE, 
+            pwm_scale=cfg.PWM_STEERING_SCALE,
             pwm_inverted=cfg.PWM_STEERING_INVERTED)
         steering = PWMSteering(controller=steering_controller,
-                                        left_pulse=cfg.STEERING_LEFT_PWM, 
+                                        left_pulse=cfg.STEERING_LEFT_PWM,
                                         right_pulse=cfg.STEERING_RIGHT_PWM)
-        
+
         throttle_controller = PulseController(
-            pwm_pin=pins.pwm_pin_by_id(cfg.PWM_THROTTLE_PIN), 
-            pwm_scale=cfg.PWM_THROTTLE_SCALE, 
+            pwm_pin=pins.pwm_pin_by_id(cfg.PWM_THROTTLE_PIN),
+            pwm_scale=cfg.PWM_THROTTLE_SCALE,
             pwm_inverted=cfg.PWM_THROTTLE_INVERTED)
         throttle = PWMThrottle(controller=throttle_controller,
                                             max_pulse=cfg.THROTTLE_FORWARD_PWM,
-                                            zero_pulse=cfg.THROTTLE_STOPPED_PWM, 
+                                            zero_pulse=cfg.THROTTLE_STOPPED_PWM,
                                             min_pulse=cfg.THROTTLE_REVERSE_PWM)
 
         drive_train = dict()
@@ -116,14 +116,14 @@ def drive(cfg ):
 
     ctr.drive_train = drive_train
     ctr.drive_train_type = cfg.DRIVE_TRAIN_TYPE
-    
+
     class ShowHowTo:
         def __init__(self):
             print(f"Go to http://{gethostname()}.local:{ctr.port}/calibrate to calibrate ")
-            
+
         def run(self):
             pass
-        
+
     V.add(ShowHowTo())
 
     #run the vehicle for 20 seconds

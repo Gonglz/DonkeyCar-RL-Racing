@@ -7,7 +7,7 @@ import torch.nn as nn
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 class ChannelAttention(nn.Module):
-    """CBAM Channel Attention: 学习通道间的重要性权重。"""
+    """CBAM Channel Attention: note."""
 
     def __init__(self, channels, reduction=8):
         super().__init__()
@@ -24,13 +24,13 @@ class ChannelAttention(nn.Module):
         # Global Average Pool + Global Max Pool
         avg_out = x.view(b, c, -1).mean(dim=2)  # (B, C)
         max_out = x.view(b, c, -1).max(dim=2)[0]  # (B, C)
-        # 共享MLP
+        # noteMLP
         att = torch.sigmoid(self.mlp(avg_out) + self.mlp(max_out))  # (B, C)
         return x * att.view(b, c, 1, 1)
 
 
 class SpatialAttention(nn.Module):
-    """CBAM Spatial Attention: 学习空间位置的重要性权重。"""
+    """CBAM Spatial Attention: note."""
 
     def __init__(self, kernel_size=7):
         super().__init__()
@@ -47,7 +47,7 @@ class SpatialAttention(nn.Module):
 
 
 class CBAMBlock(nn.Module):
-    """CBAM: Channel Attention → Spatial Attention (串联)。"""
+    """CBAM: Channel Attention -> Spatial Attention (note)."""
 
     def __init__(self, channels, reduction=8, spatial_kernel=7):
         super().__init__()
@@ -62,10 +62,10 @@ class CBAMBlock(nn.Module):
 
 class AttentionCNN(BaseFeaturesExtractor):
     """
-    CNN + CBAM 注意力特征提取器。
+    CNN + CBAM note.
 
-    架构: 3层Conv2d(对齐v11 LightweightCNN尺寸) + 每层后CBAM + 128隐藏层 + 64输出
-    参数增量: ~2000 (CBAM模块)，Jetson Nano友好
+    note: 3noteConv2d(notev11 LightweightCNNnote) + noteCBAM + 128note + 64output
+    note: ~2000 (CBAMnote), Jetson Nanonote
     """
 
     def __init__(self, observation_space, features_dim=64):
@@ -74,9 +74,9 @@ class AttentionCNN(BaseFeaturesExtractor):
         n_input_channels = observation_space.shape[0]
 
         print(f"\n🧠 V14 AttentionCNN (CNN + CBAM):")
-        print(f"   输入: {n_input_channels}通道 x {observation_space.shape[1]}x{observation_space.shape[2]}")
+        print(f"   input: {n_input_channels}note x {observation_space.shape[1]}x{observation_space.shape[2]}")
 
-        # Conv backbone (与LightweightCNN相同卷积参数)
+        # Conv backbone (noteLightweightCNNnote)
         self.conv1 = nn.Conv2d(n_input_channels, 32, kernel_size=8, stride=4, padding=0)
         self.cbam1 = CBAMBlock(32, reduction=4, spatial_kernel=7)
 
@@ -88,7 +88,7 @@ class AttentionCNN(BaseFeaturesExtractor):
 
         self.flatten = nn.Flatten()
 
-        # 计算flatten维度
+        # computeflattennote
         with torch.no_grad():
             sample = torch.as_tensor(observation_space.sample()[None]).float()
             x = torch.relu(self.conv1(sample))
@@ -110,10 +110,10 @@ class AttentionCNN(BaseFeaturesExtractor):
         cbam_params = sum(
             p.numel() for m in [self.cbam1, self.cbam2, self.cbam3] for p in m.parameters()
         )
-        print(f"   展平维度: {n_flatten}")
-        print(f"   特征维度: {features_dim}")
-        print(f"   CBAM参数: {cbam_params:,}")
-        print(f"   总参数: {total_params:,}")
+        print(f"   note: {n_flatten}")
+        print(f"   note: {features_dim}")
+        print(f"   CBAMnote: {cbam_params:,}")
+        print(f"   note: {total_params:,}")
 
     def forward(self, observations):
         x = torch.relu(self.conv1(observations))

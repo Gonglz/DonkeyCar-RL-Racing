@@ -32,7 +32,7 @@ IMAGE_DEPTH = 3         # default RGB=3, make 1 for mono
 CAMERA_FRAMERATE = DRIVE_LOOP_HZ
 CAMERA_VFLIP = False
 CAMERA_HFLIP = False
-CAMERA_INDEX = 0  # used for 'WEBCAM' and 'CVCAM' when there is more than one camera connected 
+CAMERA_INDEX = 0  # used for 'WEBCAM' and 'CVCAM' when there is more than one camera connected
 # For CSIC camera - If the camera is mounted in a rotated position, changing the below parameter will correct the output frame orientation
 CSIC_CAM_GSTREAMER_FLIP_PARM = 0 # (0 => none , 4 => Flip horizontally, 6 => Flip vertically)
 
@@ -117,14 +117,14 @@ THROTTLE_PWM_INVERTED = False   #If PWM needs to be inverted
 # - configures a steering servo and an HBridge in 2pin mode (2 pwm pins)
 # - Servo takes a standard servo PWM pulse between 1 millisecond (fully reverse)
 #   and 2 milliseconds (full forward) with 1.5ms being neutral.
-# - the motor is controlled by two pwm pins, 
-#   one for forward and one for backward (reverse). 
+# - the motor is controlled by two pwm pins,
+#   one for forward and one for backward (reverse).
 # - the pwm pin produces a duty cycle from 0 (completely LOW)
 #   to 1 (100% completely high), which is proportional to the
 #   amount of power delivered to the motor.
 # - in forward mode, the reverse pwm is 0 duty_cycle,
 #   in backward mode, the forward pwm is 0 duty cycle.
-# - both pwms are 0 duty cycle (LOW) to 'detach' motor and 
+# - both pwms are 0 duty cycle (LOW) to 'detach' motor and
 #   and glide to a stop.
 # - both pwms are full duty cycle (100% HIGH) to brake
 #
@@ -137,7 +137,7 @@ THROTTLE_PWM_INVERTED = False   #If PWM needs to be inverted
 #   - must use BCM (broadcom) pin numbering scheme
 #   - for example, "PIGPIO.BCM.13"
 # - use PCA9685 for PCA9685 pin output
-#   - include colon separated I2C channel and address 
+#   - include colon separated I2C channel and address
 #   - for example "PCA9685.1:40.13"
 # - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
 #   although it is discouraged to mix RPI_GPIO and PIGPIO.
@@ -157,8 +157,8 @@ SERVO_HBRIDGE_2PIN = {
 # - configures a steering servo and an HBridge in 3pin mode (2 ttl pins, 1 pwm pin)
 # - Servo takes a standard servo PWM pulse between 1 millisecond (fully reverse)
 #   and 2 milliseconds (full forward) with 1.5ms being neutral.
-# - the motor is controlled by three pins, 
-#   one ttl output for forward, one ttl output 
+# - the motor is controlled by three pins,
+#   one ttl output for forward, one ttl output
 #   for backward (reverse) enable and one pwm pin
 #   for motor power.
 # - the pwm pin produces a duty cycle from 0 (completely LOW)
@@ -166,9 +166,9 @@ SERVO_HBRIDGE_2PIN = {
 #   amount of power delivered to the motor.
 # - in forward mode, the forward pin  is HIGH and the
 #   backward pin is LOW,
-# - in backward mode, the forward pin is LOW and the 
+# - in backward mode, the forward pin is LOW and the
 #   backward pin is HIGH.
-# - both forward and backward pins are LOW to 'detach' motor 
+# - both forward and backward pins are LOW to 'detach' motor
 #   and glide to a stop.
 # - both forward and backward pins are HIGH to brake
 #
@@ -181,7 +181,7 @@ SERVO_HBRIDGE_2PIN = {
 #   - must use BCM (broadcom) pin numbering scheme
 #   - for example, "PIGPIO.BCM.13"
 # - use PCA9685 for PCA9685 pin output
-#   - include colon separated I2C channel and address 
+#   - include colon separated I2C channel and address
 #   - for example "PCA9685.1:40.13"
 # - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
 #   although it is discouraged to mix RPI_GPIO and PIGPIO.
@@ -224,9 +224,9 @@ STEERING_RIGHT_PWM = 290   # pwm value for full right steering (use `donkey cali
 #
 # DC_STEER_THROTTLE with one motor as steering, one as drive
 # - uses L298N type motor controller in two pin wiring
-#   scheme utilizing two pwm pins per motor; one for 
+#   scheme utilizing two pwm pins per motor; one for
 #   forward(or right) and one for reverse (or left)
-# 
+#
 # GPIO pin configuration for the DRIVE_TRAIN_TYPE=DC_STEER_THROTTLE
 # - use RPI_GPIO for RPi/Nano header pin output
 #   - use BOARD for board pin numbering
@@ -236,7 +236,7 @@ STEERING_RIGHT_PWM = 290   # pwm value for full right steering (use `donkey cali
 #   - must use BCM (broadcom) pin numbering scheme
 #   - for example, "PIGPIO.BCM.13"
 # - use PCA9685 for PCA9685 pin output
-#   - include colon separated I2C channel and address 
+#   - include colon separated I2C channel and address
 #   - for example "PCA9685.1:40.13"
 # - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
 #   although it is discouraged to mix RPI_GPIO and PIGPIO.
@@ -252,14 +252,14 @@ DC_STEER_THROTTLE = {
 # DC_TWO_WHEEL pin configuration
 # - configures L298N_HBridge_2pin driver
 # - two wheels as differential drive, left and right.
-# - each wheel is controlled by two pwm pins, 
-#   one for forward and one for backward (reverse). 
+# - each wheel is controlled by two pwm pins,
+#   one for forward and one for backward (reverse).
 # - each pwm pin produces a duty cycle from 0 (completely LOW)
 #   to 1 (100% completely high), which is proportional to the
 #   amount of power delivered to the motor.
 # - in forward mode, the reverse pwm is 0 duty_cycle,
 #   in backward mode, the forward pwm is 0 duty cycle.
-# - both pwms are 0 duty cycle (LOW) to 'detach' motor and 
+# - both pwms are 0 duty cycle (LOW) to 'detach' motor and
 #   and glide to a stop.
 # - both pwms are full duty cycle (100% HIGH) to brake
 #
@@ -272,7 +272,7 @@ DC_STEER_THROTTLE = {
 #   - must use BCM (broadcom) pin numbering scheme
 #   - for example, "PIGPIO.BCM.13"
 # - use PCA9685 for PCA9685 pin output
-#   - include colon separated I2C channel and address 
+#   - include colon separated I2C channel and address
 #   - for example "PCA9685.1:40.13"
 # - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
 #   although it is discouraged to mix RPI_GPIO and PIGPIO.
@@ -288,8 +288,8 @@ DC_TWO_WHEEL = {
 # DC_TWO_WHEEL_L298N pin configuration
 # - configures L298N_HBridge_3pin driver
 # - two wheels as differential drive, left and right.
-# - each wheel is controlled by three pins, 
-#   one ttl output for forward, one ttl output 
+# - each wheel is controlled by three pins,
+#   one ttl output for forward, one ttl output
 #   for backward (reverse) enable and one pwm pin
 #   for motor power.
 # - the pwm pin produces a duty cycle from 0 (completely LOW)
@@ -297,9 +297,9 @@ DC_TWO_WHEEL = {
 #   amount of power delivered to the motor.
 # - in forward mode, the forward pin  is HIGH and the
 #   backward pin is LOW,
-# - in backward mode, the forward pin is LOW and the 
+# - in backward mode, the forward pin is LOW and the
 #   backward pin is HIGH.
-# - both forward and backward pins are LOW to 'detach' motor 
+# - both forward and backward pins are LOW to 'detach' motor
 #   and glide to a stop.
 # - both forward and backward pins are HIGH to brake
 #
@@ -312,7 +312,7 @@ DC_TWO_WHEEL = {
 #   - must use BCM (broadcom) pin numbering scheme
 #   - for example, "PIGPIO.BCM.13"
 # - use PCA9685 for PCA9685 pin output
-#   - include colon separated I2C channel and address 
+#   - include colon separated I2C channel and address
 #   - for example "PCA9685.1:40.13"
 # - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
 #   although it is discouraged to mix RPI_GPIO and PIGPIO.
@@ -328,8 +328,8 @@ DC_TWO_WHEEL_L298N = {
 }
 
 #ODOMETRY
-HAVE_ODOM = False                   # Do you have an odometer/encoder 
-ENCODER_TYPE = 'GPIO'            # What kind of encoder? GPIO|Arduino|Astar 
+HAVE_ODOM = False                   # Do you have an odometer/encoder
+ENCODER_TYPE = 'GPIO'            # What kind of encoder? GPIO|Arduino|Astar
 MM_PER_TICK = 12.7625               # How much travel with a single tick, in mm. Roll you car a meter and divide total ticks measured by 1,000
 ODOM_PIN = 13                        # if using GPIO, which GPIO board mode pin to use as input
 ODOM_DEBUG = False                  # Write out values on vel and distance as it runs
@@ -455,12 +455,12 @@ MM1_MAX_FORWARD = 2000          # Max throttle to go fowrward. The bigger the fa
 MM1_STOPPED_PWM = 1500
 MM1_MAX_REVERSE = 1000          # Max throttle to go reverse. The smaller the faster
 MM1_SHOW_STEERING_VALUE = False
-# Serial port 
+# Serial port
 # -- Default Pi: '/dev/ttyS0'
 # -- Jetson Nano: '/dev/ttyTHS1'
 # -- Google coral: '/dev/ttymxc0'
 # -- Windows: 'COM3', Arduino: '/dev/ttyACM0'
-# -- MacOS/Linux:please use 'ls /dev/tty.*' to find the correct serial port for mm1 
+# -- MacOS/Linux:please use 'ls /dev/tty.*' to find the correct serial port for mm1
 #  eg.'/dev/tty.usbmodemXXXXXX' and replace the port accordingly
 MM1_SERIAL_PORT = '/dev/ttyS0'  # Serial Port for reading and sending MM1 data.
 

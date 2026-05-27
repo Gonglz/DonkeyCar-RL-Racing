@@ -63,21 +63,21 @@ from module.utils import (
 
 DEFAULT_TRACK_DIR = os.environ.get("MYSIM_TRACK_DIR", str(REPO_ROOT / "track_profiles"))
 DEFAULT_MYCONFIG = os.environ.get("MYSIM_MYCONFIG", str(REPO_ROOT / "myconfig.py"))
-WS_FINISH_OBSTACLE_PROGRESS_RATIO_V16 = 0.5  # 改为对面(0.08太近，learner一出生就撞)
+WS_FINISH_OBSTACLE_PROGRESS_RATIO_V16 = 0.5  # note(0.08note, learnernote)
 
 WS_REWARD_OVERRIDES_V16: Dict[str, float] = {
-    # WS 赛道更窄，避障时经常需要主动吃一点边界/出界代价。
-    # 这里让 WS 更偏向“先避障、再回正”，同时抑制
-    # “高进度奖励 + 短回合碰撞也不亏”的激进策略：
-    # - 降低 near/offtrack 与中心线约束
-    # - 保留前进驱动，但更早、更明确地惩罚碰撞风险
+    # WS tracknote, note/note.
+    # note WS note"note, note", note
+    # "notereward + note"note:
+    # - note near/offtrack note
+    # - notefirstnote, note, note
     "cte_norm_scale": 0.50,
     "w_near_offtrack": 0.36,
     "near_offtrack_start_ratio": 0.60,
     "offtrack_penalty_base": 3.5,
-    "collision_penalty_base": 10.0,   # 提升：碰撞惩罚从7→10，压制"边撞边跑"策略
-    "w_near_collision": 0.32,          # 提升：WS近障预警从0.16→0.32，高于phase全局值
-    "near_collision_start_ratio": 0.65, # 提前触发：72%→65%，更早感知近障
+    "collision_penalty_base": 10.0,   # note: note7->10, note"note"note
+    "w_near_collision": 0.32,          # note: WSnote0.16->0.32, notephasenote
+    "near_collision_start_ratio": 0.65, # notefirstnote: 72%->65%, note
     "w_center": 0.020,
     "w_heading": 0.012,
     "progress_reward_scale": 50.0,
@@ -108,9 +108,9 @@ DEFAULT_ENV_IDS: List[str] = [
 ]
 
 CURRICULUM_PHASES: Dict[str, Dict[str, Any]] = {
-    # 合并版 warmup：
-    # - GT 保持固定半程单静态障碍
-    # - WS 先从“终点处固定单静态障碍”起步
+    # note warmup:
+    # - GT notestaticobstacle
+    # - WS note"notestaticobstacle"note
     "warmup": {
         "scene_weights": [0.5, 0.5],
         "enable_dynamic_scene_weights": False,
@@ -119,14 +119,14 @@ CURRICULUM_PHASES: Dict[str, Dict[str, Any]] = {
         "obstacle_count": 1,
         "obstacle_free_prob": 0.75,
         "obstacle_modes": ["static"],
-        "ws_obstacle_free_prob": 1.0,  # warmup禁用WS障碍，集中学基础驾驶
+        "ws_obstacle_free_prob": 1.0,  # warmupnoteWSobstacle, note
         "obstacle_fixed_progress_ratio": 0.50,
         "obstacle_fixed_lateral_ratio": 0.50,
         "ws_obstacle_modes": ["static"],
         "ws_obstacle_fixed_progress_ratio": WS_FINISH_OBSTACLE_PROGRESS_RATIO_V16,
-        "ws_obstacle_fixed_lateral_ratio": None,  # 随机边缘：最大离边
-        "obstacle_lateral_choices": [0.0, 1.0],  # 赛道几何边缘（最激进，自动被安全距离约束）
-        "obstacle_randomize_non_lane_pid_yaw": False,  # 车头沿赛道progress切向（不随机）
+        "ws_obstacle_fixed_lateral_ratio": None,  # note: note
+        "obstacle_lateral_choices": [0.0, 1.0],  # trackgeometrynote(note, note)
+        "obstacle_randomize_non_lane_pid_yaw": False,  # notetrackprogressnote(note)
         "obstacle_spawn_ahead_min_m": 6.0,
         "obstacle_spawn_ahead_max_m": 12.0,
         "obstacle_min_agent_planar_dist_m": 2.0,
@@ -137,8 +137,8 @@ CURRICULUM_PHASES: Dict[str, Dict[str, Any]] = {
         "near_collision_start_ratio": 0.80,
     },
     # Phase 1A:
-    # - GT: 固定单静态障碍热身
-    # - WS: 单静态障碍在 70%-90% progress处
+    # - GT: notestaticobstaclenote
+    # - WS: notestaticobstaclenote 70%-90% progressnote
     "warmup_a": {
         "scene_weights": [0.5, 0.5],
         "enable_dynamic_scene_weights": False,
@@ -151,11 +151,11 @@ CURRICULUM_PHASES: Dict[str, Dict[str, Any]] = {
         "obstacle_fixed_progress_ratio": 0.50,
         "obstacle_fixed_lateral_ratio": 0.50,
         "ws_obstacle_modes": ["static"],
-        "ws_obstacle_progress_min": 0.15,  # WS障碍范围：15%-85%
+        "ws_obstacle_progress_min": 0.15,  # WSobstaclenote: 15%-85%
         "ws_obstacle_progress_max": 0.85,
-        "ws_obstacle_fixed_lateral_ratio": None,   # 修复：随机边缘放置，WS太窄无法绕开中央障碍
-        "obstacle_lateral_choices": [0.0, 1.0],  # GT用边缘障碍
-        "obstacle_randomize_non_lane_pid_yaw": False,  # 车头沿赛道方向
+        "ws_obstacle_fixed_lateral_ratio": None,   # note: note, WSnoteobstacle
+        "obstacle_lateral_choices": [0.0, 1.0],  # GTnoteobstacle
+        "obstacle_randomize_non_lane_pid_yaw": False,  # notetracknote
         "obstacle_spawn_ahead_min_m": 6.0,
         "obstacle_spawn_ahead_max_m": 12.0,
         "obstacle_min_agent_planar_dist_m": 2.0,
@@ -166,8 +166,8 @@ CURRICULUM_PHASES: Dict[str, Dict[str, Any]] = {
         "near_collision_start_ratio": 0.82,
     },
     # Phase 1B:
-    # - GT: 固定单静态障碍继续热身
-    # - WS: 单障碍随机位置，沿赛道前后晃动
+    # - GT: notestaticobstaclenote
+    # - WS: noteobstaclenote, notetrackfirstnote
     "warmup_b": {
         "scene_weights": [0.5, 0.5],
         "enable_dynamic_scene_weights": False,
@@ -191,24 +191,24 @@ CURRICULUM_PHASES: Dict[str, Dict[str, Any]] = {
         "w_near_collision": 0.12,
         "near_collision_start_ratio": 0.78,
     },
-    # Phase 2: 进入正式静态避障
+    # Phase 2: notestaticnote
     "avoid_static": {
         "scene_weights": [0.5, 0.5],
-        "enable_dynamic_scene_weights": False,  # ✅ 禁用动态权重 - 确保WS获得公平的采样机会
+        "enable_dynamic_scene_weights": False,  # PASS notedynamicnote - noteWSnote
         "enable_step_balance_sampling": True,
         "obstacle_enabled": True,
-        "obstacle_count": 2,  # GT 使用两个障碍物；WS 仍由运行时限制为单障碍
+        "obstacle_count": 2,  # GT noteobstaclenote; WS noterowsnoteobstacle
         "obstacle_free_prob": 0.20,
         "obstacle_modes": ["static"],
-        "obstacle_progress_min": 0.20,  # GT障碍范围：20%-80%
+        "obstacle_progress_min": 0.20,  # GTobstaclenote: 20%-80%
         "obstacle_progress_max": 0.80,
         "ws_obstacle_free_prob": 0.20,
         "ws_obstacle_modes": ["static"],
-        "ws_obstacle_progress_min": 0.20,  # WS障碍范围：20%-80%
+        "ws_obstacle_progress_min": 0.20,  # WSobstaclenote: 20%-80%
         "ws_obstacle_progress_max": 0.80,
-        "ws_obstacle_fixed_lateral_ratio": None,   # 修复：随机边缘放置，WS太窄无法绕开中央障碍
-        "obstacle_lateral_choices": [0.0, 1.0],  # GT用边缘障碍
-        "obstacle_randomize_non_lane_pid_yaw": False,  # 车头沿赛道progress切向（不随机）
+        "ws_obstacle_fixed_lateral_ratio": None,   # note: note, WSnoteobstacle
+        "obstacle_lateral_choices": [0.0, 1.0],  # GTnoteobstacle
+        "obstacle_randomize_non_lane_pid_yaw": False,  # notetrackprogressnote(note)
         "obstacle_spawn_ahead_min_m": 5.0,
         "obstacle_spawn_ahead_max_m": 12.0,
         "obstacle_min_agent_planar_dist_m": 1.8,
@@ -217,60 +217,60 @@ CURRICULUM_PHASES: Dict[str, Dict[str, Any]] = {
         "offtrack_penalty_base": 5.0,
         "w_near_collision": 0.16,
         "near_collision_start_ratio": 0.72,
-        # 步数预算补偿配置
-        "obstacle_target_ratios": {"ws": 0.80, "gt": 0.80},  # 统一：80% 有障碍 / 20% 无障碍
-        "window_episode_count": 50,  # 每50个episode评估一次
-        "max_compensation_ratio": 0.25,  # 单次最多调整25%
+        # noteconfiguration
+        "obstacle_target_ratios": {"ws": 0.80, "gt": 0.80},  # unified: 80% noteobstacle / 20% noteobstacle
+        "window_episode_count": 50,  # note50noteepisodenote
+        "max_compensation_ratio": 0.25,  # note25%
     },
-    # Phase 3: GT 混入轻微动态障碍；WS 保持静态边缘障碍
-    # 修复：WS赛道仅0.55m宽，障碍半径0.25m，lateral=0.5时物理上无法绕行。
-    # 改为static+边缘放置（lateral_ratio=None随机边缘），并放宽free_prob和惩罚参数。
+    # Phase 3: GT notedynamicobstacle; WS notestaticnoteobstacle
+    # note: WStracknote0.55mnote, obstaclenote0.25m, lateral=0.5noterows.
+    # notestatic+note(lateral_ratio=Nonenote), notefree_probnote.
     "avoid_mixed": {
         "scene_weights": [0.5, 0.5],
         "enable_dynamic_scene_weights": True,
         "enable_step_balance_sampling": True,
         "obstacle_enabled": True,
-        "obstacle_count": 2,  # GT 使用两个障碍物；WS 仍由运行时限制为单障碍
+        "obstacle_count": 2,  # GT noteobstaclenote; WS noterowsnoteobstacle
         "obstacle_free_prob": 0.20,
         "obstacle_modes": ["static", "jitter", "nudge"],
-        "obstacle_progress_min": 0.20,  # GT障碍范围：20%-80%
+        "obstacle_progress_min": 0.20,  # GTobstaclenote: 20%-80%
         "obstacle_progress_max": 0.80,
-        "ws_obstacle_free_prob": 0.20,          # 统一：20% 无障碍比例
-        "ws_obstacle_modes": ["static"],         # 从jitter改回static：WS太窄jitter无法绕行
-        "ws_obstacle_progress_min": 0.20,        # WS障碍范围：20%-80%
+        "ws_obstacle_free_prob": 0.20,          # unified: 20% noteobstaclenote
+        "ws_obstacle_modes": ["static"],         # notejitternotestatic: WSnotejitternoterows
+        "ws_obstacle_progress_min": 0.20,        # WSobstaclenote: 20%-80%
         "ws_obstacle_progress_max": 0.80,
-        "ws_obstacle_fixed_lateral_ratio": None,  # 随机边缘放置，给车留绕行空间
-        "obstacle_randomize_non_lane_pid_yaw": False,  # 车头沿赛道切向，不随机转向
+        "ws_obstacle_fixed_lateral_ratio": None,  # note, noterowsnote
+        "obstacle_randomize_non_lane_pid_yaw": False,  # notetracknote, note
         "obstacle_spawn_ahead_min_m": 4.5,
         "obstacle_spawn_ahead_max_m": 12.0,
         "obstacle_min_agent_planar_dist_m": 1.6,
         "obstacle_min_agent_arc_dist_m": 4.0,
-        "collision_penalty_base": 7.0,           # 从8.0降回7.0：WS窄道已足够难
+        "collision_penalty_base": 7.0,           # note8.0note7.0: WSnote
         "offtrack_penalty_base": 5.0,
         "w_near_collision": 0.20,
-        "near_collision_start_ratio": 0.72,      # 从0.68放宽回0.72：给更多接近余量
-        # 步数预算补偿配置
-        "obstacle_target_ratios": {"ws": 0.80, "gt": 0.80},  # 统一：80% 有障碍 / 20% 无障碍
+        "near_collision_start_ratio": 0.72,      # note0.68note0.72: note
+        # noteconfiguration
+        "obstacle_target_ratios": {"ws": 0.80, "gt": 0.80},  # unified: 80% noteobstacle / 20% noteobstacle
         "window_episode_count": 50,
         "max_compensation_ratio": 0.25,
     },
-    # Phase 4: 引入 lane-pid 动态车，先保守速度
+    # Phase 4: note lane-pid dynamicnote, note
     "lane_pid_intro": {
         "scene_weights": [0.5, 0.5],
         "enable_dynamic_scene_weights": True,
         "enable_step_balance_sampling": True,
         "obstacle_enabled": True,
-        "obstacle_count": 2,  # GT 使用两个障碍物；WS 仍由运行时限制为单障碍
+        "obstacle_count": 2,  # GT noteobstaclenote; WS noterowsnoteobstacle
         "obstacle_free_prob": 0.20,
         "obstacle_modes": ["static", "lane_pid"],
-        "obstacle_progress_min": 0.20,  # GT障碍范围：20%-80%
+        "obstacle_progress_min": 0.20,  # GTobstaclenote: 20%-80%
         "obstacle_progress_max": 0.80,
         "ws_obstacle_free_prob": 0.20,
-        "ws_obstacle_modes": ["static"],          # 修复：WS太窄jitter无法绕行，改回static
-        "ws_obstacle_progress_min": 0.20,  # WS障碍范围：20%-80%
+        "ws_obstacle_modes": ["static"],          # note: WSnotejitternoterows, notestatic
+        "ws_obstacle_progress_min": 0.20,  # WSobstaclenote: 20%-80%
         "ws_obstacle_progress_max": 0.80,
-        "ws_obstacle_fixed_lateral_ratio": None,  # 修复：随机边缘放置
-        "obstacle_randomize_non_lane_pid_yaw": False,  # 车头沿赛道切向，不随机转向
+        "ws_obstacle_fixed_lateral_ratio": None,  # note: note
+        "obstacle_randomize_non_lane_pid_yaw": False,  # notetracknote, note
         "obstacle_spawn_ahead_min_m": 4.0,
         "obstacle_spawn_ahead_max_m": 11.0,
         "obstacle_min_agent_planar_dist_m": 1.5,
@@ -281,28 +281,28 @@ CURRICULUM_PHASES: Dict[str, Dict[str, Any]] = {
         "offtrack_penalty_base": 5.0,
         "w_near_collision": 0.24,
         "near_collision_start_ratio": 0.62,
-        # 步数预算补偿配置
-        "obstacle_target_ratios": {"ws": 0.80, "gt": 0.80},  # 统一：80% 有障碍 / 20% 无障碍
+        # noteconfiguration
+        "obstacle_target_ratios": {"ws": 0.80, "gt": 0.80},  # unified: 80% noteobstacle / 20% noteobstacle
         "window_episode_count": 50,
         "max_compensation_ratio": 0.25,
     },
-    # Phase 5: 完整障碍课程
+    # Phase 5: noteobstaclenote
     "lane_pid_full": {
         "scene_weights": [0.5, 0.5],
         "enable_dynamic_scene_weights": True,
         "enable_step_balance_sampling": True,
         "obstacle_enabled": True,
-        "obstacle_count": 2,  # GT 使用两个障碍物；WS 仍由运行时限制为单障碍
+        "obstacle_count": 2,  # GT noteobstaclenote; WS noterowsnoteobstacle
         "obstacle_free_prob": 0.20,
         "obstacle_modes": ["static", "jitter", "nudge", "lane_pid"],
-        "obstacle_progress_min": 0.20,  # GT障碍范围：20%-80%
+        "obstacle_progress_min": 0.20,  # GTobstaclenote: 20%-80%
         "obstacle_progress_max": 0.80,
         "ws_obstacle_free_prob": 0.20,
-        "ws_obstacle_modes": ["static"],          # 修复：WS太窄jitter无法绕行，改回static
-        "ws_obstacle_progress_min": 0.20,  # WS障碍范围：20%-80%
+        "ws_obstacle_modes": ["static"],          # note: WSnotejitternoterows, notestatic
+        "ws_obstacle_progress_min": 0.20,  # WSobstaclenote: 20%-80%
         "ws_obstacle_progress_max": 0.80,
-        "ws_obstacle_fixed_lateral_ratio": None,  # 修复：随机边缘放置
-        "obstacle_randomize_non_lane_pid_yaw": False,  # 车头沿赛道切向，不随机转向
+        "ws_obstacle_fixed_lateral_ratio": None,  # note: note
+        "obstacle_randomize_non_lane_pid_yaw": False,  # notetracknote, note
         "obstacle_spawn_ahead_min_m": 4.0,
         "obstacle_spawn_ahead_max_m": 10.0,
         "obstacle_min_agent_planar_dist_m": 1.5,
@@ -313,8 +313,8 @@ CURRICULUM_PHASES: Dict[str, Dict[str, Any]] = {
         "offtrack_penalty_base": 5.0,
         "w_near_collision": 0.24,
         "near_collision_start_ratio": 0.60,
-        # 步数预算补偿配置
-        "obstacle_target_ratios": {"ws": 0.80, "gt": 0.80},  # 统一：80% 有障碍 / 20% 无障碍
+        # noteconfiguration
+        "obstacle_target_ratios": {"ws": 0.80, "gt": 0.80},  # unified: 80% noteobstacle / 20% noteobstacle
         "window_episode_count": 50,
         "max_compensation_ratio": 0.25,
     },
@@ -330,7 +330,7 @@ CURRICULUM_PHASE_ALIASES: Dict[str, str] = {
     "stage5": "lane_pid_full",
 }
 
-AUTO_CURRICULUM_STAGES: Tuple[Dict[str, Any], ...] = (
+AUTO_CURRICULUM_STAGES: Tuple[Dict[str, Any],...] = (
     {
         "stage_name": "warmup",
         "phase": "warmup",
@@ -549,9 +549,9 @@ class CurriculumWindowAdvanceCallback(BaseCallback):
                     except Exception:
                         continue
 
-                    if str(rec.get("stage_name", "")) != self.stage_name:
+                    if str(rec.get("stage_name", ""))!= self.stage_name:
                         continue
-                    if self.exp_tag is not None and str(rec.get("exp_tag", "")) != str(self.exp_tag):
+                    if self.exp_tag is not None and str(rec.get("exp_tag", ""))!= str(self.exp_tag):
                         continue
 
                     try:
@@ -582,7 +582,7 @@ class CurriculumWindowAdvanceCallback(BaseCallback):
                     if stage_start_num_timesteps is None:
                         stage_start_num_timesteps = int(rec_stage_start_num_timesteps)
 
-                    if event != "episode":
+                    if event!= "episode":
                         continue
                     logging_key = str(
                         rec.get("logging_key")
@@ -698,7 +698,7 @@ class CurriculumWindowAdvanceCallback(BaseCallback):
                     f" (stage_start_total={self._start_num_timesteps})"
                 )
             print(
-                f"🎓 阶段晋级门控[{self.stage_name}]: "
+                f"🎓 stagenote[{self.stage_name}]: "
                 f"after {self.min_stage_timesteps} stage steps, "
                 f"{joined} recent {self.recent_episodes} eps need "
                 f">= {self.min_success_episodes} eps with soft_lap >= {self.min_soft_laps:.1f}"
@@ -863,7 +863,7 @@ class CurriculumWindowAdvanceCallback(BaseCallback):
             self._write_event("stop", {"stop_reason": self.stop_reason, "summary": self.summary()})
             if self.verbose > 0:
                 print(
-                    f"🎯 阶段晋级[{self.stage_name}]: "
+                    f"🎯 stagenote[{self.stage_name}]: "
                     f"total_steps={self.stop_num_timesteps}, "
                     f"stage_steps={self.stop_stage_timesteps}, "
                     f"success_counts={self.summary()['window_success_counts']}"
@@ -878,7 +878,7 @@ class CurriculumWindowAdvanceCallback(BaseCallback):
             self._write_event("stop", {"stop_reason": self.stop_reason, "summary": self.summary()})
             if self.verbose > 0:
                 print(
-                    f"⏱️  阶段硬兜底[{self.stage_name}]命中: "
+                    f"⏱️  stagenote[{self.stage_name}]note: "
                     f"stage_steps={self.stop_stage_timesteps}"
                 )
             return False
@@ -931,8 +931,8 @@ def _resolve_track_dir(track_dir: Optional[str], env_ids: List[str]) -> str:
 
         missing = [fn for fn in required_files if not (candidate_path / fn).is_file()]
         if not missing:
-            if requested_abs and candidate_abs != requested_abs:
-                print(f"ℹ️  track_dir 回退到: {candidate_abs}")
+            if requested_abs and candidate_abs!= requested_abs:
+                print(f"ℹ️  track_dir note: {candidate_abs}")
             elif not requested_abs:
                 print(f"ℹ️  auto track_dir: {candidate_abs}")
             return candidate_abs
@@ -1100,14 +1100,14 @@ def run_v16_contract_tests(obs_size: int = 128) -> None:
     assert obs2["state"].shape == (12,)
     assert float(obs2["state"][7]) >= 0.0
     assert "ctrl/steer_core" in info
-    print("  ✅ V16 contract tests passed")
+    print("  PASS V16 contract tests passed")
 
 
 def run_preflight_tests(track_geometry: TrackGeometryManager, obs_size: int = 128) -> None:
     print("\n🔍 Running preflight checks...")
     run_offline_track_checks(track_geometry)
     run_v16_contract_tests(obs_size=obs_size)
-    print("✅ All preflight checks passed\n")
+    print("PASS All preflight checks passed\n")
 
 
 def train_v16(
@@ -1340,7 +1340,7 @@ def train_v16(
         scene_weights = [1.0 / len(env_ids)] * len(env_ids)
     else:
         total_w = float(sum(scene_weights))
-        if len(scene_weights) != len(env_ids) or total_w <= 0:
+        if len(scene_weights)!= len(env_ids) or total_w <= 0:
             raise ValueError("scene_weights length/sum invalid")
         scene_weights = [float(w) / total_w for w in scene_weights]
 
@@ -1379,7 +1379,7 @@ def train_v16(
     if not _launch_sim:
         ok, err = _probe_sim_tcp(sim_host, sim_port, timeout_s=1.0)
         if ok:
-            print(f"✅ sim tcp reachable: {sim_host}:{sim_port}")
+            print(f"PASS sim tcp reachable: {sim_host}:{sim_port}")
         else:
             print(f"⚠️  sim tcp not reachable: {sim_host}:{sim_port} ({err})")
 
@@ -1627,7 +1627,7 @@ def train_v16(
     env = DummyVecEnv([make_env])
     _safe_seed_env(env, seed, label="v16_train_env")
 
-    # 设置环境的当前课程阶段（用于step预算补偿callback）
+    # notecurrentnotestage(notestepnotecallback)
     if curriculum_phase is not None:
         for envs_list in env.envs:
             if hasattr(envs_list, '_curriculum_phase'):
@@ -1834,7 +1834,7 @@ def train_v16(
         json.dump(config, f, indent=2, ensure_ascii=False)
 
     print("\n" + "=" * 76)
-    print("✅ V16 training finished")
+    print("PASS V16 training finished")
     print("=" * 76)
     print(f"elapsed: {elapsed / 3600.0:.2f} h")
     print(f"model: {final_model_path}.zip")
@@ -1869,10 +1869,10 @@ def train_v16_auto_curriculum(
     remaining_timesteps = int(total_requested_timesteps)
     os.makedirs(save_dir, exist_ok=True)
 
-    # 计算跳过的起始 stage 索引
+    # computenote stage note
     start_stage_idx = 0
     if auto_curriculum_start_stage:
-        # 支持 stage 名称或 alias（如 "avoid_mixed" / "stage3"）
+        # note stage note alias(note "avoid_mixed" / "stage3")
         resolved_start = CURRICULUM_PHASE_ALIASES.get(
             str(auto_curriculum_start_stage).strip().lower(),
             str(auto_curriculum_start_stage).strip().lower(),
@@ -1895,7 +1895,7 @@ def train_v16_auto_curriculum(
     print(f"requested_steps: {total_requested_timesteps}")
     if start_stage_idx > 0:
         skipped = [AUTO_CURRICULUM_STAGES[i]["stage_name"] for i in range(start_stage_idx)]
-        print(f"⏭️  Skipping stages: {skipped} → starting at '{AUTO_CURRICULUM_STAGES[start_stage_idx]['stage_name']}'")
+        print(f"⏭️  Skipping stages: {skipped} -> starting at '{AUTO_CURRICULUM_STAGES[start_stage_idx]['stage_name']}'")
 
     stage_results: List[Dict[str, Any]] = []
     stage_resume_latest = bool(resume_latest)
@@ -2026,7 +2026,7 @@ def train_v16_auto_curriculum(
         json.dump(auto_summary, f, indent=2, ensure_ascii=False)
 
     print("\n" + "=" * 76)
-    print("✅ V16 auto curriculum finished")
+    print("PASS V16 auto curriculum finished")
     print("=" * 76)
     print(f"summary: {auto_summary_path}")
     print(f"trained: {total_trained_timesteps}/{total_requested_timesteps}")

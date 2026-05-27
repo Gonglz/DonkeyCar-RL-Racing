@@ -5,14 +5,14 @@
 from stable_baselines3.common.callbacks import BaseCallback
 
 class V14ControlTBCallback(BaseCallback):
-    """V14 TensorBoard callback: 记录阶段、奖励组件、避让指标。"""
+    """V14 TensorBoard callback: notestage, rewardnote, note."""
 
     def __init__(self, log_every=500, verbose=0):
         super().__init__(verbose)
         self.log_every = max(1, int(log_every))
 
     def _on_step(self):
-        if self.num_timesteps % self.log_every != 0:
+        if self.num_timesteps % self.log_every!= 0:
             return True
         try:
             infos = self.locals.get('infos', [{}])

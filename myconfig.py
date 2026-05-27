@@ -1,24 +1,24 @@
-# """ 
-# My CAR CONFIG 
+# """
+# My CAR CONFIG
 
 # This file is read by your car application's manage.py script to change the car
 # performance
 
-# If desired, all config overrides can be specified here. 
+# If desired, all config overrides can be specified here.
 # The update operation will not touch this file.
 # """
 
 # import os
-# 
+#
 # #PATHS
 # CAR_PATH = PACKAGE_PATH = os.path.dirname(os.path.realpath(__file__))
 # DATA_PATH = os.path.join(CAR_PATH, 'data')
 # MODELS_PATH = os.path.join(CAR_PATH, 'models')
-# 
+#
 # #VEHICLE
 # DRIVE_LOOP_HZ = 20      # the vehicle loop will pause if faster than this speed.
 # MAX_LOOPS = None        # the vehicle loop can abort after this many iterations, when given a positive integer.
-# 
+#
 # #CAMERA
 CAMERA_TYPE = "MOCK"   # (PICAM|WEBCAM|CVCAM|CSIC|V4L|D435|MOCK|IMAGE_LIST)
 IMAGE_W = 160
@@ -27,22 +27,22 @@ IMAGE_H = 120
 # CAMERA_FRAMERATE = DRIVE_LOOP_HZ
 # CAMERA_VFLIP = False
 # CAMERA_HFLIP = False
-# CAMERA_INDEX = 0  # used for 'WEBCAM' and 'CVCAM' when there is more than one camera connected 
+# CAMERA_INDEX = 0  # used for 'WEBCAM' and 'CVCAM' when there is more than one camera connected
 # # For CSIC camera - If the camera is mounted in a rotated position, changing the below parameter will correct the output frame orientation
 # CSIC_CAM_GSTREAMER_FLIP_PARM = 0 # (0 => none , 4 => Flip horizontally, 6 => Flip vertically)
-# 
+#
 # # For IMAGE_LIST camera
 # # PATH_MASK = "~/mycar/data/tub_1_20-03-12/*.jpg"
-# 
+#
 # #9865, over rides only if needed, ie. TX2..
 # PCA9685_I2C_ADDR = 0x40     #I2C address, use i2cdetect to validate this number
 # PCA9685_I2C_BUSNUM = None   #None will auto detect, which is fine on the pi. But other platforms should specify the bus num.
-# 
+#
 # #SSD1306_128_32
 # USE_SSD1306_128_32 = False    # Enable the SSD_1306 OLED Display
 # SSD1306_128_32_I2C_ROTATION = 0 # 0 = text is right-side up, 1 = rotated 90 degrees clockwise, 2 = 180 degrees (flipped), 3 = 270 degrees
 # SSD1306_RESOLUTION = 1 # 1 = 128x32; 2 = 128x64
-# 
+#
 # #
 # # DRIVE_TRAIN_TYPE
 # # These options specify which chasis and motor setup you are using.
@@ -64,7 +64,7 @@ IMAGE_H = 120
 # # (deprecated) "I2C_SERVO" uses PCA9685 servo controller to control a steering servo and an ESC, as in a standard RC car
 # #
 # DRIVE_TRAIN_TYPE = "PWM_STEERING_THROTTLE"
-# 
+#
 # #
 # # PWM_STEERING_THROTTLE
 # #
@@ -85,7 +85,7 @@ IMAGE_H = 120
 #     "THROTTLE_STOPPED_PWM": 370,            #pwm value for no movement
 #     "THROTTLE_REVERSE_PWM": 220,            #pwm value for max reverse throttle
 # }
-# 
+#
 # #
 # # I2C_SERVO (deprecated in favor of PWM_STEERING_THROTTLE)
 # #
@@ -96,7 +96,7 @@ IMAGE_H = 120
 # THROTTLE_FORWARD_PWM = 500      #pwm value for max forward throttle
 # THROTTLE_STOPPED_PWM = 370      #pwm value for no movement
 # THROTTLE_REVERSE_PWM = 220      #pwm value for max reverse throttle
-# 
+#
 # #
 # # PIGPIO_PWM (deprecated in favor of PWM_STEERING_THROTTLE)
 # #
@@ -106,20 +106,20 @@ IMAGE_H = 120
 # THROTTLE_PWM_PIN = 18           #(deprecated) Pin numbering according to Broadcom numbers
 # THROTTLE_PWM_FREQ = 50          #Frequency for PWM
 # THROTTLE_PWM_INVERTED = False   #If PWM needs to be inverted
-# 
+#
 # #
 # # SERVO_HBRIDGE_2PIN
 # # - configures a steering servo and an HBridge in 2pin mode (2 pwm pins)
 # # - Servo takes a standard servo PWM pulse between 1 millisecond (fully reverse)
 # #   and 2 milliseconds (full forward) with 1.5ms being neutral.
-# # - the motor is controlled by two pwm pins, 
-# #   one for forward and one for backward (reverse). 
+# # - the motor is controlled by two pwm pins,
+# #   one for forward and one for backward (reverse).
 # # - the pwm pin produces a duty cycle from 0 (completely LOW)
 # #   to 1 (100% completely high), which is proportional to the
 # #   amount of power delivered to the motor.
 # # - in forward mode, the reverse pwm is 0 duty_cycle,
 # #   in backward mode, the forward pwm is 0 duty cycle.
-# # - both pwms are 0 duty cycle (LOW) to 'detach' motor and 
+# # - both pwms are 0 duty cycle (LOW) to 'detach' motor and
 # #   and glide to a stop.
 # # - both pwms are full duty cycle (100% HIGH) to brake
 # #
@@ -132,7 +132,7 @@ IMAGE_H = 120
 # #   - must use BCM (broadcom) pin numbering scheme
 # #   - for example, "PIGPIO.BCM.13"
 # # - use PCA9685 for PCA9685 pin output
-# #   - include colon separated I2C channel and address 
+# #   - include colon separated I2C channel and address
 # #   - for example "PCA9685.1:40.13"
 # # - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
 # #   although it is discouraged to mix RPI_GPIO and PIGPIO.
@@ -146,14 +146,14 @@ IMAGE_H = 120
 #     "STEERING_LEFT_PWM": 460,         # pwm value for full left steering (use `donkey calibrate` to measure value for your car)
 #     "STEERING_RIGHT_PWM": 290,        # pwm value for full right steering (use `donkey calibrate` to measure value for your car)
 # }
-# 
+#
 # #
 # # SERVO_HBRIDGE_3PIN
 # # - configures a steering servo and an HBridge in 3pin mode (2 ttl pins, 1 pwm pin)
 # # - Servo takes a standard servo PWM pulse between 1 millisecond (fully reverse)
 # #   and 2 milliseconds (full forward) with 1.5ms being neutral.
-# # - the motor is controlled by three pins, 
-# #   one ttl output for forward, one ttl output 
+# # - the motor is controlled by three pins,
+# #   one ttl output for forward, one ttl output
 # #   for backward (reverse) enable and one pwm pin
 # #   for motor power.
 # # - the pwm pin produces a duty cycle from 0 (completely LOW)
@@ -161,9 +161,9 @@ IMAGE_H = 120
 # #   amount of power delivered to the motor.
 # # - in forward mode, the forward pin  is HIGH and the
 # #   backward pin is LOW,
-# # - in backward mode, the forward pin is LOW and the 
+# # - in backward mode, the forward pin is LOW and the
 # #   backward pin is HIGH.
-# # - both forward and backward pins are LOW to 'detach' motor 
+# # - both forward and backward pins are LOW to 'detach' motor
 # #   and glide to a stop.
 # # - both forward and backward pins are HIGH to brake
 # #
@@ -176,7 +176,7 @@ IMAGE_H = 120
 # #   - must use BCM (broadcom) pin numbering scheme
 # #   - for example, "PIGPIO.BCM.13"
 # # - use PCA9685 for PCA9685 pin output
-# #   - include colon separated I2C channel and address 
+# #   - include colon separated I2C channel and address
 # #   - for example "PCA9685.1:40.13"
 # # - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
 # #   although it is discouraged to mix RPI_GPIO and PIGPIO.
@@ -191,7 +191,7 @@ IMAGE_H = 120
 #     "STEERING_LEFT_PWM": 460,         # pwm value for full left steering (use `donkey calibrate` to measure value for your car)
 #     "STEERING_RIGHT_PWM": 290,        # pwm value for full right steering (use `donkey calibrate` to measure value for your car)
 # }
-# 
+#
 # #
 # # DRIVETRAIN_TYPE == "SERVO_HBRIDGE_PWM" (deprecated in favor of SERVO_HBRIDGE_2PIN)
 # # - configures a steering servo and an HBridge in 2pin mode (2 pwm pins)
@@ -215,13 +215,13 @@ IMAGE_H = 120
 # STEERING_CHANNEL = 0       # PCA 9685 channel for steering control
 # STEERING_LEFT_PWM = 460    # pwm value for full left steering (use `donkey calibrate` to measure value for your car)
 # STEERING_RIGHT_PWM = 290   # pwm value for full right steering (use `donkey calibrate` to measure value for your car)
-# 
+#
 # #
 # # DC_STEER_THROTTLE with one motor as steering, one as drive
 # # - uses L298N type motor controller in two pin wiring
-# #   scheme utilizing two pwm pins per motor; one for 
+# #   scheme utilizing two pwm pins per motor; one for
 # #   forward(or right) and one for reverse (or left)
-# # 
+# #
 # # GPIO pin configuration for the DRIVE_TRAIN_TYPE=DC_STEER_THROTTLE
 # # - use RPI_GPIO for RPi/Nano header pin output
 # #   - use BOARD for board pin numbering
@@ -231,7 +231,7 @@ IMAGE_H = 120
 # #   - must use BCM (broadcom) pin numbering scheme
 # #   - for example, "PIGPIO.BCM.13"
 # # - use PCA9685 for PCA9685 pin output
-# #   - include colon separated I2C channel and address 
+# #   - include colon separated I2C channel and address
 # #   - for example "PCA9685.1:40.13"
 # # - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
 # #   although it is discouraged to mix RPI_GPIO and PIGPIO.
@@ -242,19 +242,19 @@ IMAGE_H = 120
 #     "FWD_DUTY_PIN": "RPI_GPIO.BOARD.15",    # pwm pin produces duty cycle for forward drive
 #     "BWD_DUTY_PIN": "RPI_GPIO.BOARD.13",    # pwm pin produces duty cycle for reverse drive
 # }
-# 
+#
 # #
 # # DC_TWO_WHEEL pin configuration
 # # - configures L298N_HBridge_2pin driver
 # # - two wheels as differential drive, left and right.
-# # - each wheel is controlled by two pwm pins, 
-# #   one for forward and one for backward (reverse). 
+# # - each wheel is controlled by two pwm pins,
+# #   one for forward and one for backward (reverse).
 # # - each pwm pin produces a duty cycle from 0 (completely LOW)
 # #   to 1 (100% completely high), which is proportional to the
 # #   amount of power delivered to the motor.
 # # - in forward mode, the reverse pwm is 0 duty_cycle,
 # #   in backward mode, the forward pwm is 0 duty cycle.
-# # - both pwms are 0 duty cycle (LOW) to 'detach' motor and 
+# # - both pwms are 0 duty cycle (LOW) to 'detach' motor and
 # #   and glide to a stop.
 # # - both pwms are full duty cycle (100% HIGH) to brake
 # #
@@ -267,7 +267,7 @@ IMAGE_H = 120
 # #   - must use BCM (broadcom) pin numbering scheme
 # #   - for example, "PIGPIO.BCM.13"
 # # - use PCA9685 for PCA9685 pin output
-# #   - include colon separated I2C channel and address 
+# #   - include colon separated I2C channel and address
 # #   - for example "PCA9685.1:40.13"
 # # - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
 # #   although it is discouraged to mix RPI_GPIO and PIGPIO.
@@ -278,13 +278,13 @@ IMAGE_H = 120
 #     "RIGHT_FWD_DUTY_PIN": "RPI_GPIO.BOARD.15", # pwm pin produces duty cycle for right wheel forward
 #     "RIGHT_BWD_DUTY_PIN": "RPI_GPIO.BOARD.13", # pwm pin produces duty cycle for right wheel reverse
 # }
-# 
+#
 # #
 # # DC_TWO_WHEEL_L298N pin configuration
 # # - configures L298N_HBridge_3pin driver
 # # - two wheels as differential drive, left and right.
-# # - each wheel is controlled by three pins, 
-# #   one ttl output for forward, one ttl output 
+# # - each wheel is controlled by three pins,
+# #   one ttl output for forward, one ttl output
 # #   for backward (reverse) enable and one pwm pin
 # #   for motor power.
 # # - the pwm pin produces a duty cycle from 0 (completely LOW)
@@ -292,9 +292,9 @@ IMAGE_H = 120
 # #   amount of power delivered to the motor.
 # # - in forward mode, the forward pin  is HIGH and the
 # #   backward pin is LOW,
-# # - in backward mode, the forward pin is LOW and the 
+# # - in backward mode, the forward pin is LOW and the
 # #   backward pin is HIGH.
-# # - both forward and backward pins are LOW to 'detach' motor 
+# # - both forward and backward pins are LOW to 'detach' motor
 # #   and glide to a stop.
 # # - both forward and backward pins are HIGH to brake
 # #
@@ -307,7 +307,7 @@ IMAGE_H = 120
 # #   - must use BCM (broadcom) pin numbering scheme
 # #   - for example, "PIGPIO.BCM.13"
 # # - use PCA9685 for PCA9685 pin output
-# #   - include colon separated I2C channel and address 
+# #   - include colon separated I2C channel and address
 # #   - for example "PCA9685.1:40.13"
 # # - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
 # #   although it is discouraged to mix RPI_GPIO and PIGPIO.
@@ -316,29 +316,29 @@ IMAGE_H = 120
 #     "LEFT_FWD_PIN": "RPI_GPIO.BOARD.16",        # TTL output pin enables left wheel forward
 #     "LEFT_BWD_PIN": "RPI_GPIO.BOARD.18",        # TTL output pin enables left wheel reverse
 #     "LEFT_EN_DUTY_PIN": "RPI_GPIO.BOARD.22",    # PWM pin generates duty cycle for left motor speed
-# 
+#
 #     "RIGHT_FWD_PIN": "RPI_GPIO.BOARD.15",       # TTL output pin enables right wheel forward
 #     "RIGHT_BWD_PIN": "RPI_GPIO.BOARD.13",       # TTL output pin enables right wheel reverse
 #     "RIGHT_EN_DUTY_PIN": "RPI_GPIO.BOARD.11",   # PWM pin generates duty cycle for right wheel speed
 # }
-# 
+#
 # #ODOMETRY
-# HAVE_ODOM = False                   # Do you have an odometer/encoder 
-# ENCODER_TYPE = 'GPIO'            # What kind of encoder? GPIO|Arduino|Astar 
+# HAVE_ODOM = False                   # Do you have an odometer/encoder
+# ENCODER_TYPE = 'GPIO'            # What kind of encoder? GPIO|Arduino|Astar
 # MM_PER_TICK = 12.7625               # How much travel with a single tick, in mm. Roll you car a meter and divide total ticks measured by 1,000
 # ODOM_PIN = 13                        # if using GPIO, which GPIO board mode pin to use as input
 # ODOM_DEBUG = False                  # Write out values on vel and distance as it runs
-# 
+#
 # # #LIDAR
 # USE_LIDAR = False
 # LIDAR_TYPE = 'RP' #(RP|YD)
 # LIDAR_LOWER_LIMIT = 90 # angles that will be recorded. Use this to block out obstructed areas on your car, or looking backwards. Note that for the RP A1M8 Lidar, "0" is in the direction of the motor
 # LIDAR_UPPER_LIMIT = 270
-# 
+#
 # #TRAINING
 # # The default AI framework to use. Choose from (tensorflow|pytorch)
 # DEFAULT_AI_FRAMEWORK = 'tensorflow'
-# 
+#
 # # The DEFAULT_MODEL_TYPE will choose which model will be created at training
 # # time. This chooses between different neural network designs. You can
 # # override this setting by passing the command line parameter --type to the
@@ -362,13 +362,13 @@ EARLY_STOP_PATIENCE = 15         #how many epochs to wait before no improvement
 # SEND_BEST_MODEL_TO_PI = False   #change to true to automatically send best model during training
 # CREATE_TF_LITE = True           # automatically create tflite model in training
 # CREATE_TENSOR_RT = False        # automatically create tensorrt model in training
-# 
+#
 # PRUNE_CNN = False               #This will remove weights from your model. The primary goal is to increase performance.
 # PRUNE_PERCENT_TARGET = 75       # The desired percentage of pruning.
 # PRUNE_PERCENT_PER_ITERATION = 20 # Percenge of pruning that is perform per iteration.
 # PRUNE_VAL_LOSS_DEGRADATION_LIMIT = 0.2 # The max amout of validation loss that is permitted during pruning.
 # PRUNE_EVAL_PERCENT_OF_DATASET = .05  # percent of dataset used to perform evaluation of model.
-# 
+#
 # # Augmentations and Transformations
 # AUGMENTATIONS = []
 # TRANSFORMATIONS = []
@@ -391,17 +391,17 @@ EARLY_STOP_PATIENCE = 15         #how many epochs to wait before no improvement
 # ROI_TRAPEZE_UR = 140
 # ROI_TRAPEZE_MIN_Y = 60
 # ROI_TRAPEZE_MAX_Y = 120
-# 
+#
 # #Model transfer options
 # #When copying weights during a model transfer operation, should we freeze a certain number of layers
 # #to the incoming weights and not allow them to change during training?
 # FREEZE_LAYERS = False               #default False will allow all layers to be modified by training
 # NUM_LAST_LAYERS_TO_TRAIN = 7        #when freezing layers, how many layers from the last should be allowed to train?
-# 
+#
 # #WEB CONTROL
 # WEB_CONTROL_PORT = int(os.getenv("WEB_CONTROL_PORT", 8887))  # which port to listen on when making a web controller
 # WEB_INIT_MODE = "user"              # which control mode to start in. one of user|local_angle|local. Setting local will start in ai mode.
-# 
+#
 # #JOYSTICK
 # USE_JOYSTICK_AS_DEFAULT = False      #when starting the manage.py, when True, will not require a --js option to use the joystick
 # JOYSTICK_MAX_THROTTLE = 0.5         #this scalar is multiplied with the -1 to 1 throttle value to limit the maximum throttle. This can help if you drop the controller or just don't need the full speed available.
@@ -414,23 +414,23 @@ EARLY_STOP_PATIENCE = 15         #how many epochs to wait before no improvement
 # JOYSTICK_THROTTLE_DIR = -1.0         # use -1.0 to flip forward/backward, use 1.0 to use joystick's natural forward/backward
 # USE_FPV = False                     # send camera data to FPV webserver
 # JOYSTICK_DEVICE_FILE = "/dev/input/js0" # this is the unix file use to access the joystick.
-# 
+#
 # #For the categorical model, this limits the upper bound of the learned throttle
 # #it's very IMPORTANT that this value is matched from the training PC config.py and the robot.py
 # #and ideally wouldn't change once set.
 # MODEL_CATEGORICAL_MAX_THROTTLE_RANGE = 0.8
-# 
+#
 # #RNN or 3D
 # SEQUENCE_LENGTH = 3             #some models use a number of images over time. This controls how many.
-# 
+#
 # #IMU
 # HAVE_IMU = False                #when true, this add a Mpu6050 part and records the data. Can be used with a
 # IMU_SENSOR = 'mpu6050'          # (mpu6050|mpu9250)
 # IMU_DLP_CONFIG = 0              # Digital Lowpass Filter setting (0:250Hz, 1:184Hz, 2:92Hz, 3:41Hz, 4:20Hz, 5:10Hz, 6:5Hz)
-# 
+#
 # #SOMBRERO
 # HAVE_SOMBRERO = False           #set to true when using the sombrero hat from the Donkeycar store. This will enable pwm on the hat.
-# 
+#
 # #PIGPIO RC control
 # STEERING_RC_GPIO = 26
 # THROTTLE_RC_GPIO = 20
@@ -442,29 +442,29 @@ EARLY_STOP_PATIENCE = 15         #how many epochs to wait before no improvement
 # PIGPIO_SHOW_STEERING_VALUE = False
 # PIGPIO_INVERT = False
 # PIGPIO_JITTER = 0.025   # threshold below which no signal is reported
-# 
-# 
-# 
+#
+#
+#
 # #ROBOHAT MM1
 # MM1_STEERING_MID = 1500         # Adjust this value if your car cannot run in a straight line
 # MM1_MAX_FORWARD = 2000          # Max throttle to go fowrward. The bigger the faster
 # MM1_STOPPED_PWM = 1500
 # MM1_MAX_REVERSE = 1000          # Max throttle to go reverse. The smaller the faster
 # MM1_SHOW_STEERING_VALUE = False
-# # Serial port 
+# # Serial port
 # # -- Default Pi: '/dev/ttyS0'
 # # -- Jetson Nano: '/dev/ttyTHS1'
 # # -- Google coral: '/dev/ttymxc0'
 # # -- Windows: 'COM3', Arduino: '/dev/ttyACM0'
-# # -- MacOS/Linux:please use 'ls /dev/tty.*' to find the correct serial port for mm1 
+# # -- MacOS/Linux:please use 'ls /dev/tty.*' to find the correct serial port for mm1
 # #  eg.'/dev/tty.usbmodemXXXXXX' and replace the port accordingly
 # MM1_SERIAL_PORT = '/dev/ttyS0'  # Serial Port for reading and sending MM1 data.
-# 
+#
 # #LOGGING
 # HAVE_CONSOLE_LOGGING = True
 # LOGGING_LEVEL = 'INFO'          # (Python logging level) 'NOTSET' / 'DEBUG' / 'INFO' / 'WARNING' / 'ERROR' / 'FATAL' / 'CRITICAL'
 # LOGGING_FORMAT = '%(message)s'  # (Python logging format - https://docs.python.org/3/library/logging.html#formatter-objects
-# 
+#
 # #TELEMETRY
 # HAVE_MQTT_TELEMETRY = False
 # TELEMETRY_DONKEY_NAME = 'my_robot1234'
@@ -478,34 +478,34 @@ EARLY_STOP_PATIENCE = 15         #how many epochs to wait before no improvement
 # TELEMETRY_LOGGING_FORMAT = '%(message)s'  # (Python logging format - https://docs.python.org/3/library/logging.html#formatter-objects
 # TELEMETRY_DEFAULT_INPUTS = 'pilot/angle,pilot/throttle,recording'
 # TELEMETRY_DEFAULT_TYPES = 'float,float'
-# 
+#
 # # PERF MONITOR
 # HAVE_PERFMON = False
-# 
+#
 # #RECORD OPTIONS
 # RECORD_DURING_AI = False        #normally we do not record during ai mode. Set this to true to get image and steering records for your Ai. Be careful not to use them to train.
 # AUTO_CREATE_NEW_TUB = False     #create a new tub (tub_YY_MM_DD) directory when recording or append records to data directory directly
-# 
+#
 # #LED
 # HAVE_RGB_LED = False            #do you have an RGB LED like https://www.amazon.com/dp/B07BNRZWNF
 # LED_INVERT = False              #COMMON ANODE? Some RGB LED use common anode. like https://www.amazon.com/Xia-Fly-Tri-Color-Emitting-Diffused/dp/B07MYJQP8B
-# 
+#
 # #LED board pin number for pwm outputs
 # #These are physical pinouts. See: https://www.raspberrypi-spy.co.uk/2012/06/simple-guide-to-the-rpi-gpio-header-and-pins/
 # LED_PIN_R = 12
 # LED_PIN_G = 10
 # LED_PIN_B = 16
-# 
+#
 # #LED status color, 0-100
 # LED_R = 0
 # LED_G = 0
 # LED_B = 1
-# 
+#
 # #LED Color for record count indicator
 # REC_COUNT_ALERT = 1000          #how many records before blinking alert
 # REC_COUNT_ALERT_CYC = 15        #how many cycles of 1/20 of a second to blink per REC_COUNT_ALERT records
 # REC_COUNT_ALERT_BLINK_RATE = 0.4 #how fast to blink the led in seconds on/off
-# 
+#
 # #first number is record count, second tuple is color ( r, g, b) (0-100)
 # #when record count exceeds that number, the color will be used
 # RECORD_ALERT_COLOR_ARR = [ (0, (1, 1, 1)),
@@ -514,21 +514,21 @@ EARLY_STOP_PATIENCE = 15         #how many epochs to wait before no improvement
 #             (10000, (0, 5, 0)),
 #             (15000, (0, 5, 5)),
 #             (20000, (0, 0, 5)), ]
-# 
-# 
+#
+#
 # #LED status color, 0-100, for model reloaded alert
 # MODEL_RELOADED_LED_R = 100
 # MODEL_RELOADED_LED_G = 0
 # MODEL_RELOADED_LED_B = 0
-# 
-# 
+#
+#
 # #BEHAVIORS
 # #When training the Behavioral Neural Network model, make a list of the behaviors,
 # #Set the TRAIN_BEHAVIORS = True, and use the BEHAVIOR_LED_COLORS to give each behavior a color
 # TRAIN_BEHAVIORS = False
 # BEHAVIOR_LIST = ['Left_Lane', "Right_Lane"]
 # BEHAVIOR_LED_COLORS = [(0, 10, 0), (10, 0, 0)]  #RGB tuples 0-100 per chanel
-# 
+#
 # #Localizer
 # #The localizer is a neural network that can learn to predict its location on the track.
 # #This is an experimental feature that needs more developement. But it can currently be used
@@ -536,7 +536,7 @@ EARLY_STOP_PATIENCE = 15         #how many epochs to wait before no improvement
 # TRAIN_LOCALIZER = False
 # NUM_LOCATIONS = 10
 # BUTTON_PRESS_NEW_TUB = False #when enabled, makes it easier to divide our data into one tub per track length if we make a new tub on each X button press.
-# 
+#
 # #DonkeyGym
 # #Only on Ubuntu linux, you can use the simulator as a virtual donkey and
 # #issue the same python manage.py drive command as usual, but have them control a virtual car.
@@ -550,7 +550,7 @@ GYM_CONF = { "body_style" : "donkey", "body_rgb" : (128, 128, 128), "car_name" :
 GYM_CONF["racer_name"] = "Your Name"
 GYM_CONF["country"] = "Place"
 GYM_CONF["bio"] = "I race robots."
-# 
+#
 # SIM_HOST = "127.0.0.1"              # when racing on virtual-race-league use host "trainmydonkey.com"
 # SIM_ARTIFICIAL_LATENCY = 0          # this is the millisecond latency in controls. Can use useful in emulating the delay when useing a remote server. values of 100 to 400 probably reasonable.
 #
@@ -571,20 +571,20 @@ GYM_CONF["bio"] = "I race robots."
 # SIM_RECORD_GYROACCEL= False
 # SIM_RECORD_VELOCITY = False
 # SIM_RECORD_LIDAR = False
-# 
+#
 # #publish camera over network
 # #This is used to create a tcp service to publish the camera feed
 # PUB_CAMERA_IMAGES = False
-# 
+#
 # #When racing, to give the ai a boost, configure these values.
 # AI_LAUNCH_DURATION = 0.0            # the ai will output throttle for this many seconds
 # AI_LAUNCH_THROTTLE = 0.0            # the ai will output this throttle value
 # AI_LAUNCH_ENABLE_BUTTON = 'R2'      # this keypress will enable this boost. It must be enabled before each use to prevent accidental trigger.
 # AI_LAUNCH_KEEP_ENABLED = False      # when False ( default) you will need to hit the AI_LAUNCH_ENABLE_BUTTON for each use. This is safest. When this True, is active on each trip into "local" ai mode.
-# 
+#
 # #Scale the output of the throttle of the ai pilot for all model types.
 # AI_THROTTLE_MULT = 1.0              # this multiplier will scale every throttle value for all output from NN models
-# 
+#
 # #Path following
 # PATH_FILENAME = "donkey_path.pkl"   # the path will be saved to this filename
 # PATH_SCALE = 5.0                    # the path display will be scaled by this factor in the web page
@@ -596,20 +596,20 @@ GYM_CONF["bio"] = "I race robots."
 # PID_THROTTLE = 0.2                  # constant throttle value during path following
 # SAVE_PATH_BTN = "cross"             # joystick button to save path
 # RESET_ORIGIN_BTN = "triangle"       # joystick button to press to move car back to origin
-# 
+#
 # # Intel Realsense D435 and D435i depth sensing camera
 # REALSENSE_D435_RGB = True       # True to capture RGB image
 # REALSENSE_D435_DEPTH = True     # True to capture depth as image array
 # REALSENSE_D435_IMU = False      # True to capture IMU data (D435i only)
 # REALSENSE_D435_ID = None        # serial number of camera or None if you only have one camera (it will autodetect)
-# 
+#
 # # Stop Sign Detector
 # STOP_SIGN_DETECTOR = False
 # STOP_SIGN_MIN_SCORE = 0.2
 # STOP_SIGN_SHOW_BOUNDING_BOX = True
 # STOP_SIGN_MAX_REVERSE_COUNT = 10    # How many times should the car reverse when detected a stop sign, set to 0 to disable reversing
 # STOP_SIGN_REVERSE_THROTTLE = -0.5     # Throttle during reversing when detected a stop sign
-# 
+#
 # # FPS counter
 # SHOW_FPS = False
 # FPS_DEBUG_INTERVAL = 10    # the interval in seconds for printing the frequency info into the shell

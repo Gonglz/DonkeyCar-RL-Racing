@@ -1,11 +1,11 @@
 """
 module/multi_scene_env.py
 
-包含：
-  - MultiSceneEnv        : V9 多场景切换环境（与 ppo_waveshare_v9.MultiSceneEnv 等价）
-  - HighLevelControlWrapper : V12 高层速度控制动作包装器（已迁移到 module/control.py）
-  - MultiInputObsWrapper : V12 Dict观测（image + state）
-  - MultiSceneEnvV12     : 继承 MultiSceneEnv，_create_env 使用 V12 全链路
+note:
+  - MultiSceneEnv: V9 note(note ppo_waveshare_v9.MultiSceneEnv note)
+  - HighLevelControlWrapper: V12 notecontrolnote(note module/control.py)
+  - MultiInputObsWrapper: V12 Dictnote(image + state)
+  - MultiSceneEnvV12: note MultiSceneEnv, _create_env note V12 note
 """
 
 import json
@@ -25,7 +25,7 @@ try:
 except Exception:
     torch = None
 
-from .utils import (
+from.utils import (
     ENV_DOMAIN_MAP,
     MONITOR_INFO_KEYS,
     _get_domain_for_env,
@@ -34,7 +34,7 @@ from .utils import (
     _clip_float,
     _wrap_pi,
 )
-from .wrappers import (
+from.wrappers import (
     GeneralizationWrapper,
     TransposeWrapper,
     NormalizeWrapper,
@@ -42,53 +42,53 @@ from .wrappers import (
     GTResetPerturbWrapper,
     RGBResizeWrapper,
 )
-from .control import (
+from.control import (
     HighLevelControlWrapper,
     ActionSafetyWrapper,
 )
-from .reward import DonkeyRewardWrapper, ImprovedRewardWrapperV3, V9DomainRewardWrapper
+from.reward import DonkeyRewardWrapper, ImprovedRewardWrapperV3, V9DomainRewardWrapper
 
 
 # ============================================================
-# 自定义 episode_over 判定（去掉 missed_checkpoint / dq 检查）
+# note episode_over note(note missed_checkpoint / dq note)
 # ============================================================
 def _donkey_episode_over_no_checkpoint(handler):
-    """替换 DonkeyUnitySimHandler.determine_episode_over:
-    只保留 CTE 超限 和 碰撞 两种终止条件；
-    去掉 missed_checkpoint / dq，避免 sim 内部检查点导致提前截断 episode。
+    """note DonkeyUnitySimHandler.determine_episode_over:
+    note CTE note;
+    note missed_checkpoint / dq, note sim notefirstnote episode.
     """
     if math.fabs(handler.cte) > 2 * handler.max_cte:
-        pass  # 启动时 CTE 可能瞬间很大，忽略
+        pass  # note CTE note, note
     elif math.fabs(handler.cte) > handler.max_cte:
         handler.over = True
-    elif handler.hit != "none":
+    elif handler.hit!= "none":
         handler.over = True
-    # NOTE: missed_checkpoint / dq 不再触发 episode 终止
+    # NOTE: missed_checkpoint / dq note episode note
 
 
 def _install_custom_episode_over(base_env):
-    """在 base_env (DonkeyEnv) 上安装自定义 episode_over 函数。"""
+    """note base_env (DonkeyEnv) note episode_over function."""
     if hasattr(base_env, "set_episode_over_fn"):
         base_env.set_episode_over_fn(_donkey_episode_over_no_checkpoint)
-        print("   [episode_over] 已安装自定义判定（跳过 missed_checkpoint/dq）")
+        print("   [episode_over] note(note missed_checkpoint/dq)")
     else:
-        print("   [episode_over] ⚠️ base_env 无 set_episode_over_fn，跳过")
+        print("   [episode_over] ⚠️ base_env note set_episode_over_fn, note")
 
 
 def _set_handler_max_cte(base_env, max_cte: float, logging_key: str = ""):
-    """per-scene 设置 handler.max_cte，用于缩短出轨后无效步数。"""
+    """per-scene note handler.max_cte, note."""
     try:
         handler = base_env.viewer.handler
         old_val = getattr(handler, "max_cte", None)
         handler.max_cte = float(max_cte)
         if old_val is not None and abs(old_val - max_cte) > 0.01:
-            print(f"   [{logging_key}] max_cte: {old_val:.1f} → {max_cte:.1f}")
+            print(f"   [{logging_key}] max_cte: {old_val:.1f} -> {max_cte:.1f}")
     except Exception as e:
         print(f"   [{logging_key}] ⚠️ set max_cte failed: {type(e).__name__}: {e}")
 
 
 def _clear_handler_over(base_env) -> None:
-    """清理底层 handler.over，避免 reset 后残留 done 状态污染下一回合。"""
+    """cleanupnote handler.over, note reset note done note."""
     try:
         handler = base_env.viewer.handler
         handler.over = False
@@ -97,12 +97,12 @@ def _clear_handler_over(base_env) -> None:
 
 
 # ============================================================
-# 多场景切换环境（V9 逻辑，仅依赖 module imports）
+# note(V9 note, note module imports)
 # ============================================================
 class MultiSceneEnv(gym.Env):
     """
-    多场景交替训练环境（单模拟器 + 场景切换方案）
-    V9.3c 兼容版，内部改用 module/ 下的类，不再依赖 ppo_waveshare_v9/v8。
+    notetrainingnote(note + note)
+    V9.3c note, note module/ noteclass, note ppo_waveshare_v9/v8.
     """
 
     def __init__(
@@ -170,7 +170,7 @@ class MultiSceneEnv(gym.Env):
         self.base_scene_weights = list(self.scene_weights)
         self.scene_domains = [_get_domain_for_env(eid) for eid in env_ids]
         if scene_log_keys is not None:
-            if len(scene_log_keys) != len(env_ids):
+            if len(scene_log_keys)!= len(env_ids):
                 raise ValueError(
                     f"scene_log_keys length({len(scene_log_keys)}) must match env_ids({len(env_ids)})"
                 )
@@ -223,13 +223,13 @@ class MultiSceneEnv(gym.Env):
         self.dynamic_gt_prior = float(dynamic_gt_prior)
         self.dynamic_weight_smoothing = float(np.clip(dynamic_weight_smoothing, 0.0, 1.0))
         self.dynamic_weight_min = float(max(0.0, dynamic_weight_min))
-        # per-scene dynamic_weight_max: float → 全局统一, List[float] → 每场景独立上限
+        # per-scene dynamic_weight_max: float -> noteunified, List[float] -> note
         if isinstance(dynamic_weight_max, (list, tuple)):
             self.dynamic_weight_max_per_scene = [float(min(1.0, x)) for x in dynamic_weight_max]
-            if len(self.dynamic_weight_max_per_scene) != len(env_ids):
-                print(f"⚠️  dynamic_weight_max list length({len(self.dynamic_weight_max_per_scene)}) != env_ids({len(env_ids)}), 回退全局")
+            if len(self.dynamic_weight_max_per_scene)!= len(env_ids):
+                print(f"⚠️  dynamic_weight_max list length({len(self.dynamic_weight_max_per_scene)})!= env_ids({len(env_ids)}), note")
                 self.dynamic_weight_max_per_scene = [0.55] * len(env_ids)
-            self.dynamic_weight_max = float(max(self.dynamic_weight_max_per_scene))  # 兼容日志
+            self.dynamic_weight_max = float(max(self.dynamic_weight_max_per_scene))  # note
         else:
             self.dynamic_weight_max = float(min(1.0, dynamic_weight_max))
             self.dynamic_weight_max_per_scene = [self.dynamic_weight_max] * len(env_ids)
@@ -238,16 +238,16 @@ class MultiSceneEnv(gym.Env):
             self.dynamic_weight_max_per_scene = [self.dynamic_weight_max] * len(env_ids)
         self.dynamic_success_mode = str(dynamic_success_mode or "env_done").strip().lower()
         if self.dynamic_success_mode not in ("env_done", "scene_adaptive", "scene_strict"):
-            print(f"⚠️  dynamic_success_mode={dynamic_success_mode} 无效，回退为 env_done")
+            print(f"⚠️  dynamic_success_mode={dynamic_success_mode} note, note env_done")
             self.dynamic_success_mode = "env_done"
         self.dynamic_success_warmup_episodes = max(1, int(dynamic_success_warmup_episodes))
         self.dynamic_success_post_warmup_scale = float(np.clip(dynamic_success_post_warmup_scale, 0.0, 1.0))
         self.dynamic_success_deficit_mix = float(np.clip(dynamic_success_deficit_mix, 0.0, 1.0))
         self.enable_step_balance_sampling = bool(enable_step_balance_sampling and len(env_ids) > 1)
         self.step_balance_sampling_mix = float(np.clip(step_balance_sampling_mix, 0.0, 1.0))
-        # step_balance_mask: True=主训练场景(参与步数缺口校正), False=预览/眉熟场景(不参与)
+        # step_balance_mask: True=notetrainingnote(note), False=note/note(note)
         if step_balance_mask is not None:
-            if len(step_balance_mask) != len(env_ids):
+            if len(step_balance_mask)!= len(env_ids):
                 raise ValueError(
                     f"step_balance_mask length({len(step_balance_mask)}) must match env_ids({len(env_ids)})"
                 )
@@ -257,16 +257,16 @@ class MultiSceneEnv(gym.Env):
         self.step_balance_min_samples_per_scene = 6
         self._scene_recent_rewards = [deque(maxlen=self.dynamic_weight_window) for _ in env_ids]
         self._scene_recent_lengths = [deque(maxlen=self.dynamic_weight_window) for _ in env_ids]
-        # success 定义由 dynamic_success_mode 控制（env_done / scene_adaptive / scene_strict）
+        # success note dynamic_success_mode control(env_done / scene_adaptive / scene_strict)
         self._scene_recent_success = [deque(maxlen=self.dynamic_weight_window) for _ in env_ids]
-        # hard_success 始终使用 env_done/lap 原始规则，供日志与对照分析
+        # hard_success note env_done/lap note, note
         self._scene_recent_hard_success = [deque(maxlen=self.dynamic_weight_window) for _ in env_ids]
         self._scene_best_mean_reward = [-np.inf for _ in env_ids]
         self.completed_episode_count = 0
 
-        # 方案B: 基于累积步数的动态权重（用于补偿短/长episode差异）
-        self._total_steps_per_scene = [0] * len(env_ids)  # 累积每个scene的总步数
-        self.use_step_based_weights = True  # 启用step-based权重调整
+        # noteB: notedynamicnote(note/noteepisodenote)
+        self._total_steps_per_scene = [0] * len(env_ids)  # notescenenote
+        self.use_step_based_weights = True  # notestep-basednote
 
         self.active_env = None
         self.active_scene_idx = 0
@@ -274,7 +274,7 @@ class MultiSceneEnv(gym.Env):
         self.scene_episode_counts = [0] * len(env_ids)
         self._cur_scene_episodes = 0
         self._cur_scene_steps = 0
-        # 场景采样/调权诊断缓存（供 callback 周期记录）
+        # note/note(note callback note)
         self._last_sampling_candidates: List[int] = [0] if len(env_ids) > 0 else []
         self._last_sampling_probs: List[float] = [1.0] if len(env_ids) > 0 else []
         self._last_sampling_reason: str = "init"
@@ -295,18 +295,18 @@ class MultiSceneEnv(gym.Env):
 
         self._create_env(0)
 
-        print(f"\n🌍 多场景环境初始化:")
+        print(f"\n🌍 note:")
         for i, (eid, w) in enumerate(zip(env_ids, self.scene_weights)):
             domain = self.scene_domains[i]
-            print(f"   [{i}] {eid}: 权重={w:.0%}, domain={domain}")
-        print(f"   最少连续集数: {self.min_episodes_per_scene} 集/场景才允许切换")
+            print(f"   [{i}] {eid}: note={w:.0%}, domain={domain}")
+        print(f"   note: {self.min_episodes_per_scene} note/note")
         if self.max_steps_per_scene is None:
-            print(f"   最多连续步数: 禁用（仅按集数切换）")
+            print(f"   note: note(note)")
         else:
-            print(f"   最多连续步数: {self.max_steps_per_scene} 步/场景（超出后下次 reset 强制换场）")
+            print(f"   note: {self.max_steps_per_scene} note/note(note reset note)")
         if self.enable_dynamic_scene_weights:
             print(
-                f"   动态调权: 启用 (每{self.dynamic_weight_update_episodes}集更新, "
+                f"   dynamicnote: note (note{self.dynamic_weight_update_episodes}note, "
                 f"window={self.dynamic_weight_window}, α={self.dynamic_weight_alpha}, "
                 f"min_samples={self.dynamic_min_samples_per_scene}, lenβ={self.dynamic_length_beta}, "
                 f"gt_prior={self.dynamic_gt_prior}, "
@@ -314,7 +314,7 @@ class MultiSceneEnv(gym.Env):
                 f"per_scene_max={[f'{x:.2f}' for x in self.dynamic_weight_max_per_scene]})"
             )
             print(
-                f"   success定义: mode={self.dynamic_success_mode}, "
+                f"   successnote: mode={self.dynamic_success_mode}, "
                 f"warmup_eps={self.dynamic_success_warmup_episodes}, "
                 f"post_scale={self.dynamic_success_post_warmup_scale:.2f}, "
                 f"def_mix={self.dynamic_success_deficit_mix:.2f}"
@@ -360,7 +360,7 @@ class MultiSceneEnv(gym.Env):
 
     @staticmethod
     def _force_reload_scene(base_env, target_level_name: str, preflight: bool = False):
-        """场景切换公共逻辑——手动逆层找到 viewer、exit_scene、带超时等待加载。"""
+        """note--note viewer, exit_scene, note."""
         base = base_env
         while hasattr(base, "env"):
             base = base.env
@@ -381,22 +381,22 @@ class MultiSceneEnv(gym.Env):
                     last_requery = now
                 if now - last_progress_log >= 5.0:
                     remain = max(0.0, deadline - now)
-                    print(f"⏳ 等待场景加载中: {target_level_name} (剩余超时 {remain:.0f}s)")
+                    print(f"⏳ note: {target_level_name} (note {remain:.0f}s)")
                     last_progress_log = now
                 time.sleep(poll_s)
-            raise TimeoutError(f"场景切换超时（>{timeout_s:.0f}s）: {target_level_name}")
+            raise TimeoutError(f"note(>{timeout_s:.0f}s): {target_level_name}")
 
-        label = "训练前预处理" if preflight else "切换场景"
+        label = "trainingfirstnote" if preflight else "note"
         icon = "\u21a9\ufe0f" if preflight else "\U0001f504"
-        print(f"{icon} {label}：目标场景 {target_level_name}（复用模拟器进程）")
+        print(f"{icon} {label}: goalnote {target_level_name}(note)")
         base.viewer.handler.SceneToLoad = target_level_name
         base.viewer.handler.loaded = False
         base.viewer.exit_scene()
         time.sleep(1.0)
         base.viewer.handler.send_get_scene_names()
         _wait_loaded_with_timeout(timeout_s=25.0)
-        done_label = "训练前场景重载" if preflight else "场景切换"
-        print(f"\u2705 {done_label}完成: {target_level_name}")
+        done_label = "trainingfirstnote" if preflight else "note"
+        print(f"\u2705 {done_label}note: {target_level_name}")
 
     @staticmethod
     def _make_env_with_retry(env_id: str, conf: Dict[str, Any], retries: int = 2, retry_wait_s: float = 1.5):
@@ -432,7 +432,7 @@ class MultiSceneEnv(gym.Env):
             self._last_sampling_used_step_balance = False
             return 0
 
-        candidates = [i for i in range(len(self.env_ids)) if (not exclude_current or i != self.active_scene_idx)]
+        candidates = [i for i in range(len(self.env_ids)) if (not exclude_current or i!= self.active_scene_idx)]
         if len(candidates) == 1:
             self._last_sampling_candidates = list(candidates)
             self._last_sampling_probs = [1.0]
@@ -449,7 +449,7 @@ class MultiSceneEnv(gym.Env):
         used_step_balance = False
         final_probs = base.copy()
         if self.enable_step_balance_sampling:
-            # 只检查主训练场景 (step_balance_mask=True) 的样本量
+            # notetrainingnote (step_balance_mask=True) note
             main_indices = [i for i in range(len(self.env_ids)) if self.step_balance_mask[i]]
             counts_ok = all(len(self._scene_recent_lengths[i]) >= self.step_balance_min_samples_per_scene for i in main_indices) if main_indices else False
             if counts_ok:
@@ -460,7 +460,7 @@ class MultiSceneEnv(gym.Env):
                     deficits_all = np.maximum(0.0, target_steps_all - recent_steps_all)
                     if float(np.sum(deficits_all)) <= 1e-9:
                         deficits_all = target_steps_all / np.maximum(recent_steps_all, 1.0)
-                    # 预览场景 (mask=False) 不参与步数缺口校正，其 deficit 归零
+                    # note (mask=False) note, note deficit note
                     for i in range(len(self.env_ids)):
                         if not self.step_balance_mask[i]:
                             deficits_all[i] = 0.0
@@ -480,21 +480,21 @@ class MultiSceneEnv(gym.Env):
         self._last_sampling_used_step_balance = bool(used_step_balance)
         if used_step_balance and reason:
             prob_msg = ", ".join([f"{self.env_ids[i].split('-')[1]}={p:.2f}" for i, p in zip(candidates, final_probs)])
-            print(f"🎯 场景采样[{reason}]（步数缺口校正）: {prob_msg} -> {self.env_ids[choice].split('-')[1]}")
+            print(f"🎯 note[{reason}](note): {prob_msg} -> {self.env_ids[choice].split('-')[1]}")
         return choice
 
     def _maybe_update_scene_weights(self):
         if not self.enable_dynamic_scene_weights:
-            # 即使禁用了基于成功率的动态权重，仍来应用基于步数的补偿
+            # notesucceedednotedynamicnote, note
             if self.use_step_based_weights and self.completed_episode_count > 0 and self.completed_episode_count % max(20, self.dynamic_weight_update_episodes) == 0:
                 new_w = np.array(self.scene_weights, dtype=np.float64)
                 new_w = self._apply_step_based_weight_compensation(new_w)
                 self.scene_weights = new_w.tolist()
             return
-        if self.completed_episode_count <= 0 or self.completed_episode_count % self.dynamic_weight_update_episodes != 0:
+        if self.completed_episode_count <= 0 or self.completed_episode_count % self.dynamic_weight_update_episodes!= 0:
             return
 
-        # 冻结场景：step_balance_mask=False 的场景权重固定，不参与动态调权
+        # note: step_balance_mask=False note, notedynamicnote
         _frozen = [
             (not self.step_balance_mask[i]) if i < len(self.step_balance_mask) else False
             for i in range(len(self.env_ids))
@@ -514,7 +514,7 @@ class MultiSceneEnv(gym.Env):
             ll = self._scene_recent_lengths[i]
             ss = self._scene_recent_success[i]
             hs = self._scene_recent_hard_success[i]
-            # 冻结场景不影响 enough_samples 判断
+            # note enough_samples note
             if not _frozen[i] and (
                 len(rr) < self.dynamic_min_samples_per_scene
                 or len(ll) < self.dynamic_min_samples_per_scene
@@ -532,7 +532,7 @@ class MultiSceneEnv(gym.Env):
         if not enough_samples:
             return
 
-        # success-rate deficits: success 越低，deficit 越高，采样权重越高
+        # success-rate deficits: success note, deficit note, note
         # deficit ∈ [0,1], success=1 -> 0, success=0 -> 1
         succ_deficits = []
         for succ in success_means:
@@ -541,7 +541,7 @@ class MultiSceneEnv(gym.Env):
                 continue
             succ_deficits.append(float(np.clip(1.0 - succ, 0.0, 1.0)))
 
-        # 额外引入 reward deficit，避免"成功率全 0 时权重无法拉开"。
+        # note reward deficit, note"succeedednote 0 note".
         reward_deficits = [0.0] * len(self.env_ids)
         valid_reward_idx = [i for i, v in enumerate(reward_means) if np.isfinite(v) and not _frozen[i]]
         if len(valid_reward_idx) >= 2:
@@ -566,14 +566,14 @@ class MultiSceneEnv(gym.Env):
         raw = []
         for i in range(len(self.env_ids)):
             if _frozen[i]:
-                raw.append(0.0)  # 冻结场景不参与 raw 计算
+                raw.append(0.0)  # note raw compute
                 continue
             base_w = self.base_scene_weights[i]
-            # V12: dynamic_gt_prior=1.0 对所有场景相同；V9 gt 场景可设 > 1.0
+            # V12: dynamic_gt_prior=1.0 note; V9 gt note > 1.0
             prior = self.dynamic_gt_prior
             deficit_boost = 1.0 + self.dynamic_weight_alpha * deficits[i]
             mean_len = len_means[i] if not np.isnan(len_means[i]) else ref_len
-            len_factor = (ref_len / max(mean_len, 1.0)) ** self.dynamic_length_beta if self.dynamic_length_beta != 0 else 1.0
+            len_factor = (ref_len / max(mean_len, 1.0)) ** self.dynamic_length_beta if self.dynamic_length_beta!= 0 else 1.0
             raw.append(base_w * prior * deficit_boost * len_factor)
 
         raw = np.array(raw, dtype=np.float64)
@@ -581,7 +581,7 @@ class MultiSceneEnv(gym.Env):
         if not np.all(np.isfinite(raw)) or active_sum <= 0:
             return
 
-        # 归一化：active 场景分配 (1 - frozen_sum)，frozen 场景保持 base_weight
+        # note: active note (1 - frozen_sum), frozen note base_weight
         available_mass = max(1e-6, 1.0 - _frozen_weight_sum)
         target = np.zeros(len(self.env_ids), dtype=np.float64)
         for i in range(len(self.env_ids)):
@@ -589,12 +589,12 @@ class MultiSceneEnv(gym.Env):
                 target[i] = self.base_scene_weights[i]
             else:
                 target[i] = (raw[i] / active_sum) * available_mass
-        # clip 仅对 active 场景（per-scene max）
+        # clip note active note(per-scene max)
         _wmax = self.dynamic_weight_max_per_scene
         for i in range(len(self.env_ids)):
             if not _frozen[i]:
                 target[i] = float(np.clip(target[i], self.dynamic_weight_min, _wmax[i]))
-        # 重新归一化 active 以确保总和精确
+        # note active note
         active_target_sum = sum(target[i] for i in range(len(self.env_ids)) if not _frozen[i])
         if active_target_sum > 1e-6:
             for i in range(len(self.env_ids)):
@@ -603,14 +603,14 @@ class MultiSceneEnv(gym.Env):
 
         cur = np.array(self.scene_weights, dtype=np.float64)
         new_w = (1.0 - self.dynamic_weight_smoothing) * cur + self.dynamic_weight_smoothing * target
-        # clip + renorm（frozen 场景恢复到 base）
+        # clip + renorm(frozen note base)
         for i in range(len(self.env_ids)):
             if _frozen[i]:
                 new_w[i] = self.base_scene_weights[i]
             else:
                 new_w[i] = float(np.clip(new_w[i], self.dynamic_weight_min, _wmax[i]))
         new_w = new_w / new_w.sum()
-        # 修复：归一化后可能突破 per-scene weight_max，将溢出部分按比例分配给未饱和场景
+        # note: note per-scene weight_max, note
         _active_idx = [i for i in range(len(self.env_ids)) if not _frozen[i]]
         for _redistrib in range(5):
             _over = [(i, new_w[i] - _wmax[i]) for i in _active_idx
@@ -631,7 +631,7 @@ class MultiSceneEnv(gym.Env):
         self._last_dynamic_target_weights = [float(x) for x in target.tolist()]
         self._last_dynamic_update_episode = int(self.completed_episode_count)
 
-        # 方案B: 基于累积步数进行额外补偿
+        # noteB: noterowsnote
         if self.use_step_based_weights and len(self.env_ids) > 1:
             new_w = self._apply_step_based_weight_compensation(new_w)
 
@@ -645,14 +645,14 @@ class MultiSceneEnv(gym.Env):
                 f"sdef={succ_deficits[i]:.2f}, rdef={reward_deficits[i]:.2f}, "
                 f"len={len_means[i]:.0f}, def={deficits[i]:.2f}, w={cur[i]:.2f}->{self.scene_weights[i]:.2f}{frozen_tag}"
             )
-        print("⚖️  动态调权更新 | " + " | ".join(parts))
+        print("⚖️  dynamicnote | " + " | ".join(parts))
 
     def _scene_success_profile(self, scene_idx: int) -> Dict[str, float]:
-        # 不同赛道几何差异较大，软成功阈值需要按场景分档。
+        # notetrackgeometrynote, notesucceedednote.
         scene_key = self._scene_key_for_idx(scene_idx)
         profiles: Dict[str, Dict[str, float]] = {
-            # progress_ratio_ref 使用几何进度累计（约等于"累计前进圈数"），
-            # 与 progress_reward_scale 解耦，避免奖励权重改动后 soft-success 漂移。
+            # progress_ratio_ref notegeometrynote(note"notefirstnote"),
+            # note progress_reward_scale note, noterewardnote soft-success note.
             "ws": {"len_ref": 70.0, "progress_ratio_ref": 0.25, "cte_out_rate_ref": 0.22, "fail_scale": 0.25},
             "mm": {"len_ref": 95.0, "progress_ratio_ref": 0.05, "cte_out_rate_ref": 0.08, "fail_scale": 0.20},
             "gt": {"len_ref": 75.0, "progress_ratio_ref": 0.07, "cte_out_rate_ref": 0.10, "fail_scale": 0.30},
@@ -743,40 +743,38 @@ class MultiSceneEnv(gym.Env):
 
     def _apply_step_based_weight_compensation(self, weights: np.ndarray) -> np.ndarray:
         """
-        方案B: 基于累积步数的权重补偿
+        noteB: note:
+          short_scene_total_steps = 1000 note   (20note/ep x 50 eps)
+          long_scene_total_steps = 3000 note    (600note/ep x 5 eps)
 
-        原理:
-          short_scene_total_steps = 1000 步   (20步/ep × 50 eps)
-          long_scene_total_steps = 3000 步    (600步/ep × 5 eps)
-
-          补偿因子 = sqrt(total_steps_max / total_steps_i)
-          short: sqrt(3000/1000) = 1.73 → 权重提升
-          long:  sqrt(3000/3000) = 1.00 → 权重不变
+          note = sqrt(total_steps_max / total_steps_i)
+          short: sqrt(3000/1000) = 1.73 -> note
+          long:  sqrt(3000/3000) = 1.00 -> note
         """
         total_steps = np.array(self._total_steps_per_scene, dtype=np.float64)
 
-        # 只有当有足够数据时才应用补偿
+        # notedatanote
         if np.all(total_steps > 100):
             max_steps = np.max(total_steps)
-            # 平方根衰减：避免过度补偿
+            # note: note
             compensation = np.sqrt(max_steps / np.maximum(total_steps, 1.0))
-            # 归一化补偿因子到 [0.8, 1.2] 范围
+            # note [0.8, 1.2] note
             compensation = compensation / np.mean(compensation)
             compensation = np.clip(compensation, 0.8, 1.2)
-            # 应用到权重
+            # note
             weights = weights * compensation
-            # 重新归一化权重
+            # note
             weights = weights / np.sum(weights)
 
         return weights
 
     def _extract_episode_success_flag(self, info: Dict[str, Any], scene_idx: Optional[int] = None) -> float:
         """
-        success 定义（用于动态采样）：
-        - `env_done`：以 env_done / lap 作为硬成功
-        - `scene_adaptive`：硬成功 + 场景自适应软成功分（用于早期探索），
-          随训练推进自动衰减软成功占比，后期更接近硬成功。
-        - `scene_strict`：只有满足最小长度/进度/车道约束的 env_done 才算成功。
+        success note(notedynamicnote):
+        - `env_done`: note env_done / lap notesucceeded
+        - `scene_adaptive`: notesucceeded + notesucceedednote(note),
+          notetrainingnotesucceedednote, notesucceeded.
+        - `scene_strict`: note/note/note env_done notesucceeded.
         """
         if scene_idx is None:
             scene_idx = int(self.active_scene_idx)
@@ -810,7 +808,7 @@ class MultiSceneEnv(gym.Env):
             return float(len_ok and progress_ok and lane_ok)
 
         soft_success = self._compute_scene_soft_success(info, int(scene_idx), tokens)
-        # 软成功占比：训练早期=1.0（更宽容），到 warmup 末期衰减到 post_warmup_scale。
+        # notesucceedednote: trainingnote=1.0(note), note warmup note post_warmup_scale.
         phase = float(np.clip(
             self.completed_episode_count / max(1, self.dynamic_success_warmup_episodes),
             0.0,
@@ -822,10 +820,10 @@ class MultiSceneEnv(gym.Env):
 
     def _create_env(self, scene_idx: int):
         """
-        创建指定场景的完整 wrapper 链（V9.3c: 自动匹配域检测策略）
-        ★ 场景切换策略（不重启模拟器进程）：
-          首次：gym.make 启动模拟器，保存 base_env
-          后续：exit_scene → 更新 SceneToLoad → wait_until_loaded
+        note wrapper note(V9.3c: notedetectionnote)
+        ★ note(note):
+          note: gym.make note, save base_env
+          note: exit_scene -> note SceneToLoad -> wait_until_loaded
         """
         import gym_donkeycar  # noqa: F401
 
@@ -839,24 +837,24 @@ class MultiSceneEnv(gym.Env):
 
         if self._base_env is None:
             self._base_env = MultiSceneEnv._make_env_with_retry(env_id, self.conf, retries=2, retry_wait_s=1.5)
-            print(f"✅ 模拟器已启动，首个场景: {level_name}")
+            print(f"PASS note, note: {level_name}")
             try:
                 MultiSceneEnv._force_reload_scene(self._base_env, level_name, preflight=True)
             except Exception as e:
-                print(f"⚠️  训练前场景预退出/重载失败，将继续使用当前状态: {type(e).__name__}: {e}")
+                print(f"⚠️  trainingfirstnote/notefailed, notecurrentnote: {type(e).__name__}: {e}")
         else:
             try:
                 MultiSceneEnv._force_reload_scene(self._base_env, level_name, preflight=False)
             except Exception as e:
-                print(f"⚠️  场景切换失败（疑似掉线/卡死）: {type(e).__name__}: {e}")
-                print("🔁 尝试重启模拟器并恢复当前目标场景...")
+                print(f"⚠️  notefailed(note/note): {type(e).__name__}: {e}")
+                print("🔁 notecurrentgoalnote...")
                 try:
                     self._base_env.close()
                 except Exception:
                     pass
                 self._base_env = None
                 self._base_env = MultiSceneEnv._make_env_with_retry(env_id, self.conf, retries=2, retry_wait_s=1.5)
-                print(f"✅ 模拟器已重启，目标场景: {level_name}")
+                print(f"PASS note, goalnote: {level_name}")
                 MultiSceneEnv._force_reload_scene(self._base_env, level_name, preflight=True)
 
         env = self._base_env
@@ -943,15 +941,15 @@ class MultiSceneEnv(gym.Env):
         else:
             if step_budget_hit and len(self.env_ids) > 1:
                 new_scene_idx = self._sample_scene_idx(exclude_current=True, reason="step_budget")
-                print(f"⏱️  场景步数预算命中: {self._cur_scene_steps} >= {self.max_steps_per_scene}，强制换场")
+                print(f"⏱️  note: {self._cur_scene_steps} >= {self.max_steps_per_scene}, note")
             else:
                 new_scene_idx = self._sample_scene_idx(exclude_current=False, reason="weighted")
 
-            if new_scene_idx != self.active_scene_idx:
+            if new_scene_idx!= self.active_scene_idx:
                 self._cur_scene_episodes = 0
                 self._cur_scene_steps = 0
 
-        if new_scene_idx != self.active_scene_idx or self.active_env is None:
+        if new_scene_idx!= self.active_scene_idx or self.active_env is None:
             self._create_env(new_scene_idx)
 
         self._cur_scene_episodes += 1
@@ -965,8 +963,8 @@ class MultiSceneEnv(gym.Env):
             ])
             cur_name = self.env_ids[self.active_scene_idx].split("-")[1]
             print(
-                f"📊 场景统计 (共{self.episode_count}集): {scene_stats} | "
-                f"当前场景[{cur_name}]已连续{self._cur_scene_episodes}集/{self._cur_scene_steps}步"
+                f"metrics note (note{self.episode_count}note): {scene_stats} | "
+                f"currentnote[{cur_name}]note{self._cur_scene_episodes}note/{self._cur_scene_steps}note"
             )
 
         obs = self.active_env.reset(**kwargs)
@@ -986,10 +984,10 @@ class MultiSceneEnv(gym.Env):
                 if "l" in ep:
                     ep_len = float(ep["l"])
                     self._scene_recent_lengths[self.active_scene_idx].append(ep_len)
-                    self._total_steps_per_scene[self.active_scene_idx] += ep_len  # 累积步数
-            # 成功率双轨记录：
-            # - recent_success: 按 dynamic_success_mode（用于动态采样）
-            # - hard_success: 原始 env_done/lap 规则（用于日志对照与误判排查）
+                    self._total_steps_per_scene[self.active_scene_idx] += ep_len  # note
+            # succeedednote:
+            # - recent_success: note dynamic_success_mode(notedynamicnote)
+            # - hard_success: note env_done/lap note(note)
             self._scene_recent_success[self.active_scene_idx].append(
                 float(self._extract_episode_success_flag(info, scene_idx=self.active_scene_idx))
             )
@@ -1012,7 +1010,7 @@ class MultiSceneEnv(gym.Env):
 
 
 # ============================================================
-# V12/V13 Dict 观测包装器（image + optional state + optional seg/latent/risk）
+# V12/V13 Dict note(image + optional state + optional seg/latent/risk)
 # ============================================================
 class MultiInputObsWrapper(gym.Wrapper):
     """
@@ -1031,7 +1029,7 @@ class MultiInputObsWrapper(gym.Wrapper):
     def __init__(
         self,
         env,
-        track_geometry,   # TrackGeometryManager — 避免循环 import，用 Any 隐式
+        track_geometry,   # TrackGeometryManager - note import, note Any note
         scene_key: str,
         logging_key: str = None,
         domain: Optional[str] = None,
@@ -1066,7 +1064,7 @@ class MultiInputObsWrapper(gym.Wrapper):
         self.vision_mode = str(vision_mode or "rgb").strip().lower()
         if self.vision_mode not in self.VALID_VISION_MODES:
             raise ValueError(f"invalid vision_mode={vision_mode}, valid={self.VALID_VISION_MODES}")
-        self.include_state_in_obs = (self.vision_mode != "rgb_seg_risk")
+        self.include_state_in_obs = (self.vision_mode!= "rgb_seg_risk")
         self.seg_model_path = str(seg_model_path or "").strip()
         self.seg_feature_dim = int(max(4, seg_feature_dim))
         self.latent_align_weight = float(np.clip(latent_align_weight, 0.0, 1.0))
@@ -1076,16 +1074,16 @@ class MultiInputObsWrapper(gym.Wrapper):
         self.snapshot_preview_tile = int(max(64, snapshot_preview_tile))
 
         self._seg_model = None
-        if self.vision_mode != "rgb" and self.seg_model_path:
+        if self.vision_mode!= "rgb" and self.seg_model_path:
             if torch is None:
-                print("⚠️  seg_model_path 已设置但 torch 不可用，回退到启发式分割。")
+                print("⚠️  seg_model_path note torch note, note.")
             else:
                 try:
                     self._seg_model = torch.jit.load(self.seg_model_path, map_location="cpu")
                     self._seg_model.eval()
-                    print(f"✅ Seg model loaded: {self.seg_model_path}")
+                    print(f"PASS Seg model loaded: {self.seg_model_path}")
                 except Exception as e:
-                    print(f"⚠️  seg model load failed: {type(e).__name__}: {e}, 回退到启发式分割。")
+                    print(f"⚠️  seg model load failed: {type(e).__name__}: {e}, note.")
                     self._seg_model = None
 
         self._last_info: Dict[str, Any] = {}
@@ -1133,7 +1131,7 @@ class MultiInputObsWrapper(gym.Wrapper):
         self.observation_space = gym.spaces.Dict(space_dict)
 
         print(
-            f"✅ MultiInputObsWrapper: mode={self.vision_mode}, "
+            f"PASS MultiInputObsWrapper: mode={self.vision_mode}, "
             f"seg_model={'on' if self._seg_model is not None else 'heuristic'}"
         )
         if self.snapshot_dir and self.snapshot_max_steps > 0:
@@ -1182,7 +1180,7 @@ class MultiInputObsWrapper(gym.Wrapper):
             c = idx % cols
             canvas[r * tile:(r + 1) * tile, c * tile:(c + 1) * tile] = tile_bgr
 
-        header = canvas[rows * tile:, :]
+        header = canvas[rows * tile:,:]
         lines = [
             f"scene={meta.get('scene_key', self.scene_key)} domain={meta.get('domain', self.domain)} snapshot={meta.get('snapshot_index', 0)}",
             f"reward={meta.get('reward', 0.0):.3f} done={int(bool(meta.get('done', False)))} speed={meta.get('speed', 0.0):.3f} cte={meta.get('cte', 0.0):.3f}",
@@ -1340,16 +1338,16 @@ class MultiInputObsWrapper(gym.Wrapper):
         return state_arr, geo_log
 
     def _build_seg_map(self, img_chw: np.ndarray) -> np.ndarray:
-        """从当前 RGB 观测构建单通道伪分割概率图 [H,W] in [0,1]。"""
+        """notecurrent RGB note [H,W] in [0,1]."""
         img = np.asarray(img_chw, dtype=np.float32)
-        if img.shape != (3, self.obs_size, self.obs_size):
+        if img.shape!= (3, self.obs_size, self.obs_size):
             raise ValueError(f"image obs shape mismatch: got {img.shape}, expected (3,{self.obs_size},{self.obs_size})")
         rgb_u8 = np.uint8(np.clip(img.transpose(1, 2, 0) * 255.0, 0, 255))
 
         if self._seg_model is not None and torch is not None:
             try:
                 with torch.no_grad():
-                    x = torch.from_numpy(img[None, ...]).float()
+                    x = torch.from_numpy(img[None,...]).float()
                     y = self._seg_model(x)
                     if isinstance(y, (tuple, list)):
                         y = y[0]
@@ -1360,7 +1358,7 @@ class MultiInputObsWrapper(gym.Wrapper):
                     else:
                         y = torch.sigmoid(y[0])
                     seg = y.detach().cpu().numpy().astype(np.float32)
-                    if seg.shape != (self.obs_size, self.obs_size):
+                    if seg.shape!= (self.obs_size, self.obs_size):
                         seg = cv2.resize(seg, (self.obs_size, self.obs_size), interpolation=cv2.INTER_LINEAR)
                     return np.clip(seg, 0.0, 1.0)
             except Exception:
@@ -1380,9 +1378,9 @@ class MultiInputObsWrapper(gym.Wrapper):
 
     def _build_risk_map(self, seg_map: np.ndarray) -> np.ndarray:
         """
-        从分割概率图生成单通道风险图 [H,W] in [0,1]：
-          - 赛道外/低置信区域风险高
-          - 距离赛道边界越近，风险越高
+        notegeneratenote [H,W] in [0,1]:
+          - tracknote/note
+          - notetracknote, note
         """
         seg = np.clip(np.asarray(seg_map, dtype=np.float32), 0.0, 1.0)
         safe_mask = (seg >= 0.45).astype(np.uint8)
@@ -1415,7 +1413,7 @@ class MultiInputObsWrapper(gym.Wrapper):
             return latent_raw
 
         scene_ema = MultiInputObsWrapper._SCENE_LATENT_EMA.get(self.scene_key)
-        if scene_ema is None or scene_ema.shape != latent_raw.shape:
+        if scene_ema is None or scene_ema.shape!= latent_raw.shape:
             scene_ema = latent_raw.copy()
         else:
             scene_ema = self._latent_ema_decay * scene_ema + (1.0 - self._latent_ema_decay) * latent_raw
@@ -1423,7 +1421,7 @@ class MultiInputObsWrapper(gym.Wrapper):
 
         if (
             MultiInputObsWrapper._GLOBAL_LATENT_EMA is None
-            or MultiInputObsWrapper._GLOBAL_LATENT_EMA.shape != latent_raw.shape
+            or MultiInputObsWrapper._GLOBAL_LATENT_EMA.shape!= latent_raw.shape
         ):
             MultiInputObsWrapper._GLOBAL_LATENT_EMA = latent_raw.copy()
         else:
@@ -1443,21 +1441,21 @@ class MultiInputObsWrapper(gym.Wrapper):
         else:
             state, geo_log = self._build_state(info)
         img = np.asarray(img_obs, dtype=np.float32)
-        if img.shape != (self.image_channels, self.obs_size, self.obs_size):
+        if img.shape!= (self.image_channels, self.obs_size, self.obs_size):
             raise ValueError(f"image obs shape mismatch: got {img.shape}, expected ({self.image_channels},{self.obs_size},{self.obs_size})")
 
         obs_dict: Dict[str, np.ndarray] = {"image": img}
         if self.include_state_in_obs:
             obs_dict["state"] = state
-        if self.vision_mode != "rgb":
+        if self.vision_mode!= "rgb":
             seg = self._build_seg_map(img)
             coverage = float(np.mean(seg))
             geo_log["seg/coverage"] = coverage
             if self.vision_mode in ("rgb_seg", "rgb_seg_risk"):
-                obs_dict["seg"] = seg[np.newaxis, ...].astype(np.float32)
+                obs_dict["seg"] = seg[np.newaxis,...].astype(np.float32)
                 if self.vision_mode == "rgb_seg_risk":
                     risk = self._build_risk_map(seg)
-                    obs_dict["risk"] = risk[np.newaxis, ...].astype(np.float32)
+                    obs_dict["risk"] = risk[np.newaxis,...].astype(np.float32)
                     geo_log["risk/mean"] = float(np.mean(risk))
             else:
                 latent_raw = self._seg_to_latent(seg)
@@ -1493,7 +1491,7 @@ class MultiInputObsWrapper(gym.Wrapper):
             info["ctrl/v_meas"]      = float(d.get("v_meas", 0.0))
             info["ctrl/v_err"]       = float(d.get("v_err", 0.0))
             info["ctrl/throttle_pi"] = float(d.get("throttle_pi", 0.0))
-            # V13 ActionAdapter diagnostics (ignored if keys absent → V12 path)
+            # V13 ActionAdapter diagnostics (ignored if keys absent -> V12 path)
             if "steer_core" in d:
                 info["ctrl/steer_core"]   = float(d["steer_core"])
                 info["ctrl/bias_smooth"]  = float(d.get("bias_smooth", 0.0))
@@ -1506,14 +1504,14 @@ class MultiInputObsWrapper(gym.Wrapper):
         for k, v in geo_log.items():
             info[k] = float(v)
 
-        # 场景标识：Monitor info_keywords 捕获后进入 ep_info_buffer
+        # note: Monitor info_keywords note ep_info_buffer
         info["scene_key"] = self.scene_key
         info["logging_key"] = self.logging_key
         info["domain"] = self.domain if self.domain else "unknown"
         if "seg/coverage" in geo_log:
             info["mask_coverage"] = float(geo_log["seg/coverage"])
 
-        # V12 填充 MONITOR_INFO_KEYS 的默认值（V9 设置但 V12 不需要的字段）
+        # V12 note MONITOR_INFO_KEYS notedefaultnote(V9 note V12 note)
         info.setdefault("mask_coverage", 0.0)
         info.setdefault("ep_r_survival", 0.0)
         info.setdefault("ep_r_speed", 0.0)
@@ -1556,7 +1554,7 @@ class MultiInputObsWrapper(gym.Wrapper):
 
 
 # ============================================================
-# V12 Wrapper 链公共工厂（MultiSceneEnvV12._create_env 和 create_v12_env 共用）
+# V12 Wrapper note(MultiSceneEnvV12._create_env note create_v12_env note)
 # ============================================================
 def _build_v12_wrapper_chain(
     base_env,
@@ -1616,8 +1614,8 @@ def _build_v12_wrapper_chain(
     reset_collision_grace_steps: int = 0,
 ):
     """
-    构建 V12 wrapper 链并返回 (env, action_safety, high_level, reward_wrapper)。
-    base_env 应是已完成场景加载的原始 DonkeyEnv。
+    note V12 wrapper note (env, action_safety, high_level, reward_wrapper).
+    base_env note DonkeyEnv.
     """
     cte_geometry = track_geometry.scenes[scene_key]
 
@@ -1644,8 +1642,8 @@ def _build_v12_wrapper_chain(
     )
     env = action_safety
 
-    # 简化控制链：不额外叠加"曲率油门收紧"和"二次油门裁切"。
-    # 低层油门约束由 HighLevelControlWrapper 内部限幅负责。
+    # notecontrolnote: note"note"note"note".
+    # note HighLevelControlWrapper note.
 
     reward_wrapper = ImprovedRewardWrapperV3(
         env,
@@ -1665,9 +1663,9 @@ def _build_v12_wrapper_chain(
         w_near_collision=w_near_collision,
         near_collision_start_ratio=near_collision_start_ratio,
         cte_left=float(cte_geometry.cte_left),
-        cte_right=float(cte_geometry.cte_right),           # 负值，reward 直接使用有符号值
+        cte_right=float(cte_geometry.cte_right),           # note, reward note
         cte_left_out=float(cte_geometry.cte_left_out),
-        cte_right_out=float(cte_geometry.cte_right_out),   # 负值
+        cte_right_out=float(cte_geometry.cte_right_out),   # note
         coord_scale=float(cte_geometry.coord_scale),
         offtrack_leniency_ratio=offtrack_leniency_ratio,
         offtrack_leniency_mult=offtrack_leniency_mult,
@@ -1709,19 +1707,19 @@ def _build_v12_wrapper_chain(
 
 
 # ============================================================
-# V12 多场景环境（继承 MultiSceneEnv，_create_env 使用 V12 全链路）
+# V12 note(note MultiSceneEnv, _create_env note V12 note)
 # ============================================================
 class MultiSceneEnvV12(MultiSceneEnv):
     """
-    V12 多场景训练环境。
-    复用 V9 的多场景切换 / 动态调权逻辑，_create_env 使用简化的 V12 链路：
-      - RGBResizeWrapper：纯 RGB (3,H,W)，无车道检测
-      - ActionSafetyWrapper：所有场景统一参数，无 domain 区分
-      - DonkeyRewardWrapper：统一奖励权重，scene-specific CTE 边界
+    V12 notetrainingnote.
+    note V9 note / dynamicnote, _create_env note V12 note:
+      - RGBResizeWrapper: note RGB (3,H,W), notedetection
+      - ActionSafetyWrapper: noteunifiednote, note domain note
+      - DonkeyRewardWrapper: unifiedrewardnote, scene-specific CTE note
       - HighLevelControlWrapper + MultiInputObsWrapper
     """
 
-    # SCENE_SPECS 由 ppo_waveshare_v12.py 初始化后注入（避免循环导入）
+    # SCENE_SPECS note ppo_waveshare_v12.py note(note)
     _SCENE_SPECS: Dict[str, Dict[str, str]] = {}
 
     def __init__(
@@ -1742,7 +1740,7 @@ class MultiSceneEnvV12(MultiSceneEnv):
         control_dt: float = 0.05,
         augment: bool = True,
         augment_start_step: int = 600000,
-        # 统一参数（不区分 domain）
+        # unifiednote(note domain)
         total_timesteps: int = 500000,
         delta_max: float = 0.35,
         enable_lpf: bool = True,
@@ -1804,7 +1802,7 @@ class MultiSceneEnvV12(MultiSceneEnv):
         step_balance_sampling_mix: float = 0.85,
         step_balance_mask: Optional[List[bool]] = None,
     ):
-        # 注入 scene_specs，子类 _create_env 会用到
+        # note scene_specs, noteclass _create_env note
         MultiSceneEnvV12._SCENE_SPECS = scene_specs
 
         self.track_geometry = track_geometry
@@ -1861,12 +1859,12 @@ class MultiSceneEnvV12(MultiSceneEnv):
             scene_weights=scene_weights,
             scene_log_keys=scene_log_keys,
             target_size=(self.obs_size, self.obs_size),
-            enable_dr=False,        # V12 不使用 V9YellowLaneWrapper，enable_dr 传 False
+            enable_dr=False,        # V12 note V9YellowLaneWrapper, enable_dr note False
             total_timesteps=total_timesteps,
             delta_max=delta_max,
             enable_lpf=enable_lpf,
             beta=beta,
-            # gt_* 参数全部与 ws 相同，消除 domain 区分
+            # gt_* note ws note, note domain note
             gt_delta_max=delta_max,
             gt_enable_lpf=enable_lpf,
             gt_beta=beta,
@@ -1892,7 +1890,7 @@ class MultiSceneEnvV12(MultiSceneEnv):
             dynamic_min_samples_per_scene=dynamic_min_samples_per_scene,
             dynamic_weight_alpha=dynamic_weight_alpha,
             dynamic_length_beta=dynamic_length_beta,
-            dynamic_gt_prior=1.0,   # 所有场景权重先验相同，不区分 domain
+            dynamic_gt_prior=1.0,   # note, note domain
             dynamic_weight_smoothing=dynamic_weight_smoothing,
             dynamic_weight_min=dynamic_weight_min,
             dynamic_weight_max=dynamic_weight_max,
@@ -1918,20 +1916,20 @@ class MultiSceneEnvV12(MultiSceneEnv):
         scene_key = spec["scene_key"]
         logging_key = spec.get("logging_key", scene_key)  # fallback to scene_key if not specified
 
-        # 场景切换（复用静态方法，不再重复内联定义）
+        # note(notestaticnote, note)
         if self._base_env is None:
             self._base_env = MultiSceneEnv._make_env_with_retry(env_id, self.conf, retries=2, retry_wait_s=1.5)
-            print(f"✅ 模拟器已启动，首个场景: {level_name}")
+            print(f"PASS note, note: {level_name}")
             try:
                 MultiSceneEnv._force_reload_scene(self._base_env, level_name, preflight=True)
             except Exception as e:
-                print(f"⚠️  场景预加载失败，将继续当前状态: {type(e).__name__}: {e}")
+                print(f"⚠️  notefailed, notecurrentnote: {type(e).__name__}: {e}")
         else:
             try:
                 MultiSceneEnv._force_reload_scene(self._base_env, level_name, preflight=False)
             except Exception as e:
-                print(f"⚠️  场景切换失败: {type(e).__name__}: {e}")
-                print("🔁 尝试重启模拟器并恢复目标场景...")
+                print(f"⚠️  notefailed: {type(e).__name__}: {e}")
+                print("🔁 notegoalnote...")
                 try:
                     self._base_env.close()
                 except Exception:
@@ -1940,7 +1938,7 @@ class MultiSceneEnvV12(MultiSceneEnv):
                 self._base_env = MultiSceneEnv._make_env_with_retry(env_id, self.conf, retries=2, retry_wait_s=1.5)
                 MultiSceneEnv._force_reload_scene(self._base_env, level_name, preflight=True)
 
-        # 复用公共 wrapper 链工厂函数
+        # note wrapper notefunction
         env, action_safety, _high_level, reward_wrapper = _build_v12_wrapper_chain(
             self._base_env,
             scene_key=scene_key,
@@ -1999,20 +1997,20 @@ class MultiSceneEnvV12(MultiSceneEnv):
         self.action_space = env.action_space
 
 
-# V13/V16 状态构建函数实现在 obv.py，此处导入供本模块内部使用
-from .obv import _build_state_v13, _build_state_v16  # noqa: F401, E402
+# V13/V16 notefunctionimplementnote obv.py, note
+from.obv import _build_state_v13, _build_state_v16  # noqa: F401, E402
 
 
 # ============================================================
-# V13 多场景环境（6ch 语义观测 + 5维纯传感器状态）
+# V13 note(6ch note + 5note)
 # ============================================================
 class MultiSceneEnvV13(MultiSceneEnvV12):
     """
-    V13 多场景训练环境。
-    与 V12 的核心区别：
-      - 用 CanonicalSemanticWrapper 替换 RGBResizeWrapper（6ch 语义观测，128×128）
-      - 用 _build_state_v13 替换几何状态（5维，无 TrackGeometryManager 依赖）
-      - track_geometry 仅用于奖励 CTE 边界；若为 None，使用默认值
+    V13 notetrainingnote.
+    note V12 note:
+      - note CanonicalSemanticWrapper note RGBResizeWrapper(6ch note, 128x128)
+      - note _build_state_v13 notegeometrynote(5note, note TrackGeometryManager note)
+      - track_geometry notereward CTE note; note None, notedefaultnote
     """
 
     _SCENE_SPECS: Dict[str, Dict[str, str]] = {}
@@ -2023,7 +2021,7 @@ class MultiSceneEnvV13(MultiSceneEnvV12):
         conf: Dict[str, Any],
         scene_weights: List[float],
         scene_specs: Dict[str, Dict[str, str]],
-        track_geometry=None,  # 可选，若提供则用于奖励 CTE 边界
+        track_geometry=None,  # note, notereward CTE note
         obs_size: int = 128,
         augment: bool = False,
         yellow_dropout_prob: float = 0.20,
@@ -2044,7 +2042,7 @@ class MultiSceneEnvV13(MultiSceneEnvV12):
     ):
         MultiSceneEnvV13._SCENE_SPECS = scene_specs
 
-        # V13 特有属性（在 super().__init__ 调用 _create_env(0) 之前必须设好）
+        # V13 note(note super().__init__ note _create_env(0) notefirstnote)
         self.yellow_dropout_prob = float(yellow_dropout_prob)
         self.dropout_start_step = int(dropout_start_step)
         self.dropout_ramp_steps = int(max(1, dropout_ramp_steps))
@@ -2074,8 +2072,8 @@ class MultiSceneEnvV13(MultiSceneEnvV12):
 
     def _create_env(self, scene_idx: int):
         import gym_donkeycar  # noqa: F401
-        from .wrappers import CanonicalSemanticWrapper
-        from .action_adapter import ActionAdapterWrapper
+        from.wrappers import CanonicalSemanticWrapper
+        from.action_adapter import ActionAdapterWrapper
 
         env_id = self.env_ids[scene_idx]
         scene_specs = MultiSceneEnvV13._SCENE_SPECS
@@ -2088,21 +2086,21 @@ class MultiSceneEnvV13(MultiSceneEnvV12):
         logging_key = spec.get("logging_key", scene_key)
         domain = self.scene_domains[scene_idx]  # ws / rrl / gt
 
-        # 场景切换（与 V12 相同逻辑）
+        # note(note V12 note)
         if self._base_env is None:
             self._base_env = MultiSceneEnv._make_env_with_retry(env_id, self.conf, retries=2, retry_wait_s=1.5)
             _install_custom_episode_over(self._base_env)
-            print(f"✅ 模拟器已启动，首个场景: {level_name}")
+            print(f"PASS note, note: {level_name}")
             try:
                 MultiSceneEnv._force_reload_scene(self._base_env, level_name, preflight=True)
             except Exception as e:
-                print(f"⚠️  场景预加载失败，将继续当前状态: {type(e).__name__}: {e}")
+                print(f"⚠️  notefailed, notecurrentnote: {type(e).__name__}: {e}")
         else:
             try:
                 MultiSceneEnv._force_reload_scene(self._base_env, level_name, preflight=False)
             except Exception as e:
-                print(f"⚠️  场景切换失败: {type(e).__name__}: {e}")
-                print("🔁 尝试重启模拟器并恢复目标场景...")
+                print(f"⚠️  notefailed: {type(e).__name__}: {e}")
+                print("🔁 notegoalnote...")
                 try:
                     self._base_env.close()
                 except Exception:
@@ -2112,15 +2110,15 @@ class MultiSceneEnvV13(MultiSceneEnvV12):
                 _install_custom_episode_over(self._base_env)
                 MultiSceneEnv._force_reload_scene(self._base_env, level_name, preflight=True)
 
-        # Per-scene max_cte（缩短出轨后死区，加速 episode 重置）
+        # Per-scene max_cte(note, note episode note)
         _scene_max_cte = spec.get("max_cte", self.conf.get("max_cte", 8.0))
         _set_handler_max_cte(self._base_env, _scene_max_cte, logging_key)
 
-        # ── V13 wrapper 链 ──
-        # 构造顺序（inner → outer）:
-        #   CanonicalSemantic → RewardWrapper → ActionSafety → ActionAdapter → ObsWrapper → Monitor
-        # 动作流（outer → inner）:
-        #   Adapter(3D→2D) → Safety(rate-limit steer) → Reward(sees executed action) → env
+        # ── V13 wrapper note ──
+        # note(inner -> outer):
+        #   CanonicalSemantic -> RewardWrapper -> ActionSafety -> ActionAdapter -> ObsWrapper -> Monitor
+        # note(outer -> inner):
+        #   Adapter(3D->2D) -> Safety(rate-limit steer) -> Reward(sees executed action) -> env
 
         env = CanonicalSemanticWrapper(
             self._base_env,
@@ -2132,7 +2130,7 @@ class MultiSceneEnvV13(MultiSceneEnvV12):
             dropout_max_prob=self.yellow_dropout_prob,
         )
 
-        # CTE 边界：若有 track_geometry 则从几何取，否则用默认值
+        # CTE note: note track_geometry notegeometrynote, notedefaultnote
         if self.track_geometry is not None and hasattr(self.track_geometry, "scenes") \
                 and scene_key in self.track_geometry.scenes:
             geo = self.track_geometry.scenes[scene_key]
@@ -2147,11 +2145,11 @@ class MultiSceneEnvV13(MultiSceneEnvV12):
             cte_left_out = 6.5; cte_right_out = -6.5
             coord_scale = 8.0; cte_half_width = 4.6
 
-        # Reward（最内层管道，延迟绑定 safety 引用）
-        # 构建 reward kwargs，支持 per-scene override
+        # Reward(note, note safety note)
+        # note reward kwargs, note per-scene override
         _reward_kwargs = dict(
             total_timesteps=self.total_timesteps,
-            action_safety_wrapper=None,  # 延迟绑定
+            action_safety_wrapper=None,  # note
             w_d=self.w_d, w_dd=self.w_dd, w_m=self.w_m, w_sat=self.w_sat,
             w_time=self.w_time, w_center=self.w_center,
             w_heading=self.w_heading, w_speed_ref=self.w_speed_ref,
@@ -2179,7 +2177,7 @@ class MultiSceneEnvV13(MultiSceneEnvV12):
             reset_env_done_grace_steps=self.reset_env_done_grace_steps,
             reset_collision_grace_steps=self.reset_collision_grace_steps,
         )
-        # Per-scene reward overrides（白名单合并）
+        # Per-scene reward overrides(note)
         _ALLOWED_REWARD_OVERRIDES = {
             "near_offtrack_start_ratio", "w_near_offtrack",
             "w_near_collision", "near_collision_start_ratio",
@@ -2205,7 +2203,7 @@ class MultiSceneEnvV13(MultiSceneEnvV12):
         reward_wrapper = DonkeyRewardWrapper(env, **_reward_kwargs)
         env = reward_wrapper
 
-        # Safety（中间层，速率限制 steer）
+        # Safety(note, note steer)
         action_safety = ActionSafetyWrapper(
             env,
             delta_max=self.delta_max,
@@ -2221,10 +2219,10 @@ class MultiSceneEnvV13(MultiSceneEnvV12):
         )
         env = action_safety
 
-        # 延迟绑定 safety 引用
+        # note safety note
         reward_wrapper.action_safety_wrapper = action_safety
 
-        # ActionAdapter（最外层 ActionWrapper，3D → 2D）
+        # ActionAdapter(note ActionWrapper, 3D -> 2D)
         adapter = ActionAdapterWrapper(
             env,
             k_delta=self.adapter_k_delta,
@@ -2248,7 +2246,7 @@ class MultiSceneEnvV13(MultiSceneEnvV12):
 
         env = MultiInputObsWrapper(
             env,
-            track_geometry=None,      # V13 观测不依赖几何
+            track_geometry=None,      # V13 notegeometry
             scene_key=scene_key,
             logging_key=logging_key,
             domain=domain,
@@ -2277,11 +2275,11 @@ class MultiSceneEnvV13(MultiSceneEnvV12):
 
 class MultiSceneEnvV16(MultiSceneEnvV13):
     """
-    V16 多场景训练环境。
-    在 V13 双域语义观测链上，额外插入 obstacle runtime：
-      - reset 后按场景几何布置障碍车
-      - step 时向 info 注入 obstacle_dist / obstacle_risk / relative pose
-      - state 从 7D 扩为 12D（追加 obstacle context）
+    V16 notetrainingnote.
+    note V13 note, note obstacle runtime:
+      - reset notegeometrynoteobstaclenote
+      - step note info note obstacle_dist / obstacle_risk / relative pose
+      - state note 7D note 12D(note obstacle context)
     """
 
     def __init__(
@@ -2456,7 +2454,7 @@ class MultiSceneEnvV16(MultiSceneEnvV13):
             **kwargs,
         )
 
-        # 步数预算统计（用于学习窗口补偿）
+        # note(note)
         self._step_budget_stats = {
             "ws": {
                 "episode_count": 0,
@@ -2470,11 +2468,11 @@ class MultiSceneEnvV16(MultiSceneEnvV13):
             }
         }
         self._window_episode_threshold = 50
-        self._curriculum_phase = "warmup"  # 当前课程阶段，由train_v16更新
+        self._curriculum_phase = "warmup"  # currentnotestage, notetrain_v16note
 
 
     def _build_obstacle_runtime_config(self):
-        from .obstacle_runtime import ObstacleRuntimeConfig
+        from.obstacle_runtime import ObstacleRuntimeConfig
 
         return ObstacleRuntimeConfig(
             enabled=self.obstacle_enabled,
@@ -2520,9 +2518,9 @@ class MultiSceneEnvV16(MultiSceneEnvV13):
 
     def _create_env(self, scene_idx: int):
         import gym_donkeycar  # noqa: F401
-        from .wrappers import CanonicalSemanticWrapper
-        from .action_adapter import ActionAdapterWrapper
-        from .obstacle_runtime import ObstacleRuntimeManager, ScenarioObstacleWrapper
+        from.wrappers import CanonicalSemanticWrapper
+        from.action_adapter import ActionAdapterWrapper
+        from.obstacle_runtime import ObstacleRuntimeManager, ScenarioObstacleWrapper
 
         env_id = self.env_ids[scene_idx]
         scene_specs = MultiSceneEnvV13._SCENE_SPECS
@@ -2538,19 +2536,19 @@ class MultiSceneEnvV16(MultiSceneEnvV13):
         if self._base_env is None:
             self._base_env = MultiSceneEnv._make_env_with_retry(env_id, self.conf, retries=2, retry_wait_s=1.5)
             _install_custom_episode_over(self._base_env)
-            print(f"✅ 模拟器已启动，首个场景: {level_name}")
+            print(f"PASS note, note: {level_name}")
             try:
                 MultiSceneEnv._force_reload_scene(self._base_env, level_name, preflight=True)
             except Exception as e:
-                print(f"⚠️  场景预加载失败，将继续当前状态: {type(e).__name__}: {e}")
+                print(f"⚠️  notefailed, notecurrentnote: {type(e).__name__}: {e}")
         else:
-            if self._obstacle_runtime is not None and getattr(self._obstacle_runtime, "scene_key", "") != scene_key:
+            if self._obstacle_runtime is not None and getattr(self._obstacle_runtime, "scene_key", "")!= scene_key:
                 self._obstacle_runtime.close()
             try:
                 MultiSceneEnv._force_reload_scene(self._base_env, level_name, preflight=False)
             except Exception as e:
-                print(f"⚠️  场景切换失败: {type(e).__name__}: {e}")
-                print("🔁 尝试重启模拟器并恢复目标场景...")
+                print(f"⚠️  notefailed: {type(e).__name__}: {e}")
+                print("🔁 notegoalnote...")
                 if self._obstacle_runtime is not None:
                     self._obstacle_runtime.close()
                 try:
@@ -2581,7 +2579,7 @@ class MultiSceneEnvV16(MultiSceneEnvV13):
 
         env = ScenarioObstacleWrapper(self._base_env, runtime=self._obstacle_runtime)
         if getattr(self, "sim2real_json", None):
-            from .sim2real_wrapper import Sim2RealActionWrapper
+            from.sim2real_wrapper import Sim2RealActionWrapper
             env = Sim2RealActionWrapper.from_json(env, self.sim2real_json)
         env = CanonicalSemanticWrapper(
             env,
@@ -2729,10 +2727,10 @@ class MultiSceneEnvV16(MultiSceneEnvV13):
         self.action_space = env.action_space
 
     def reset(self, **kwargs):
-        """重写reset以跟踪step预算统计"""
+        """noteresetnotestepnote"""
         obs = super().reset(**kwargs)
 
-        # 从self中获取scene_key信息（MultiSceneEnv的属性）
+        # noteselfnotescene_keynote(MultiSceneEnvnote)
         if hasattr(self, 'scene_key'):
             scene_key = self.scene_key
         else:
@@ -2743,11 +2741,11 @@ class MultiSceneEnvV16(MultiSceneEnvV13):
         else:
             logging_key = scene_key
 
-        # 使用logging_key (ws/gt) 来统计
+        # notelogging_key (ws/gt) note
         if logging_key in self._step_budget_stats:
             self._step_budget_stats[logging_key]["episode_count"] += 1
 
-            # 检查是否达到窗口阈值，需要重置窗口
+            # note, note
             if self._step_budget_stats[logging_key]["episode_count"] % self._window_episode_threshold == 0:
                 self._step_budget_stats[logging_key]["window_with_obs_steps"] = 0
                 self._step_budget_stats[logging_key]["window_without_obs_steps"] = 0
@@ -2755,21 +2753,21 @@ class MultiSceneEnvV16(MultiSceneEnvV13):
         return obs
 
     def step(self, action):
-        """重写step以跟踪step预算统计"""
+        """notestepnotestepnote"""
         obs, reward, done, info = super().step(action)
 
-        # 检查本步是否有障碍
+        # noteobstacle
         scene_key = info.get("scene_key", "unknown")
         logging_key = info.get("logging_key", scene_key)
 
-        # 从info中检测是否有活跃的障碍（通过obstacle_dist > 0或接近碰撞标志）
+        # noteinfonotedetectionnoteobstacle(noteobstacle_dist > 0note)
         has_obstacle = False
         if "obstacle_dist" in info and info["obstacle_dist"] > 0:
             has_obstacle = True
         elif "near_collision" in info and info["near_collision"] > 0:
             has_obstacle = True
 
-        # 统计步数
+        # note
         if logging_key in self._step_budget_stats:
             if has_obstacle:
                 self._step_budget_stats[logging_key]["window_with_obs_steps"] += 1

@@ -1,7 +1,7 @@
 """
 module/wrappers.py
-所有 Gym 观测增强包装器：V8 obs wrappers + V9 域对齐包装器 + V12 RGB 预处理。
-控制相关 wrapper 已迁移到 module/control.py。
+note Gym note: V8 obs wrappers + V9 note + V12 RGB note.
+controlnote wrapper note module/control.py.
 """
 
 import random
@@ -12,10 +12,10 @@ import cv2
 import gym
 import numpy as np
 
-# V9 鲁棒检测器
-from .robust_lane_detector import RobustLaneDetector, RobustYellowLaneEnhancer
+# V9 notedetectionnote
+from.robust_lane_detector import RobustLaneDetector, RobustYellowLaneEnhancer
 
-from .control import (
+from.control import (
     ActionSafetyWrapper,
     ThrottleControlWrapper,
     CurvatureAwareThrottleWrapper,
@@ -23,19 +23,19 @@ from .control import (
 
 
 # ============================================================
-# V8 泛化增强包装器
+# V8 note
 # ============================================================
 class GeneralizationWrapper(gym.ObservationWrapper):
     """
-    泛化性增强包装器 - 在 enable_step 步后对 RGB 通道施加亮度/噪声扰动。
-    V8: 自管理步数，不依赖外部更新。输入: int16 HWC 8通道。
+    note - note enable_step note RGB note/note.
+    V8: note, note.input: int16 HWC 8note.
     """
 
     def __init__(self, env, enable_step: int = 100000):
         super().__init__(env)
         self.enable_step = enable_step
         self.current_step = 0
-        print(f"🆕 泛化性增强: {enable_step:,} 步后启用（只对 RGB 通道）")
+        print(f"🆕 note: {enable_step:,} note(note RGB note)")
 
     def _random_brightness_contrast(self, rgb: np.ndarray) -> np.ndarray:
         rgb = rgb.astype(np.float32)
@@ -54,15 +54,15 @@ class GeneralizationWrapper(gym.ObservationWrapper):
     def observation(self, obs: np.ndarray) -> np.ndarray:
         self.current_step += 1
         if self.current_step == self.enable_step:
-            print(f"\n🎯 泛化性增强在第 {self.current_step} 步启用！")
+            print(f"\n🎯 note {self.current_step} note!")
         if self.current_step >= self.enable_step:
-            rgb = obs[:, :, :3].copy()
+            rgb = obs[:,:,:3].copy()
             if np.random.random() > 0.3:
                 rgb = self._random_brightness_contrast(rgb)
             if np.random.random() > 0.3:
                 rgb = self._random_noise(rgb)
             result = obs.copy()
-            result[:, :, :3] = rgb
+            result[:,:,:3] = rgb
             return result
         return obs
 
@@ -71,10 +71,10 @@ class GeneralizationWrapper(gym.ObservationWrapper):
 
 
 # ============================================================
-# V8 HWC→CHW 转换
+# V8 HWC->CHW note
 # ============================================================
 class TransposeWrapper(gym.ObservationWrapper):
-    """HWC → CHW（PyTorch 格式）。"""
+    """HWC -> CHW(PyTorch note)."""
 
     def __init__(self, env):
         super().__init__(env)
@@ -86,23 +86,23 @@ class TransposeWrapper(gym.ObservationWrapper):
             shape=new_shape,
             dtype=env.observation_space.dtype,
         )
-        print(f"✅ TransposeWrapper: {old} -> {new_shape}")
+        print(f"PASS TransposeWrapper: {old} -> {new_shape}")
 
     def observation(self, obs: np.ndarray) -> np.ndarray:
         return np.transpose(obs, (2, 0, 1))
 
 
 # ============================================================
-# V8 归一化包装器
+# V8 note
 # ============================================================
 class NormalizeWrapper(gym.ObservationWrapper):
     """
-    V8 8 通道归一化（V9.4 修正 per-channel bounds）：
-      通道 0-2 (RGB): /255 → [0, 1]
-      通道 3-5 (DiffRGB): /255 → [-1, 1]
-      通道 6 (Mask): /255 → [0, 1]
-      通道 7 (Edges): /255 → [0, 1]
-    输入: CHW int16，输出: CHW float32。
+    V8 8 note(V9.4 note per-channel bounds):
+      note 0-2 (RGB): /255 -> [0, 1]
+      note 3-5 (DiffRGB): /255 -> [-1, 1]
+      note 6 (Mask): /255 -> [0, 1]
+      note 7 (Edges): /255 -> [0, 1]
+    input: CHW int16, output: CHW float32.
     """
 
     def __init__(self, env):
@@ -114,7 +114,7 @@ class NormalizeWrapper(gym.ObservationWrapper):
         low[3:6]  = -1.0
         high[3:6] =  1.0
         self.observation_space = gym.spaces.Box(low=low, high=high, dtype=np.float32)
-        print(f"✅ NormalizeWrapper: RGB/Mask/Edges→[0,1], DiffRGB→[-1,1] (V9.4 per-channel bounds)")
+        print(f"PASS NormalizeWrapper: RGB/Mask/Edges->[0,1], DiffRGB->[-1,1] (V9.4 per-channel bounds)")
 
     def observation(self, obs: np.ndarray) -> np.ndarray:
         result = obs.astype(np.float32)
@@ -125,18 +125,18 @@ class NormalizeWrapper(gym.ObservationWrapper):
         return result
 
 
-# 说明：
+# description:
 # ActionSafetyWrapper / ThrottleControlWrapper / CurvatureAwareThrottleWrapper
-# 已迁移到 module/control.py，本文件仅保留与视觉预处理相关的 wrapper。
+# note module/control.py, notefilenote wrapper.
 
 
 # ============================================================
-# V9 域对齐黄线/边界检测包装器
+# V9 note/notedetectionnote
 # ============================================================
 class V9YellowLaneWrapper(gym.ObservationWrapper):
     """
-    V9.4 三域对齐增强包装器：per-domain edge detection + 行质心编码 + Coverage Dropout。
-    接口与 V8 完全兼容（8通道 HWC int16）。
+    V9.4 note: per-domain edge detection + rowsnote + Coverage Dropout.
+    note V8 note(8note HWC int16).
     """
 
     VALID_DIFF_MODES = ("dr_rgb", "off", "clean_rgb", "clean_gray")
@@ -159,10 +159,10 @@ class V9YellowLaneWrapper(gym.ObservationWrapper):
         self.domain = domain
         self.diff_mode = str(diff_mode).lower()
         if self.diff_mode not in self.VALID_DIFF_MODES:
-            raise ValueError(f"无效 diff_mode={diff_mode}, 可选: {self.VALID_DIFF_MODES}")
+            raise ValueError(f"note diff_mode={diff_mode}, note: {self.VALID_DIFF_MODES}")
         self.mask_mode = str(mask_mode).lower()
         if self.mask_mode not in self.VALID_MASK_MODES:
-            raise ValueError(f"无效 mask_mode={mask_mode}, 可选: {self.VALID_MASK_MODES}")
+            raise ValueError(f"note mask_mode={mask_mode}, note: {self.VALID_MASK_MODES}")
         self.mask_scale = float(np.clip(mask_scale, 0.0, 1.0))
 
         det_kwargs = dict(detector_kwargs or {})
@@ -182,7 +182,7 @@ class V9YellowLaneWrapper(gym.ObservationWrapper):
             shape=(target_size[0], target_size[1], 8),
             dtype=np.int16,
         )
-        print(f"✅ V9.4 V9YellowLaneWrapper [{domain}]: {target_size} -> 8ch HWC, diff={diff_mode}, mask={mask_mode}")
+        print(f"PASS V9.4 V9YellowLaneWrapper [{domain}]: {target_size} -> 8ch HWC, diff={diff_mode}, mask={mask_mode}")
 
     # ------ helpers ------
 
@@ -241,7 +241,7 @@ class V9YellowLaneWrapper(gym.ObservationWrapper):
                 -255, 255,
             ).astype(np.int16)
         self.prev_gray_clean = gray.copy()
-        return np.repeat(diff_gray[:, :, np.newaxis], 3, axis=2)
+        return np.repeat(diff_gray[:,:, np.newaxis], 3, axis=2)
 
     def _reset_diff_states(self):
         self.prev_rgb_dr    = None
@@ -262,8 +262,8 @@ class V9YellowLaneWrapper(gym.ObservationWrapper):
         return np.dstack([
             rgb.astype(np.int16),
             diff_rgb,
-            lane_mask.astype(np.int16)[:, :, np.newaxis],
-            edges.astype(np.int16)[:, :, np.newaxis],
+            lane_mask.astype(np.int16)[:,:, np.newaxis],
+            edges.astype(np.int16)[:,:, np.newaxis],
         ])
 
     def reset(self, **kwargs):
@@ -283,12 +283,12 @@ class V9YellowLaneWrapper(gym.ObservationWrapper):
 
 
 # ============================================================
-# V9 GT reset 扰动包装器
+# V9 GT reset note
 # ============================================================
 class GTResetPerturbWrapper(gym.Wrapper):
     """
-    GT 场景 reset 后执行少量随机动作，防止策略"记脚本"固定起点时序。
-    放在 RewardWrapper 之前，避免暖启动步数污染奖励统计。
+    GT note reset noterowsnote, note"note"note.
+    note RewardWrapper notefirst, noterewardnote.
     """
 
     def __init__(
@@ -314,7 +314,7 @@ class GTResetPerturbWrapper(gym.Wrapper):
 
         if self.enabled and self.steps_hi > 0:
             print(
-                f"🎲 GTResetPerturb: {self.steps_lo}-{self.steps_hi} 步, "
+                f"🎲 GTResetPerturb: {self.steps_lo}-{self.steps_hi} note, "
                 f"steer±{self.steer_abs_max:.2f}, throttle[{self.throttle_lo:.2f},{self.throttle_hi:.2f}]"
             )
 
@@ -342,13 +342,13 @@ class GTResetPerturbWrapper(gym.Wrapper):
 
 
 # ============================================================
-# V12 轻量 RGB 预处理包装器（替代 V9YellowLaneWrapper 8 通道链路）
+# V12 note RGB note(note V9YellowLaneWrapper 8 note)
 # ============================================================
 class RGBResizeWrapper(gym.ObservationWrapper):
     """
-    V12 专用：将 DonkeyEnv 原始 uint8 HWC 图像 (H, W, 3)
-    resize → (obs_size, obs_size, 3) → CHW float32 归一化到 [0, 1]。
-    循序渐进数据增强：从 augment_start_step 开始，逐步引入不同增强方法，强度线性增加。
+    V12 note: note DonkeyEnv note uint8 HWC note (H, W, 3)
+    resize -> (obs_size, obs_size, 3) -> CHW float32 note [0, 1].
+    notedatanote: note augment_start_step note, note, note.
     """
 
     def __init__(
@@ -366,16 +366,16 @@ class RGBResizeWrapper(gym.ObservationWrapper):
         self.augment_start_step = int(max(0, augment_start_step))
         self._step = 0
 
-        # 增强方法启用时间表（按“增强阶段进度”百分比）
+        # note(note"notestagenote"note)
         self.augment_schedule = {
-            0.00: "brightness_contrast",  # 亮度/对比度
-            0.08: "rotation",              # 旋转
-            0.16: "scale_crop",            # 缩放
-            0.24: "translation",           # 平移
-            0.35: "hsv_jitter",            # 色彩抖动
-            0.45: "blur",                  # 模糊
-            0.58: "noise_gamma",           # 噪声和 Gamma
-            0.72: "occlusion",             # 遮挡
+            0.00: "brightness_contrast",  # note/note
+            0.08: "rotation",              # note
+            0.16: "scale_crop",            # note
+            0.24: "translation",           # note
+            0.35: "hsv_jitter",            # note
+            0.45: "blur",                  # note
+            0.58: "noise_gamma",           # note Gamma
+            0.72: "occlusion",             # note
         }
         self._enabled_augments = set()
         self._last_log_step = 0
@@ -386,11 +386,11 @@ class RGBResizeWrapper(gym.ObservationWrapper):
             shape=(3, self.obs_size, self.obs_size),
             dtype=np.float32,
         )
-        print(f"✅ RGBResizeWrapper: raw→(3,{self.obs_size},{self.obs_size}) float32 [0,1]"
-              f"{f', 循序渐进增强(start={self.augment_start_step})' if augment else ''}")
+        print(f"PASS RGBResizeWrapper: raw->(3,{self.obs_size},{self.obs_size}) float32 [0,1]"
+              f"{f', note(start={self.augment_start_step})' if augment else ''}")
 
     def _get_progress_ratio(self) -> float:
-        """当前增强阶段进度比例 [0, 1]。"""
+        """currentnotestagenote [0, 1]."""
         if self.max_steps <= self.augment_start_step:
             return 1.0 if self._step >= self.augment_start_step else 0.0
         if self._step < self.augment_start_step:
@@ -399,19 +399,19 @@ class RGBResizeWrapper(gym.ObservationWrapper):
         return float(np.clip(ratio, 0.0, 1.0))
 
     def _update_enabled_augments(self):
-        """根据当前进度更新启用的增强方法"""
+        """notecurrentnote"""
         progress = self._get_progress_ratio()
         for threshold, augment_name in self.augment_schedule.items():
             if progress >= threshold:
                 if augment_name not in self._enabled_augments:
                     self._enabled_augments.add(augment_name)
                     log_step = int(self.augment_start_step + threshold * max(1, (self.max_steps - self.augment_start_step)))
-                    if self._step - self._last_log_step > 1000:  # 每 1000 步最多打 1 次
-                        print(f"  🎯 {log_step:7d} 步 (augment阶段 {100*threshold:5.1f}%): 启用 {augment_name}")
+                    if self._step - self._last_log_step > 1000:  # note 1000 note 1 note
+                        print(f"  🎯 {log_step:7d} note (augmentstage {100*threshold:5.1f}%): note {augment_name}")
                         self._last_log_step = self._step
 
     def _get_augment_strength(self, augment_name: str) -> float:
-        """获取增强方法的当前强度 [0, 1]，从启用后线性增加到 1.0"""
+        """notecurrentnote [0, 1], note 1.0"""
         threshold = None
         for t, name in self.augment_schedule.items():
             if name == augment_name:
@@ -420,24 +420,24 @@ class RGBResizeWrapper(gym.ObservationWrapper):
         if threshold is None or augment_name not in self._enabled_augments:
             return 0.0
         progress = self._get_progress_ratio()
-        # 从启用点线性增加到最后 (1.0)
+        # note (1.0)
         if progress >= 1.0:
             return 1.0
         if progress < threshold:
             return 0.0
-        # 线性插值：从 threshold 到 1.0，强度从 0 到 1
+        # note: note threshold note 1.0, note 0 note 1
         return (progress - threshold) / (1.0 - threshold)
 
     def _augment(self, rgb: np.ndarray) -> np.ndarray:
         """
-        循序渐进的数据增强，强度随进度线性增加。
-        不含翻转，包含：旋转、缩放、平移、色彩、模糊、噪声、Gamma、遮挡。
+        notedatanote, note.
+        note, note: note, note, note, note, note, note, Gamma, note.
         """
         self._update_enabled_augments()
         img = rgb.astype(np.float32)
         h, w = img.shape[:2]
 
-        # 1. 亮度/对比度（基础，强度最早达到 1.0）
+        # 1. note/note(note, note 1.0)
         if "brightness_contrast" in self._enabled_augments:
             strength = self._get_augment_strength("brightness_contrast")
             if strength > 0 and np.random.random() < strength * 0.5:
@@ -447,7 +447,7 @@ class RGBResizeWrapper(gym.ObservationWrapper):
                 factor = np.random.uniform(0.85, 1.15) if strength >= 1.0 else np.random.uniform(1.0 - 0.15*strength, 1.0 + 0.15*strength)
                 img = np.clip(img * factor, 0, 255)
 
-        # 2. 旋转
+        # 2. note
         if "rotation" in self._enabled_augments:
             strength = self._get_augment_strength("rotation")
             if strength > 0 and np.random.random() < strength * 0.6:
@@ -457,34 +457,34 @@ class RGBResizeWrapper(gym.ObservationWrapper):
                 mat = cv2.getRotationMatrix2D(center, angle, 1.0)
                 img = cv2.warpAffine(img, mat, (w, h), borderMode=cv2.BORDER_REPLICATE)
 
-        # 3. 缩放 + 裁剪
+        # 3. note + note
         if "scale_crop" in self._enabled_augments:
             strength = self._get_augment_strength("scale_crop")
             if strength > 0 and np.random.random() < strength * 0.6:
-                scale_range = 0.3 * strength  # 从 0% 到 30%
+                scale_range = 0.3 * strength  # note 0% note 30%
                 scale = np.random.uniform(1.0 - scale_range, 1.0 + scale_range)
                 new_h, new_w = int(h * scale), int(w * scale)
                 img_scaled = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-                if scale < 1.0:  # 缩小了，需要填充到原尺寸
+                if scale < 1.0:  # note, note
                     pad_h, pad_w = (h - new_h) // 2, (w - new_w) // 2
                     img_pad = np.full((h, w, 3), 128, dtype=np.float32)
                     img_pad[pad_h:pad_h+new_h, pad_w:pad_w+new_w] = img_scaled
                     img = img_pad
-                else:  # 放大了，需要裁剪中心部分
+                else:  # note, note
                     pad_h, pad_w = (new_h - h) // 2, (new_w - w) // 2
                     img = img_scaled[pad_h:pad_h+h, pad_w:pad_w+w]
 
-        # 4. 平移
+        # 4. note
         if "translation" in self._enabled_augments:
             strength = self._get_augment_strength("translation")
             if strength > 0 and np.random.random() < strength * 0.5:
-                max_trans = 0.05 * strength  # 从 0% 到 5%
+                max_trans = 0.05 * strength  # note 0% note 5%
                 dx = int(np.random.uniform(-w*max_trans, w*max_trans))
                 dy = int(np.random.uniform(-h*max_trans, h*max_trans))
                 mat = np.float32([[1, 0, dx], [0, 1, dy]])
                 img = cv2.warpAffine(img, mat, (w, h), borderMode=cv2.BORDER_REPLICATE)
 
-        # 5. HSV 色彩抖动
+        # 5. HSV note
         if "hsv_jitter" in self._enabled_augments:
             strength = self._get_augment_strength("hsv_jitter")
             if strength > 0 and np.random.random() < strength * 0.6:
@@ -492,12 +492,12 @@ class RGBResizeWrapper(gym.ObservationWrapper):
                 h_shift = np.random.uniform(-20, 20) * strength
                 s_scale = np.random.uniform(1.0 - 0.2*strength, 1.0 + 0.2*strength)
                 v_scale = np.random.uniform(1.0 - 0.2*strength, 1.0 + 0.2*strength)
-                img_hsv[:, :, 0] = np.clip(img_hsv[:, :, 0] + h_shift, 0, 180)
-                img_hsv[:, :, 1] = np.clip(img_hsv[:, :, 1] * s_scale, 0, 255)
-                img_hsv[:, :, 2] = np.clip(img_hsv[:, :, 2] * v_scale, 0, 255)
+                img_hsv[:,:, 0] = np.clip(img_hsv[:,:, 0] + h_shift, 0, 180)
+                img_hsv[:,:, 1] = np.clip(img_hsv[:,:, 1] * s_scale, 0, 255)
+                img_hsv[:,:, 2] = np.clip(img_hsv[:,:, 2] * v_scale, 0, 255)
                 img = cv2.cvtColor(np.uint8(img_hsv), cv2.COLOR_HSV2RGB).astype(np.float32)
 
-        # 6. 模糊（高斯或运动）
+        # 6. note(note)
         if "blur" in self._enabled_augments:
             strength = self._get_augment_strength("blur")
             if strength > 0 and np.random.random() < strength * 0.4:
@@ -510,15 +510,15 @@ class RGBResizeWrapper(gym.ObservationWrapper):
                         kernel_size += 1
                     img = cv2.GaussianBlur(img, (kernel_size, kernel_size), sigma)
 
-        # 7. 噪声（高斯 + 椒盐）和 Gamma
+        # 7. note(note + note)note Gamma
         if "noise_gamma" in self._enabled_augments:
             strength = self._get_augment_strength("noise_gamma")
-            # 高斯噪声
+            # note
             if strength > 0 and np.random.random() < strength * 0.5:
                 max_sigma = 20.0 * strength
                 sigma = np.random.uniform(5, max_sigma)
                 img = np.clip(img + np.random.normal(0, sigma, img.shape), 0, 255)
-            # 椒盐噪声
+            # note
             if strength > 0 and np.random.random() < strength * 0.35:
                 noise_ratio = 0.03 * strength
                 noise_pixels = int(h * w * noise_ratio)
@@ -528,17 +528,17 @@ class RGBResizeWrapper(gym.ObservationWrapper):
                         y, x = divmod(coord, w)
                         color = 0 if np.random.random() < 0.5 else 255
                         img[y, x] = color
-            # Gamma 校正
+            # Gamma note
             if strength > 0 and np.random.random() < strength * 0.4:
-                gamma_range = 0.5 * strength  # 从 [1.0, 1.0] 到 [0.8, 1.2]
+                gamma_range = 0.5 * strength  # note [1.0, 1.0] note [0.8, 1.2]
                 gamma = np.random.uniform(1.0 - gamma_range/2, 1.0 + gamma_range/2)
                 img = np.clip(np.power(img / 255.0, 1.0 / gamma) * 255.0, 0, 255)
 
-        # 8. 随机遮挡
+        # 8. note
         if "occlusion" in self._enabled_augments:
             strength = self._get_augment_strength("occlusion")
             if strength > 0 and np.random.random() < strength * 0.25:
-                num_occlude = int(1 + strength * 2)  # 1-3 个遮挡块
+                num_occlude = int(1 + strength * 2)  # 1-3 note
                 for _ in range(num_occlude):
                     patch_h = int(np.random.uniform(0.05, 0.15) * h)
                     patch_w = int(np.random.uniform(0.05, 0.15) * w)
@@ -553,11 +553,11 @@ class RGBResizeWrapper(gym.ObservationWrapper):
         self._step += 1
         img = np.asarray(obs, dtype=np.uint8)
         if img.ndim == 3 and img.shape[2] > 3:
-            img = img[:, :, :3]  # 截取 RGB
+            img = img[:,:,:3]  # note RGB
         img = cv2.resize(img, (self.obs_size, self.obs_size), interpolation=cv2.INTER_LINEAR)
         if self.augment and self._step >= self.augment_start_step:
             img = self._augment(img)
-        # HWC → CHW, normalize to [0,1]
+        # HWC -> CHW, normalize to [0,1]
         return img.transpose(2, 0, 1).astype(np.float32) / 255.0
 
     def reset(self, **kwargs):
@@ -565,6 +565,6 @@ class RGBResizeWrapper(gym.ObservationWrapper):
 
 
 # ============================================================
-# V13 规范化语义包装器（实现在 obv.py，此处仅重导出）
+# V13 note(implementnote obv.py, note)
 # ============================================================
-from .obv import CanonicalSemanticWrapper, _CANONICAL_TGT_STATS  # noqa: F401, E402
+from.obv import CanonicalSemanticWrapper, _CANONICAL_TGT_STATS  # noqa: F401, E402

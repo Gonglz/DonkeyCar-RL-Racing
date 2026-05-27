@@ -17,7 +17,7 @@ class StageConfigV14:
         self.npc_mode = npc_mode
         self.npc_speed_range = npc_speed_range
         self.min_stage_steps = min_stage_steps
-        self.p_npc_free = p_npc_free  # 混合采样: 无NPC episode概率
+        self.p_npc_free = p_npc_free  # note: noteNPC episodenote
 
 
 @dataclass
@@ -64,7 +64,7 @@ class StageEvalGateV14:
 STAGES_V14 = {
     1: StageConfigV14(
         1,
-        "赛道引导-赛车线+最小曲率",
+        "tracknote-note+note",
         "racing_line",
         npc_count=0,
         npc_mode="offtrack",
@@ -72,7 +72,7 @@ STAGES_V14 = {
     ),
     2: StageConfigV14(
         2,
-        "主动避障-抖动NPC",
+        "note-noteNPC",
         "proactive_avoid",
         npc_count=2,
         npc_mode="wobble",
@@ -80,7 +80,7 @@ STAGES_V14 = {
     ),
     3: StageConfigV14(
         3,
-        "规则NPC-动态避让",
+        "noteNPC-dynamicnote",
         "dynamic_avoid",
         npc_count=1,
         npc_mode="slow_policy",
@@ -89,7 +89,7 @@ STAGES_V14 = {
     ),
     4: StageConfigV14(
         4,
-        "混沌NPC+防遗忘",
+        "noteNPC+note",
         "chaos_robust",
         npc_count=2,
         npc_mode="chaos",
@@ -238,7 +238,7 @@ STAGE_EVAL_GATES_V14 = {
 
 def apply_stage_train_profile_v14(stage_id, curriculum_stage_ref, args=None, wrapper=None,
                                   model=None, verbose=True):
-    """应用阶段训练参数到 curriculum_stage_ref 和 wrapper/model。"""
+    """notestagetrainingnote curriculum_stage_ref note wrapper/model."""
     profile = STAGE_TRAIN_PROFILES_V14.get(int(stage_id))
     if profile is None:
         return None
@@ -246,7 +246,7 @@ def apply_stage_train_profile_v14(stage_id, curriculum_stage_ref, args=None, wra
     for k, v in d.items():
         if v is not None:
             curriculum_stage_ref[k] = v
-    # 兼容V11基类字段：max_cte_limit 需要桥接到 stage_cte_reset_limit / stage1_cte_reset_limit
+    # noteV11noteclassnote: max_cte_limit note stage_cte_reset_limit / stage1_cte_reset_limit
     if d.get("max_cte_limit") is not None:
         try:
             cte_lim = float(d["max_cte_limit"])
@@ -254,13 +254,13 @@ def apply_stage_train_profile_v14(stage_id, curriculum_stage_ref, args=None, wra
             curriculum_stage_ref["stage1_cte_reset_limit"] = cte_lim
         except Exception:
             pass
-    # 兼容V11基类字段：random_start_enabled 需要桥接到 stage_random_start_enabled
+    # noteV11noteclassnote: random_start_enabled note stage_random_start_enabled
     if d.get("random_start_enabled") is not None:
         try:
             curriculum_stage_ref["stage_random_start_enabled"] = bool(d["random_start_enabled"])
         except Exception:
             pass
-    # 同步到wrapper
+    # notewrapper
     if wrapper is not None:
         for attr in ['max_throttle', 'progress_reward_scale', 'progress_milestone_lap',
                       'progress_milestone_reward', 'progress_reward_decay_min',
@@ -277,7 +277,7 @@ def apply_stage_train_profile_v14(stage_id, curriculum_stage_ref, args=None, wra
             wrapper.current_max_cte = float(cte_lim)
             if hasattr(wrapper, "stage1_cte_reset_limit"):
                 wrapper.stage1_cte_reset_limit = float(cte_lim)
-    # 同步 lr / ent_coef 到 model
+    # note lr / ent_coef note model
     if model is not None:
         if d.get('lr') is not None:
             try:
