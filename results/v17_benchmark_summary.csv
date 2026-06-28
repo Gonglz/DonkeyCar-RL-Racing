@@ -1,0 +1,24 @@
+experiment,metric,before,after,change,notes
+lidar_async_telemetry,V17 latency p50 ms,168.570,87.153,-48.3%,TensorRT baseline vs optimized TensorRT runtime
+lidar_async_telemetry,V17 latency p95 ms,253.958,124.753,-50.9%,TensorRT baseline vs optimized TensorRT runtime
+lidar_async_telemetry,effective FPS mean,4.270,10.641,+149.2%,TensorRT baseline vs optimized TensorRT runtime
+lidar_async_telemetry,vehicle loop p50 ms,192.050,87.800,-54.3%,TensorRT baseline vs optimized TensorRT runtime
+lidar_async_telemetry,vehicle loop p95 ms,696.175,130.800,-81.2%,TensorRT baseline vs optimized TensorRT runtime
+lidar_async_telemetry,DataCollector p99 ms,537.42,5.67,-98.9%,Async writer plus telemetry cache
+optimized_backend_ab,V17 latency p50 ms,106.325,94.603,-11.0%,Optimized PyTorch vs optimized TensorRT
+optimized_backend_ab,V17 latency p95 ms,202.382,199.075,-1.6%,Optimized PyTorch vs optimized TensorRT
+optimized_backend_ab,effective FPS mean,7.964,9.476,+19.0%,Optimized PyTorch vs optimized TensorRT
+optimized_backend_ab,actor residual p50 ms,24.325,12.474,-48.7%,Optimized PyTorch vs optimized TensorRT
+optimized_backend_ab,actor residual p95 ms,39.913,17.215,-56.9%,Optimized PyTorch vs optimized TensorRT
+final_20min_shadow,duration s,,1199.55,,TensorRT FP16 shadow validation
+final_20min_shadow,frames logged,,1985,,TensorRT FP16 shadow validation
+final_20min_shadow,effective FPS mean,,5.030,,TensorRT FP16 shadow validation
+final_20min_shadow,V17 latency p50 ms,,237.113,,TensorRT FP16 shadow validation
+final_20min_shadow,V17 latency p95 ms,,281.205,,TensorRT FP16 shadow validation
+final_20min_shadow,loop dt p95 ms,,286.900,,TensorRT FP16 shadow validation
+final_20min_shadow,LiDAR scan age p95 ms,,351.220,,TensorRT FP16 shadow validation
+final_20min_shadow,DataCollector p99 ms,,9.87,,TensorRT FP16 shadow validation
+final_20min_shadow,safety_blocked,,false,,TensorRT FP16 shadow validation
+final_20min_shadow,inference_timeout_count,,0,,TensorRT FP16 shadow validation
+final_20min_shadow,lidar_missing_count,,0,,TensorRT FP16 shadow validation
+final_20min_shadow,rp2040_missing_count,,0,,TensorRT FP16 shadow validation
